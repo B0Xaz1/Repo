@@ -1,0 +1,2 @@
+-- src/UI/Tabs/GameTab.lua
+-- Placeholder; implementation will be added separately.

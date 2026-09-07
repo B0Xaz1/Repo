@@ -1,0 +1,2 @@
+-- init.lua
+-- Placeholder; implementation will be added separately.

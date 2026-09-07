@@ -1,0 +1,2 @@
+-- src/Plugins/PluginRegistry.lua
+-- Placeholder; implementation will be added separately.

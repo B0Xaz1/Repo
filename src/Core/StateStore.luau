@@ -20,10 +20,10 @@ local DEFAULT_SETTINGS: any = {
     ESP = {
         Enabled = false, Box = true, Name = true, Health = true, Distance = true,
         Tool = false, Backpack = false, Tracers = false, Skeleton = false, HeadDot = false, LookDir = false,
-        TeamCheck = false, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
+        TeamCheck = false, UseTeamColor = false, Rainbow = false, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
         Font = "Plex", Outline = true, AutoScaling = true, DepthMode = "AlwaysOnTop",
     },
-    Chams = { Enabled = false, UseTeamColor = false, DepthMode = "AlwaysOnTop",
+    Chams = { Enabled = false, UseTeamColor = false, Rainbow = false, DepthMode = "AlwaysOnTop",
         FillColor = Color3.fromRGB(117, 143, 255), OutlineColor = Color3.fromRGB(222, 230, 255) },
     Camera = { FOV = 0 }, Visuals = { Fullbright = false },
     Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,

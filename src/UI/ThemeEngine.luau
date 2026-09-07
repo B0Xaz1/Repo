@@ -2,68 +2,113 @@
 local TOKEN_NAMES = { "Bg", "Panel", "Elem", "ElemHover", "Side", "Accent", "AccentDark", "AccentDim", "Text", "TextDim", "TextMuted",
     "Border", "BorderDim", "ToggleOn", "ToggleOff", "Success", "Danger", "Warning" }
 local PRESET_NAMES = { "Midnight", "Graphite", "Ocean", "Rose", "Forest", "Paper" }
+local COLOR_PROPERTIES = { "BackgroundColor3", "TextColor3", "ImageColor3", "Color", "ScrollBarImageColor3", "PlaceholderColor3" }
+
+local function rgb(r: number, g: number, b: number): Color3
+    return Color3.fromRGB(r, g, b)
+end
 
 return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ThemeEngine")
-    local base: any = {
-        Bg = Color3.fromRGB(16, 16, 18), Panel = Color3.fromRGB(22, 22, 26), Elem = Color3.fromRGB(30, 30, 34),
-        ElemHover = Color3.fromRGB(40, 40, 46), Side = Color3.fromRGB(14, 14, 16), Accent = Color3.fromRGB(64, 176, 196),
-        AccentDark = Color3.fromRGB(40, 118, 134), AccentDim = Color3.fromRGB(28, 64, 74), Text = Color3.fromRGB(226, 226, 230),
-        TextDim = Color3.fromRGB(160, 162, 170), TextMuted = Color3.fromRGB(102, 104, 112), Border = Color3.fromRGB(48, 48, 54),
-        BorderDim = Color3.fromRGB(36, 36, 40), ToggleOn = Color3.fromRGB(64, 176, 196), ToggleOff = Color3.fromRGB(44, 44, 50),
-        Success = Color3.fromRGB(106, 220, 169), Danger = Color3.fromRGB(248, 109, 137), Warning = Color3.fromRGB(244, 193, 111),
-    }
-    local presets: any = { Midnight = table.clone(base) }
-    local accents = { Graphite = Color3.fromRGB(188, 195, 212), Ocean = Color3.fromRGB(87, 198, 229), Rose = Color3.fromRGB(240, 139, 178), Forest = Color3.fromRGB(124, 204, 153) }
-    local ThemeEngine = { _palette = table.clone(base), _bindings = setmetatable({}, { __mode = "k" }), _roots = setmetatable({}, { __mode = "k" }), _initialized = false }
+    local ThemeEngine = { _palette = {}, _bindings = setmetatable({}, { __mode = "k" }), _roots = setmetatable({}, { __mode = "k" }), _initialized = false }
 
     function ThemeEngine:DeriveAccentTones(color: Color3): (Color3, Color3)
         return color:Lerp(Color3.new(0, 0, 0), 0.4), color:Lerp(Color3.new(0, 0, 0), 0.76)
     end
-    for name, accent in pairs(accents) do
-        local palette = table.clone(base)
-        palette.Accent, palette.ToggleOn = accent, accent
-        palette.AccentDark, palette.AccentDim = ThemeEngine:DeriveAccentTones(accent)
-        presets[name] = palette
+    local function finish(spec: any): any
+        local palette = {}
+        for _, token in ipairs(TOKEN_NAMES) do palette[token] = spec[token] end
+        palette.AccentDark, palette.AccentDim = ThemeEngine:DeriveAccentTones(spec.Accent)
+        if not spec.ToggleOn then palette.ToggleOn = spec.Accent end
+        if not spec.Success then palette.Success = rgb(106, 220, 169) end
+        if not spec.Danger then palette.Danger = rgb(248, 109, 137) end
+        if not spec.Warning then palette.Warning = rgb(244, 193, 111) end
+        return palette
     end
-    local paper = table.clone(base)
-    for token, rgb in pairs({ Bg = { 236, 239, 247 }, Panel = { 249, 250, 255 }, Elem = { 228, 233, 244 }, ElemHover = { 214, 223, 240 },
-        Side = { 219, 225, 238 }, Text = { 24, 32, 52 }, TextDim = { 64, 78, 105 }, TextMuted = { 98, 113, 143 },
-        Border = { 183, 195, 218 }, BorderDim = { 210, 218, 233 }, Accent = { 75, 101, 213 }, ToggleOn = { 75, 101, 213 } }) do
-        paper[token] = Color3.fromRGB(rgb[1], rgb[2], rgb[3])
-    end
-    paper.AccentDark, paper.AccentDim = ThemeEngine:DeriveAccentTones(paper.Accent)
-    presets.Paper = paper
+    local presets: any = {
+        Midnight = finish({
+            Bg = rgb(16, 16, 18), Panel = rgb(22, 22, 26), Elem = rgb(30, 30, 34), ElemHover = rgb(40, 40, 46),
+            Side = rgb(14, 14, 16), Accent = rgb(64, 176, 196), Text = rgb(226, 226, 230), TextDim = rgb(160, 162, 170),
+            TextMuted = rgb(102, 104, 112), Border = rgb(48, 48, 54), BorderDim = rgb(36, 36, 40), ToggleOff = rgb(44, 44, 50),
+        }),
+        Graphite = finish({
+            Bg = rgb(28, 28, 30), Panel = rgb(38, 38, 42), Elem = rgb(50, 50, 56), ElemHover = rgb(64, 64, 72),
+            Side = rgb(22, 22, 24), Accent = rgb(198, 204, 220), Text = rgb(236, 236, 240), TextDim = rgb(176, 178, 186),
+            TextMuted = rgb(120, 122, 130), Border = rgb(72, 72, 80), BorderDim = rgb(56, 56, 62), ToggleOff = rgb(58, 58, 64),
+        }),
+        Ocean = finish({
+            Bg = rgb(8, 18, 32), Panel = rgb(12, 28, 48), Elem = rgb(16, 40, 64), ElemHover = rgb(22, 54, 84),
+            Side = rgb(6, 14, 26), Accent = rgb(64, 196, 230), Text = rgb(220, 236, 248), TextDim = rgb(140, 176, 198),
+            TextMuted = rgb(84, 122, 148), Border = rgb(28, 64, 92), BorderDim = rgb(18, 42, 64), ToggleOff = rgb(20, 46, 68),
+        }),
+        Rose = finish({
+            Bg = rgb(24, 12, 18), Panel = rgb(36, 18, 28), Elem = rgb(52, 26, 40), ElemHover = rgb(70, 34, 52),
+            Side = rgb(18, 8, 14), Accent = rgb(236, 128, 168), Text = rgb(246, 226, 234), TextDim = rgb(196, 150, 168),
+            TextMuted = rgb(140, 96, 112), Border = rgb(84, 40, 58), BorderDim = rgb(58, 28, 40), ToggleOff = rgb(58, 30, 42),
+        }),
+        Forest = finish({
+            Bg = rgb(12, 20, 16), Panel = rgb(18, 30, 24), Elem = rgb(26, 42, 34), ElemHover = rgb(34, 56, 44),
+            Side = rgb(8, 14, 10), Accent = rgb(120, 196, 148), Text = rgb(226, 238, 230), TextDim = rgb(156, 184, 166),
+            TextMuted = rgb(96, 124, 108), Border = rgb(40, 64, 50), BorderDim = rgb(28, 44, 34), ToggleOff = rgb(32, 48, 38),
+        }),
+        Paper = finish({
+            Bg = rgb(236, 239, 247), Panel = rgb(249, 250, 255), Elem = rgb(228, 233, 244), ElemHover = rgb(214, 223, 240),
+            Side = rgb(219, 225, 238), Accent = rgb(75, 101, 213), Text = rgb(24, 32, 52), TextDim = rgb(64, 78, 105),
+            TextMuted = rgb(98, 113, 143), Border = rgb(183, 195, 218), BorderDim = rgb(210, 218, 233), ToggleOff = rgb(210, 216, 230),
+        }),
+    }
+    ThemeEngine._palette = table.clone(presets.Midnight)
 
+    local function colorKey(color: Color3): string
+        local ok, key = pcall(function()
+            return string.format("%.3f:%.3f:%.3f", color.R, color.G, color.B)
+        end)
+        return if ok then key else tostring(color)
+    end
+    local function applyInstance(instance: Instance, property: string, token: string)
+        local color = ThemeEngine._palette[token]
+        if not color then return end
+        pcall(function() (instance :: any)[property] = color end)
+        pcall(function() instance:SetAttribute("B0XazTheme_" .. property, token) end)
+    end
     local function refreshUnbound(previous: any)
         local reverse = {}
-        for _, token in ipairs(TOKEN_NAMES) do if not reverse[previous[token]] then reverse[previous[token]] = token end end
+        for _, token in ipairs(TOKEN_NAMES) do
+            local key = colorKey(previous[token])
+            if not reverse[key] then reverse[key] = token end
+        end
         for root in pairs(ThemeEngine._roots) do
             local ok, descendants = pcall(function() return root:GetDescendants() end)
             if not ok then ThemeEngine._roots[root] = nil; continue end
             table.insert(descendants, root)
             for _, instance in ipairs(descendants) do
-                for _, property in ipairs({ "BackgroundColor3", "TextColor3", "ImageColor3", "Color" }) do
+                for _, property in ipairs(COLOR_PROPERTIES) do
                     if ThemeEngine._bindings[instance] and ThemeEngine._bindings[instance][property] then continue end
+                    local tagged = nil
+                    pcall(function() tagged = instance:GetAttribute("B0XazTheme_" .. property) end)
+                    if type(tagged) == "string" and ThemeEngine._palette[tagged] then
+                        applyInstance(instance, property, tagged)
+                        continue
+                    end
                     pcall(function()
-                        local token = reverse[instance[property]]
-                        if token then instance[property] = ThemeEngine._palette[token] end
+                        local token = reverse[colorKey(instance[property])]
+                        if token then applyInstance(instance, property, token) end
                     end)
                 end
             end
         end
     end
-    local function applyFromState()
+    local function applyFromState(force: boolean?)
         local palette = table.clone(presets[state:Get("Theme.ActivePreset")] or presets.Midnight)
         local overrides = state:Get("Theme.CustomTokens") or {}
         for token, color in pairs(overrides) do if palette[token] and typeof(color) == "Color3" then palette[token] = color end end
-        local previous, changed = ThemeEngine._palette, false
+        local previous, changed = ThemeEngine._palette, force == true
         for _, token in ipairs(TOKEN_NAMES) do if previous[token] ~= palette[token] then changed = true; break end end
         if not changed then return end
         ThemeEngine._palette = palette
-        refreshUnbound(previous)
         ThemeEngine:UpdateAllBindings()
+        refreshUnbound(previous)
         bus:Publish("ThemeChanged")
     end
     function ThemeEngine:GetToken(name: string): Color3 return assert(self._palette[name], "Unknown theme token '" .. name .. "'") end
@@ -73,7 +118,7 @@ return function(services: any): any
         assert(self._palette[token], "Unknown theme token '" .. token .. "'")
         if not self._bindings[instance] then self._bindings[instance] = {} end
         self._bindings[instance][property] = token
-        pcall(function() (instance :: any)[property] = self._palette[token] end)
+        applyInstance(instance, property, token)
         return instance
     end
     function ThemeEngine:RegisterRoot(root: Instance) self._roots[root] = true end
@@ -81,7 +126,7 @@ return function(services: any): any
         if not presets[name] then return false end
         state:Set("Theme.CustomTokens", {})
         state:Set("Theme.ActivePreset", name)
-        applyFromState()
+        applyFromState(true)
         return true
     end
     function ThemeEngine:UpdateToken(name: string, color: Color3)
@@ -93,12 +138,12 @@ return function(services: any): any
             overrides.ToggleOn = color
         end
         state:Set("Theme.CustomTokens", overrides)
-        applyFromState()
+        applyFromState(true)
     end
     function ThemeEngine:UpdateAllBindings()
         for instance, properties in pairs(self._bindings) do
             for property, token in pairs(properties) do
-                local ok = pcall(function() (instance :: any)[property] = self._palette[token] end)
+                local ok = pcall(function() applyInstance(instance, property, token) end)
                 if not ok then self._bindings[instance] = nil; break end
             end
         end
@@ -106,9 +151,9 @@ return function(services: any): any
     function ThemeEngine:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Add(state:Observe("Theme.ActivePreset", applyFromState))
-        scope:Add(state:Observe("Theme.CustomTokens", applyFromState))
-        applyFromState()
+        scope:Add(state:Observe("Theme.ActivePreset", function() applyFromState(true) end))
+        scope:Add(state:Observe("Theme.CustomTokens", function() applyFromState(true) end))
+        applyFromState(true)
     end
     function ThemeEngine:Destroy() scope:Dispose(); table.clear(self._bindings); table.clear(self._roots) end
     return ThemeEngine

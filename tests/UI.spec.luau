@@ -155,8 +155,18 @@ return function(sources: any, core: any): any
         expect(state:Get("Aimbot.Enabled"), "Aimbot controls can enable their feature directly")
         local dom = services:Get("DOM")
         local unbound = dom:Create("TextLabel", { Parent = ui._root, TextColor3 = theme:GetToken("Accent") })
+        local midnightBg = ui._main.BackgroundColor3
         theme:SetPreset("Ocean")
         expect(unbound.TextColor3 == theme:GetToken("Accent"), "Root rescanning recolors even an unbound previous-token color")
+        expect(ui._main.BackgroundColor3 == theme:GetToken("Bg") and ui._main.BackgroundColor3 ~= midnightBg, "Theme presets replace the window background, not only the accent")
+        theme:SetPreset("Paper")
+        expect(ui._main.BackgroundColor3 == theme:GetToken("Bg"), "Paper applies its full light palette to bound chrome")
+        ui:SelectTab("Visuals")
+        expect(ui._visualsPreview ~= nil and ui._visualsPreview.Visible, "Visuals tab opens a live ESP/chams preview")
+        ui:SelectTab("Combat")
+        expect(ui._visualsPreview.Visible == false, "ESP preview hides when leaving Visuals")
+        expect(state:Set("ESP.Rainbow", true) and state:Get("ESP.Rainbow") and state:Set("Chams.Rainbow", true) and state:Get("Chams.Rainbow"), "ESP and chams expose rainbow mode")
+        expect(state:Set("ESP.UseTeamColor", true) and state:Get("ESP.UseTeamColor"), "ESP can follow team color")
         local keyButtons = {}
         for row in pairs(ui._controls) do
             local path = row:GetAttribute("StatePath")

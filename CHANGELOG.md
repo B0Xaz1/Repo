@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.7 — 2026-09-07
+
+- Theme presets now swap the full palette (backgrounds, panels, buttons, borders, and accents), not only the accent color.
+- Added built-in Default, Legit, and Rage config presets for one-click load.
+- Visuals tab opens a live ESP/chams preview. ESP and chams each have Rainbow and team-color toggles.
+
 ## 2.1.6 — 2026-09-07
 
 - Added Movement touch fling: the Heartbeat / RenderStepped / Stepped velocity pulse, gated by a suite toggle. No third-party UI.

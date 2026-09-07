@@ -121,6 +121,7 @@ return function(services: any): any
             theme:BindToken(candidate.Button, "TextColor3", if active then "Text" else "TextMuted")
         end
         if self._query ~= "" then self:Search(self._query) end
+        bus:Publish("TabSelected", name)
         return true
     end
     function UIEngine:MakeDraggable(frame: GuiObject, handle: GuiObject): any
@@ -170,7 +171,8 @@ return function(services: any): any
             LayoutOrder = -self._toastId, BackgroundColor3 = theme:GetToken("Panel") })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
         dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 3) })
-        dom:CreateStroke(frame, color or theme:GetToken("Accent"), 1)
+        local stroke = dom:CreateStroke(frame, color or theme:GetToken("Accent"), 1)
+        if not color then theme:BindToken(stroke, "Color", "Accent") end
         dom:CreatePadding(frame, 12, 14)
         dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
         local heading = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16),

@@ -75,6 +75,14 @@ return function(services: any): any
             record.Signature, record.ToolText, record.InventoryText = signature, table.concat(equipped, ", "), table.concat(backpack, ", ")
         end
     end
+    local function rainbowColor(): Color3
+        return Color3.fromHSV((os.clock() * 0.15) % 1, 0.75, 1)
+    end
+    local function overlayColor(player: Player, config: any, fallback: Color3): Color3
+        if config.Rainbow then return rainbowColor() end
+        if config.UseTeamColor then return filter:GetTeamColor(player) end
+        return fallback
+    end
     local function chams(record: any, assets: any, config: any)
         if not ESPController._chamsAvailable then return end
         if not record.Highlight or not record.Highlight.Parent then
@@ -94,9 +102,10 @@ return function(services: any): any
             record.Highlight = highlight
         end
         local object = record.Highlight
+        local fill = overlayColor(record.Player, config, config.FillColor)
         object.Adornee, object.Parent = assets.Character, assets.Character
-        object.FillColor = if config.UseTeamColor then filter:GetTeamColor(record.Player) else config.FillColor
-        object.OutlineColor = config.OutlineColor
+        object.FillColor = fill
+        object.OutlineColor = if config.Rainbow then fill:Lerp(Color3.new(1, 1, 1), 0.35) else config.OutlineColor
         object.DepthMode = if state:Get("ESP.DepthMode") == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
         object.Enabled = true
     end
@@ -120,7 +129,7 @@ return function(services: any): any
             local position, size = bounds(camera, assets.Character)
             if not position or not size then continue end
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
-            local color = config.Color
+            local color = overlayColor(player, config, config.Color)
             local scale = if config.AutoScaling then math.clamp(1.25 - distance / 1500, 0.7, 1.25) else 1
             local textSize, font = math.round(13 * scale), FONTS[config.Font] or 2
             if config.Box then draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = 1, Filled = false }) end

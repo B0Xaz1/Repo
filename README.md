@@ -122,8 +122,6 @@ The suite restores cached client-side properties and disposes the resources it o
 
 ## Validation
 
-`tests/Run.luau` returns a test-runner factory that accepts a repository source map. The tests use deterministic Roblox/executor mocks; production execution does not need a compiler toolchain.
-
 Before publishing, manually verify representative desktop and touch executors, repeated launch/relaunch/unload cycles, respawns, optional executor APIs, visual layout, and restoration of all touched values.
 
 ## License

@@ -67,4 +67,3 @@
 - Implemented profile adapters, tracking, optimization, lighting, hotkeys, combat, movement, flight, extras, and pooled visuals.
 - Added an unregistered, frozen-manifest example game adapter; no live game IDs were invented.
 - Added seven searchable tabs, six theme presets, shared controls, and configuration-sharing modal.
-- Added deterministic Luau tests for core, services, features, UI, and loader lifecycle contracts.

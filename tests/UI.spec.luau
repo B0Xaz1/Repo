@@ -102,7 +102,7 @@ return function(sources: any, core: any): any
         local ui = load("src/UI/UIEngine.luau", services); services:Register("UIEngine", ui)
         ui:ConstructInterface()
         expect(#ui._tabs == 7 and ui._active.Name == "Combat", "All seven real tab factories construct in registration order")
-        expect(ui._versionLabel.Text:find(services.Version, 1, true) ~= nil, "Version is visible in the title bar")
+        expect(ui._versionLabel.Text:find(services.Version, 1, true) ~= nil, "Version is visible on the menu")
         local rows, count, boundCount = {}, 0, 0
         for row, record in pairs(ui._controls) do
             rows[row] = { Parent = row.Parent, Order = row.LayoutOrder, Record = record }; count += 1

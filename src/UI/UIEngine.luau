@@ -215,12 +215,9 @@ return function(services: any): any
         theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
         local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Active = true })
-        local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(16, 10), Size = UDim2.fromOffset(248, 22),
-            Text = "B0Xaz Universal Suite", Font = Enum.Font.GothamSemibold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left })
+        local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 11), Size = UDim2.new(1, -200, 0, 22),
+            Text = "B0Xaz Universal Suite", Font = Enum.Font.GothamSemibold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
         theme:BindToken(brand, "TextColor3", "Text")
-        self._versionLabel = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(266, 14), Size = UDim2.fromOffset(72, 16),
-            Text = "v" .. services.Version, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
-        theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
         local close = dom:Create("TextButton", { Parent = titleBar, Text = "×", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -28, 0, 8), Size = UDim2.fromOffset(20, 24), Font = Enum.Font.Gotham, TextSize = 18 })
         theme:BindToken(close, "TextColor3", "TextMuted")
         scope:Connect(close.Activated, function() state:Set("Settings.MenuVisible", false) end)
@@ -264,11 +261,14 @@ return function(services: any): any
             if not ok then error("Init Error in '" .. entry.Path .. "': " .. tostring(result)) end
             print("[B0Xaz][Trace] step end tab " .. entry.Name)
         end
-        local footer = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, Position = UDim2.new(0, 16, 1, -18), Size = UDim2.new(1, -32, 0, 14),
+        local footer = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, Position = UDim2.new(0, 18, 1, -18), Size = UDim2.new(1, -96, 0, 14),
             Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(footer, "TextColor3", "TextMuted")
         local function updateFooter() footer.Text = environment:FormatKeybindName(state:Get("Settings.MenuKeybind")) .. " • menu     " .. environment:FormatKeybindName(state:Get("Settings.UnloadKeybind")) .. " • unload & restore" end
         updateFooter(); scope:Add(state:Observe("Settings.MenuKeybind", updateFooter)); scope:Add(state:Observe("Settings.UnloadKeybind", updateFooter))
+        self._versionLabel = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 1, -18), Size = UDim2.fromOffset(72, 14),
+            Text = "v" .. services.Version, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
+        theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
         self._toastRoot = dom:Create("Frame", { Parent = root, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -18), Size = UDim2.new(0, 330, 1, -40) })
         dom:Create("UIListLayout", { Parent = self._toastRoot, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder })
         local reopen = dom:Create("TextButton", { Parent = root, BorderSizePixel = 0, Position = UDim2.new(0, 16, 1, -52), Size = UDim2.fromOffset(78, 34),

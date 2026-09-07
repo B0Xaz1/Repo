@@ -3,6 +3,7 @@
 ## 2.1.3 — 2026-09-07
 
 - Aimbot, triggerbot, and the FOV circle now use `GetMouseLocation` directly so they sit on the cursor again. Subtracting GuiInset had been raising the aim point by the topbar after the ESP inset fix.
+- Gave the title bar tag room so it no longer clips, and moved the version label to the bottom-right of the menu frame.
 
 ## 2.1.2 — 2026-09-07
 

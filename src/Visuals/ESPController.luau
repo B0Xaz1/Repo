@@ -6,30 +6,37 @@ local R15 = { { "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" }, { "Upper
     { "LeftUpperLeg", "LeftLowerLeg" }, { "LeftLowerLeg", "LeftFoot" }, { "LowerTorso", "RightUpperLeg" },
     { "RightUpperLeg", "RightLowerLeg" }, { "RightLowerLeg", "RightFoot" } }
 local R6 = { { "Head", "Torso" }, { "Torso", "Left Arm" }, { "Torso", "Right Arm" }, { "Torso", "Left Leg" }, { "Torso", "Right Leg" } }
+local BASE_DRAWINGS: { [string]: string } = { Box = "Square", HealthBackground = "Square", Health = "Square", Name = "Text", Distance = "Text",
+    Tool = "Text", Backpack = "Text", Tracer = "Line", HeadDot = "Circle", LookDir = "Line" }
 
 return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
     local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
     local players, workspace = game:GetService("Players"), game:GetService("Workspace")
-    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true }
+    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil }
 
+    local function hideDrawings(record: any)
+        for _, object in pairs(record.Drawings) do
+            if object.Visible then object.Visible = false end
+        end
+        if record.Last then
+            for _, last in pairs(record.Last) do last.Visible = false end
+        end
+    end
     local function hide(record: any)
-        for _, object in pairs(record.Drawings) do object.Visible = false end
-        if record.Highlight then record.Highlight.Enabled = false end
+        hideDrawings(record)
+        if record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
+    end
+    local function hideAll()
+        for _, record in pairs(ESPController._records) do hide(record) end
     end
     local function createRecord(player: Player)
         if player == players.LocalPlayer or ESPController._records[player] then return end
         local owner = scope:CreateChild("ESP " .. player.UserId)
-        local record = { Player = player, Scope = owner, Drawings = {}, Highlight = nil, Signature = "", InventoryText = "", ToolText = "", InventoryAt = -math.huge }
+        local record = { Player = player, Scope = owner, Drawings = {}, Highlight = nil, Signature = "", InventoryText = "", ToolText = "",
+            InventoryAt = -math.huge, Shown = {}, Last = {}, Bones = false, Rig = nil, BoneParts = nil }
         ESPController._records[player] = record
-        if pool.Available then
-            for name, kind in pairs({ Box = "Square", HealthBackground = "Square", Health = "Square", Name = "Text", Distance = "Text",
-                Tool = "Text", Backpack = "Text", Tracer = "Line", HeadDot = "Circle", LookDir = "Line" }) do
-                record.Drawings[name] = pool:Acquire(kind)
-            end
-            for index = 1, #R15 do record.Drawings["Bone" .. index] = pool:Acquire("Line") end
-        end
         owner:Add(function()
             for _, object in pairs(record.Drawings) do pool:Release(object) end
             table.clear(record.Drawings)
@@ -40,11 +47,34 @@ return function(services: any): any
         ESPController._records[player] = nil
         if record then record.Scope:Dispose() end
     end
+    local function ensureDrawings(record: any)
+        if not pool.Available or record.Drawings.Box then return end
+        for name, kind in pairs(BASE_DRAWINGS) do record.Drawings[name] = pool:Acquire(kind) end
+    end
+    local function ensureBones(record: any)
+        if not pool.Available or record.Bones then return end
+        for index = 1, #R15 do record.Drawings["Bone" .. index] = pool:Acquire("Line") end
+        record.Bones = true
+    end
     local function draw(record: any, name: string, properties: any)
         local object = record.Drawings[name]
         if not object then return end
-        for property, value in pairs(properties) do object[property] = value end
-        object.Visible = true
+        local last = record.Last[name]
+        if not last then last = {}; record.Last[name] = last end
+        for property, value in pairs(properties) do
+            if last[property] ~= value then object[property] = value; last[property] = value end
+        end
+        if last.Visible ~= true then object.Visible = true; last.Visible = true end
+        record.Shown[name] = true
+    end
+    local function concealUnused(record: any)
+        for name, object in pairs(record.Drawings) do
+            if object.Visible and not record.Shown[name] then
+                object.Visible = false
+                local last = record.Last[name]
+                if last then last.Visible = false end
+            end
+        end
     end
     -- Drawing primitives live in WorldToViewportPoint space. Adding GuiInset drops every overlay by the topbar height.
     local function project(camera: Camera, position: Vector3): (Vector2, boolean)
@@ -103,31 +133,52 @@ return function(services: any): any
         end
         local object = record.Highlight
         local fill = overlayColor(record.Player, config, config.FillColor)
-        object.Adornee, object.Parent = assets.Character, assets.Character
-        object.FillColor = fill
-        object.OutlineColor = if config.Rainbow then fill:Lerp(Color3.new(1, 1, 1), 0.35) else config.OutlineColor
-        object.DepthMode = if state:Get("ESP.DepthMode") == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
-        object.Enabled = true
+        if object.Adornee ~= assets.Character then object.Adornee, object.Parent = assets.Character, assets.Character end
+        if object.FillColor ~= fill then object.FillColor = fill end
+        local outline = if config.Rainbow then fill:Lerp(Color3.new(1, 1, 1), 0.35) else config.OutlineColor
+        if object.OutlineColor ~= outline then object.OutlineColor = outline end
+        local depth = if state:Peek("ESP.DepthMode") == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
+        if object.DepthMode ~= depth then object.DepthMode = depth end
+        if not object.Enabled then object.Enabled = true end
+    end
+    local function boneParts(record: any, assets: any): any
+        if record.Rig == assets.Character and record.BoneParts then return record.BoneParts end
+        record.Rig = assets.Character
+        local pairsForRig = if assets.Humanoid.RigType == Enum.HumanoidRigType.R15 then R15 else R6
+        local parts = {}
+        for index, pair in ipairs(pairsForRig) do
+            local first, second = assets.Character:FindFirstChild(pair[1]), assets.Character:FindFirstChild(pair[2])
+            parts[index] = { first, second }
+        end
+        record.BoneParts = parts
+        return parts
     end
     local function render(_dt: number)
-        local camera = workspace.CurrentCamera
-        local config, chamsConfig = state:Get("ESP"), state:Get("Chams")
+        local config, chamsConfig = state:Peek("ESP"), state:Peek("Chams")
         local espEnabled = pool.Available and config.Enabled
         local chamsEnabled = chamsConfig.Enabled
+        if not espEnabled and not chamsEnabled then
+            if not ESPController._idle then hideAll(); ESPController._idle = true end
+            return
+        end
+        ESPController._idle = false
+        local camera = workspace.CurrentCamera
         local occluded = config.DepthMode == "Occluded"
         for player, record in pairs(ESPController._records) do
-            hide(record)
-            if not camera or (not espEnabled and not chamsEnabled) then continue end
+            table.clear(record.Shown)
+            if not camera then hide(record); continue end
             local assets = tracker:GetPlayerAssets(player)
-            if not assets or assets.Humanoid.Health <= 0 then continue end
-            if config.TeamCheck and filter:IsTeammate(player) then continue end
+            if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
+            if config.TeamCheck and filter:IsTeammate(player) then hide(record); continue end
             local distance = (camera.CFrame.Position - assets.RootPart.Position).Magnitude
-            if distance > math.max(1, config.MaxDist) then continue end
-            if chamsEnabled then chams(record, assets, chamsConfig) end
-            if not espEnabled then continue end
-            if occluded and not filter:IsVisible(assets.Head or assets.RootPart) then continue end
+            if distance > math.max(1, config.MaxDist) then hide(record); continue end
+            if chamsEnabled then chams(record, assets, chamsConfig)
+            elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
+            if not espEnabled then hideDrawings(record); continue end
+            if occluded and not filter:IsVisible(assets.Head or assets.RootPart) then hideDrawings(record); continue end
+            ensureDrawings(record)
             local position, size = bounds(camera, assets.Character)
-            if not position or not size then continue end
+            if not position or not size then hideDrawings(record); continue end
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
             local color = overlayColor(player, config, config.Color)
             local scale = if config.AutoScaling then math.clamp(1.25 - distance / 1500, 0.7, 1.25) else 1
@@ -154,16 +205,17 @@ return function(services: any): any
                 draw(record, "Backpack", { Text = "Bag: " .. record.InventoryText, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color })
             end
             if config.Tracers then draw(record, "Tracer", { From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y), To = Vector2.new(centerX, bottom), Color = color }) end
-            local head, headVisible = project(camera, assets.Head.Position)
+            local head, headVisible = nil, false
+            if config.HeadDot or config.LookDir then head, headVisible = project(camera, assets.Head.Position) end
             if config.HeadDot and headVisible then draw(record, "HeadDot", { Position = head, Radius = math.clamp(size.X / 8, 2, 7), Filled = true, Color = color }) end
             if config.LookDir and headVisible then
                 local endpoint, visible = project(camera, assets.Head.Position + assets.Head.CFrame.LookVector * 5)
                 if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color }) end
             end
             if config.Skeleton then
-                local bones = if assets.Humanoid.RigType == Enum.HumanoidRigType.R15 then R15 else R6
-                for index, pair in ipairs(bones) do
-                    local first, second = assets.Character:FindFirstChild(pair[1]), assets.Character:FindFirstChild(pair[2])
+                ensureBones(record)
+                for index, pair in ipairs(boneParts(record, assets)) do
+                    local first, second = pair[1], pair[2]
                     if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
                         local a, aVisible = project(camera, first.Position)
                         local b, bVisible = project(camera, second.Position)
@@ -171,7 +223,13 @@ return function(services: any): any
                     end
                 end
             end
+            concealUnused(record)
         end
+    end
+    local function syncJob()
+        local on = state:Peek("ESP.Enabled") == true or state:Peek("Chams.Enabled") == true
+        if ESPController._job then ESPController._job.Enabled = on end
+        if not on then hideAll(); ESPController._idle = true end
     end
     function ESPController:Initialize()
         if self._initialized then return end
@@ -179,7 +237,10 @@ return function(services: any): any
         for _, player in ipairs(players:GetPlayers()) do createRecord(player) end
         scope:Add(bus:Subscribe("PlayerJoined", createRecord))
         scope:Add(bus:Subscribe("PlayerLeft", removeRecord))
-        scope:Add(scheduler:RegisterRender("Visuals.ESP", 10, render))
+        self._job = scheduler:RegisterRender("Visuals.ESP", 10, render)
+        scope:Add(state:Observe("ESP.Enabled", syncJob))
+        scope:Add(state:Observe("Chams.Enabled", syncJob))
+        syncJob()
     end
     function ESPController:Destroy() scope:Dispose() end
     scope:Add(function() for player in pairs(table.clone(ESPController._records)) do removeRecord(player) end end)

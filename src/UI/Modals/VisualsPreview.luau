@@ -18,11 +18,11 @@ return function(services: any): any
     local function paint()
         local frame = VisualsPreview.Frame
         if not frame then return end
-        local menuOn = state:Get("Settings.MenuVisible")
+        local menuOn = state:Peek("Settings.MenuVisible")
         local onVisuals = services:Get("UIEngine")._active and services:Get("UIEngine")._active.Name == "Visuals"
         frame.Visible = menuOn and onVisuals == true
         if not frame.Visible then return end
-        local esp, chams = state:Get("ESP"), state:Get("Chams")
+        local esp, chams = state:Peek("ESP"), state:Peek("Chams")
         local parts = VisualsPreview._parts
         local color = sampleColor(esp, esp.Color)
         local chamFill = sampleColor(chams, chams.FillColor)
@@ -107,11 +107,22 @@ return function(services: any): any
             Health = health, Head = head, Tracer = tracer, Look = look, Tool = tool, Skeleton = skeleton, Bones = bones, Hint = hint }
         if not self._initialized then
             self._initialized = true
-            scope:Connect(runService.RenderStepped, paint)
-            scope:Add(bus:Subscribe("TabSelected", paint))
-            scope:Add(state:Observe("Settings.MenuVisible", paint))
+            local renderConn: RBXScriptConnection? = nil
+            local function sync()
+                paint()
+                local on = VisualsPreview.Frame and VisualsPreview.Frame.Visible
+                if on and not renderConn then
+                    renderConn = runService.RenderStepped:Connect(paint)
+                elseif not on and renderConn then
+                    renderConn:Disconnect(); renderConn = nil
+                end
+            end
+            scope:Add(function() if renderConn then renderConn:Disconnect(); renderConn = nil end end)
+            scope:Add(bus:Subscribe("TabSelected", sync))
+            scope:Add(state:Observe("Settings.MenuVisible", sync))
+            self._sync = sync
         end
-        paint()
+        if self._sync then self._sync() else paint() end
         return frame
     end
     function VisualsPreview:Destroy() scope:Dispose() end

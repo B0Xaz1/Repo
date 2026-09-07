@@ -47,6 +47,7 @@ local DEFAULT_SETTINGS: any = {
 local ALIASES: { [string]: string } = {
     ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
     ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
+    ["ESP.DepthMode"] = "Chams.DepthMode", ["Chams.DepthMode"] = "ESP.DepthMode",
 }
 
 local function clone(value: any): any
@@ -120,6 +121,8 @@ return function(eventBus: any, disposer: any): any
     end
 
     function StateStore:Get(path: string): any return clone(read(self._settings, path)) end
+    -- Live table for frame loops. Callers must not mutate it; UI and profiles keep using Get().
+    function StateStore:Peek(path: string): any return read(self._settings, path) end
     function StateStore:Set(path: string, value: any, _bypass: boolean?): (boolean, string?)
         assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"), "Invalid state path")
         local default = read(DEFAULT_SETTINGS, path)

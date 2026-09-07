@@ -135,7 +135,7 @@ return function(services: any): any
             dragStart, startPos = environment:GetPointerLocation(event), frame.Position
             activeTouch = if event.UserInputType == Enum.UserInputType.Touch then event else nil
         end)
-        owner:Connect(input.InputChanged, function(event: InputObject)
+        owner:ConnectImmediate(input.InputChanged, function(event: InputObject)
             if not dragStart or not startPos or not frame.Parent then return end
             if activeTouch and event ~= activeTouch then return end
             if event.UserInputType ~= Enum.UserInputType.MouseMovement and event.UserInputType ~= Enum.UserInputType.Touch then return end

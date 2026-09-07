@@ -12,7 +12,7 @@ return function(services: any): any
         local alpha = math.clamp((position.X - active.Track.AbsolutePosition.X) / math.max(active.Track.AbsoluteSize.X, 1), 0, 1)
         active.Handle:Set(active.Min + alpha * (active.Max - active.Min))
     end
-    scope:Connect(input.InputChanged, function(event: InputObject)
+    scope:ConnectImmediate(input.InputChanged, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then update(event) end
     end)
     scope:Connect(input.InputEnded, function(event: InputObject)

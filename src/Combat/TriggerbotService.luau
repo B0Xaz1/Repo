@@ -8,8 +8,8 @@ return function(services: any): any
     function TriggerbotService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Add(scheduler:RegisterPreSim("Combat.Triggerbot", 20, function(dt: number)
-            local config = state:Get("Aimbot.Triggerbot")
+        local job = scheduler:RegisterPreSim("Combat.Triggerbot", 20, function(dt: number)
+            local config = state:Peek("Aimbot.Triggerbot")
             if not config.Enabled or input:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then
                 TriggerbotService._candidate, TriggerbotService._elapsed = nil, 0; return
             end
@@ -33,7 +33,9 @@ return function(services: any): any
                 state:Set("Aimbot.Triggerbot.Enabled", false)
                 services:Get("EventBus"):Publish("Notify", "Triggerbot unavailable", "Neither native click nor virtual input succeeded on this executor")
             end
-        end))
+        end)
+        job.Enabled = state:Peek("Aimbot.Triggerbot.Enabled") == true
+        scope:Add(state:Observe("Aimbot.Triggerbot.Enabled", function(value: boolean) job.Enabled = value == true end))
     end
     function TriggerbotService:Destroy() scope:Dispose() end
     return TriggerbotService

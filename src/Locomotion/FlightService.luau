@@ -50,8 +50,8 @@ return function(services: any): any
     function FlightService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Add(scheduler:RegisterHeartbeat("Movement.Flight", 20, function(_dt: number)
-            if not state:Get("Movement.FlyEnabled") then FlightService:Stop(); return end
+        local job = scheduler:RegisterHeartbeat("Movement.Flight", 20, function(_dt: number)
+            if not state:Peek("Movement.FlyEnabled") then FlightService:Stop(); return end
             local assets, camera = tracker:GetLocalAssets(), workspace.CurrentCamera
             if not assets or assets.Humanoid.Health <= 0 or not camera then FlightService:Stop(); return end
             if not FlightService._active or FlightService._root ~= assets.RootPart or not FlightService._velocity or not FlightService._velocity.Parent then
@@ -79,8 +79,13 @@ return function(services: any): any
             FlightService._flightScope:SetProperty(assets.Humanoid, "PlatformStand", true)
             FlightService._flightScope:SetProperty(assets.Humanoid, "AutoRotate", false)
             state:SetTransient("AntiFlingSuppressUntil", math.max(state:GetTransient("AntiFlingSuppressUntil") or 0, os.clock() + 0.5))
-        end))
-        scope:Add(state:Observe("Movement.FlyEnabled", function(value: boolean) if not value then FlightService:Stop() end end))
+        end)
+        local function syncFlight(value: boolean)
+            job.Enabled = value == true
+            if not value then FlightService:Stop() end
+        end
+        scope:Add(state:Observe("Movement.FlyEnabled", syncFlight))
+        syncFlight(state:Peek("Movement.FlyEnabled") == true)
         scope:Add(tracker:OnLocalCharacterRespawn(function() FlightService:Stop() end))
     end
     function FlightService:Destroy() scope:Dispose() end

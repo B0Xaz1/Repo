@@ -14,7 +14,7 @@ return function(services: any): any
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
         handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness))
     end
-    scope:Connect(input.InputChanged, function(event: InputObject)
+    scope:ConnectImmediate(input.InputChanged, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event) end
     end)
     scope:Connect(input.InputEnded, function(event: InputObject)

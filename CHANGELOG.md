@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.9 — 2026-09-07
+
+- Cut idle frame cost: disabled ESP/chams/aimbot/flight/extras no longer run every frame, drawings are allocated lazily, and high-rate engine signals no longer spawn a thread per event.
+
 ## 2.1.8 — 2026-09-07
 
 - Restyled the menu to the charcoal cyan suite: accent groupbox titles and borders, brighter Midnight cyan, `value/max` sliders, and the `B0Xaz Universal` title.

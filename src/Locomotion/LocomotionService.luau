@@ -92,7 +92,18 @@ return function(services: any): any
     function LocomotionService:StopFling() stopFling() end
 
     local function update(dt: number)
-        local config = state:Get("Movement")
+        local config = state:Peek("Movement")
+        local fov = state:Peek("Camera.FOV")
+        if not LocomotionService._flingTarget and not config.CFrameSpeed and config.Speed <= 0 and config.JumpPower <= 0
+            and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
+            if LocomotionService._applied then
+                characterChanges:RestoreProperties(); positionChanges:RestoreProperties()
+                worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
+                LocomotionService._applied = false
+            end
+            return
+        end
+        LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
             characterChanges:RestoreProperties(); positionChanges:RestoreProperties(); stopFling()
@@ -115,8 +126,7 @@ return function(services: any): any
         else worldChanges:RestoreProperties() end
         local camera = workspace.CurrentCamera
         if camera ~= LocomotionService._camera then cameraChanges:RestoreProperties(); LocomotionService._camera = camera end
-        local fov = state:Get("Camera.FOV")
-        if camera and fov > 0 then cameraChanges:SetProperty(camera, "FieldOfView", math.clamp(fov, 20, 120))
+        if camera and fov and fov > 0 then cameraChanges:SetProperty(camera, "FieldOfView", math.clamp(fov, 20, 120))
         else cameraChanges:RestoreProperties() end
         if LocomotionService._flingTarget then
             local target = tracker:GetPlayerAssets(LocomotionService._flingTarget)
@@ -135,12 +145,13 @@ return function(services: any): any
         -- Heartbeat / RenderStepped / Stepped order is the fling: replicate a huge impulse, then restore locally before physics.
         local movel = 0.1
         while not scope:IsDisposed() do
-            runService.Heartbeat:Wait()
-            if scope:IsDisposed() then break end
-            if not state:Get("Movement.TouchFling") or LocomotionService._flingTarget then
-                task.wait(0.15)
+            if not state:Peek("Movement.TouchFling") or LocomotionService._flingTarget then
+                task.wait(0.25)
                 continue
             end
+            runService.Heartbeat:Wait()
+            if scope:IsDisposed() then break end
+            if not state:Peek("Movement.TouchFling") or LocomotionService._flingTarget then continue end
             local character = players.LocalPlayer and players.LocalPlayer.Character
             if not character then continue end
             local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")

@@ -174,19 +174,27 @@ return function(services: any): any
         scope:Add(state:Observe("Lighting.TimeOfDay", function(value: number) LightingService._clock = value % 24; reconcile() end))
         scope:Add(state:Observe("Lighting.RemasterMaterials", updateMaterials))
         scope:Add(state:Observe("Performance.LowMaterials", updateMaterials))
-        scope:Connect(workspace.DescendantAdded, function(object: Instance)
-            if state:Get("Lighting.Mode") ~= "Off" and state:Get("Lighting.RemasterMaterials") and not state:Get("Visuals.Fullbright") then remaster(object) end
+        scope:ConnectImmediate(workspace.DescendantAdded, function(object: Instance)
+            if state:Peek("Lighting.Mode") ~= "Off" and state:Peek("Lighting.RemasterMaterials") and not state:Peek("Visuals.Fullbright") then remaster(object) end
         end)
-        scope:Add(scheduler:RegisterHeartbeat("Lighting.Reassert", 70, function(dt: number)
-            if state:Get("Lighting.Mode") == "Dynamic" and not state:Get("Lighting.Paused") and not state:Get("Visuals.Fullbright") then
-                LightingService._clock = (LightingService._clock + dt * 24 / math.max(30, state:Get("Lighting.CycleDuration"))) % 24
+        local job = scheduler:RegisterHeartbeat("Lighting.Reassert", 70, function(dt: number)
+            local mode = state:Peek("Lighting.Mode")
+            if mode == "Off" and not state:Peek("Visuals.Fullbright") then return end
+            if mode == "Dynamic" and not state:Peek("Lighting.Paused") and not state:Peek("Visuals.Fullbright") then
+                LightingService._clock = (LightingService._clock + dt * 24 / math.max(30, state:Peek("Lighting.CycleDuration"))) % 24
             end
             LightingService._elapsed += dt
             if LightingService._elapsed < 0.2 then return end
             LightingService._elapsed = 0
             reconcile()
             state:SetTransient("LightingHour", LightingService._clock)
-        end))
+        end)
+        local function syncLighting()
+            job.Enabled = state:Peek("Lighting.Mode") ~= "Off" or state:Peek("Visuals.Fullbright") == true
+        end
+        scope:Add(state:Observe("Lighting.Mode", syncLighting))
+        scope:Add(state:Observe("Visuals.Fullbright", syncLighting))
+        syncLighting()
     end
     function LightingService:Destroy() scope:Dispose() end
     scope:Add(function() LightingService:Restore() end)

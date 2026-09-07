@@ -85,8 +85,14 @@ return function(services: any): any
             local ok, message = OptimizerService:ApplyFpsCap(value)
             if not ok and value ~= 0 then services:Get("EventBus"):Publish("Notify", "Performance", message) end
         end))
-        scope:Connect(workspace.DescendantAdded, function(object: Instance) processInstance(object, state:Get("Performance")) end)
-        scope:Connect(lighting.DescendantAdded, function(object: Instance) processInstance(object, state:Get("Performance")) end)
+        local function onAdded(object: Instance)
+            local performance = state:Peek("Performance")
+            if not (performance.NoTextures or performance.LowMaterials or performance.NoShadows or performance.NoParticles
+                or performance.OptimizeTerrain or performance.NoPostProcessing) then return end
+            processInstance(object, performance)
+        end
+        scope:ConnectImmediate(workspace.DescendantAdded, onAdded)
+        scope:ConnectImmediate(lighting.DescendantAdded, onAdded)
     end
     function OptimizerService:Destroy() scope:Dispose() end
     scope:Add(function() OptimizerService:RestoreAll(); environment:SetFpsCap(0) end)

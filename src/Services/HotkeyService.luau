@@ -95,7 +95,7 @@ return function(services: any): any
         end)
         pcall(function()
             local coreGui = game:GetService("CoreGui")
-            scope:Connect(coreGui.DescendantAdded, function(object: Instance)
+            scope:ConnectImmediate(coreGui.DescendantAdded, function(object: Instance)
                 if object.Name == "ErrorPrompt" and object.Parent and object.Parent.Name == "promptOverlay" then
                     local root = object:FindFirstAncestor("RobloxPromptGui")
                     if root then onDisconnect(nil) end

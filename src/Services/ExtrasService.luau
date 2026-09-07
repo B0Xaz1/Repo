@@ -29,7 +29,7 @@ return function(services: any): any
         ExtrasService._spinScope, ExtrasService._spinRoot = nil, nil
     end
     local function updateHitboxes()
-        local config = state:Get("Extras.Hitbox")
+        local config = state:Peek("Extras.Hitbox")
         if not config.Enabled then restoreHitboxes(); return end
         local size = math.clamp(config.Size, 2, 20)
         for _, player in ipairs(players:GetPlayers()) do
@@ -69,7 +69,7 @@ return function(services: any): any
         local assets = tracker:GetLocalAssets()
         if not assets then restoreDefence(); ExtrasService._baselineRoot = nil; return end
         local root, humanoid = assets.RootPart, assets.Humanoid
-        local config = state:Get("Extras.AntiFling")
+        local config = state:Peek("Extras.AntiFling")
         local enabled = config.Enabled
         local suppressed = os.clock() < (state:GetTransient("AntiFlingSuppressUntil") or 0)
         if ExtrasService._guardRoot ~= root then guardChanges:RestoreProperties(); ExtrasService._guardRoot = root end
@@ -107,12 +107,16 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         local elapsed = 0
-        scope:Add(scheduler:RegisterHeartbeat("Extras.HitboxSpin", 45, function(dt: number)
+        local hitboxJob = scheduler:RegisterHeartbeat("Extras.HitboxSpin", 45, function(dt: number)
+            local hitboxOn = state:Peek("Extras.Hitbox.Enabled")
+            local spinOn = state:Peek("Extras.SpinBot.Enabled")
+            if not hitboxOn and not spinOn then stopSpin(); return end
             elapsed += dt
-            if elapsed >= 0.2 then elapsed = 0; updateHitboxes() end
+            if hitboxOn and elapsed >= 0.2 then elapsed = 0; updateHitboxes() elseif not hitboxOn then restoreHitboxes() end
+            if not spinOn then stopSpin(); return end
             local assets = tracker:GetLocalAssets()
-            local config = state:Get("Extras.SpinBot")
-            if not config.Enabled or not assets or assets.Humanoid.Health <= 0 then stopSpin(); return end
+            local config = state:Peek("Extras.SpinBot")
+            if not assets or assets.Humanoid.Health <= 0 then stopSpin(); return end
             local root = assets.RootPart
             if ExtrasService._spinRoot ~= root then
                 stopSpin()
@@ -123,11 +127,19 @@ return function(services: any): any
             -- Rotation is integrated exactly once; zeroing angular velocity prevents the solver adding a second spin.
             owner:SetProperty(root, "AssemblyAngularVelocity", Vector3.zero, true)
             owner:SetProperty(root, "CFrame", root.CFrame * CFrame.Angles(0, math.rad(math.clamp(config.Speed, -1440, 1440)) * dt, 0), true)
+        end)
+        local function syncHitboxSpin()
+            hitboxJob.Enabled = state:Peek("Extras.Hitbox.Enabled") == true or state:Peek("Extras.SpinBot.Enabled") == true
+        end
+        local antiJob = scheduler:RegisterPreSim("Extras.AntiFling", -100, antiFling)
+        antiJob.Enabled = state:Peek("Extras.AntiFling.Enabled") == true
+        scope:Add(state:Observe("Extras.Hitbox.Enabled", function(value: boolean) if not value then restoreHitboxes() end; syncHitboxSpin() end))
+        scope:Add(state:Observe("Extras.AntiFling.Enabled", function(value: boolean)
+            antiJob.Enabled = value == true
+            if not value then restoreDefence() end
         end))
-        scope:Add(scheduler:RegisterPreSim("Extras.AntiFling", -100, antiFling))
-        scope:Add(state:Observe("Extras.Hitbox.Enabled", function(value: boolean) if not value then restoreHitboxes() end end))
-        scope:Add(state:Observe("Extras.AntiFling.Enabled", function(value: boolean) if not value then restoreDefence() end end))
-        scope:Add(state:Observe("Extras.SpinBot.Enabled", function(value: boolean) if not value then stopSpin() end end))
+        scope:Add(state:Observe("Extras.SpinBot.Enabled", function(value: boolean) if not value then stopSpin() end; syncHitboxSpin() end))
+        syncHitboxSpin()
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
         scope:Connect(players.LocalPlayer.Idled, function()
             if not state:Get("Settings.AntiAfk") then return end

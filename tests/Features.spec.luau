@@ -113,6 +113,13 @@ return function(_sources: any, core: any): any
         local count = #drawingObjects
         expect(pool:Acquire("Line") == line and #drawingObjects == count, "Released primitives are reused, not reallocated")
         expect(pool:GetStats().Active == 1, "Drawing pool ownership statistics remain consistent")
+        services:Register("DrawingPool", pool)
+        local esp = core.Load("src/Visuals/ESPController.luau")(services)
+        esp:Initialize()
+        local active = pool:GetStats().Active
+        for _ = 1, 8 do core.Services.RunService.RenderStepped:Fire(1 / 60) end
+        expect(pool:GetStats().Active == active, "Disabled ESP does not allocate per-player drawings")
+        expect(esp._job.Enabled == false, "The ESP render job is gated off while ESP and chams are disabled")
         local flight = core.Load("src/Locomotion/FlightService.luau")(services)
         flight:Initialize()
         ready = false; state:Set("Movement.FlyEnabled", true)

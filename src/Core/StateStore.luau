@@ -21,7 +21,7 @@ local DEFAULT_SETTINGS: any = {
         Enabled = false, Box = true, Name = true, Health = true, Distance = true,
         Tool = false, Backpack = false, Tracers = false, Skeleton = false, HeadDot = false, LookDir = false,
         TeamCheck = false, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
-        Font = "Plex", Outline = true, AutoScaling = true,
+        Font = "Plex", Outline = true, AutoScaling = true, DepthMode = "AlwaysOnTop",
     },
     Chams = { Enabled = false, UseTeamColor = false, DepthMode = "AlwaysOnTop",
         FillColor = Color3.fromRGB(117, 143, 255), OutlineColor = Color3.fromRGB(222, 230, 255) },
@@ -157,6 +157,12 @@ return function(eventBus: any, disposer: any): any
         -- Keep legacy/current bind fields in lockstep after a profile supplies either representation.
         self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
         self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
+        -- Older profiles only stored chams depth; keep ESP drawings on the same mode.
+        local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
+        local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode
+        if type(incomingEsp) == "string" then self._settings.ESP.DepthMode = incomingEsp
+        elseif type(incomingChams) == "string" then self._settings.ESP.DepthMode = incomingChams end
+        self._settings.Chams.DepthMode = self._settings.ESP.DepthMode
         for branch, value in pairs(self._settings) do publishChanges(branch, value, old[branch]) end
         self._hydrating = false
         eventBus:Publish("SettingsHydrated")

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.2 — 2026-09-07
+
+- Stopped adding GuiInset to Drawing ESP/FOV, which had dropped boxes, names, and skeletons below the player by the topbar height.
+- Window dragging now applies mouse delta to the live UDim2 instead of mixing InputObject and AbsolutePosition spaces, so the first click no longer jumps the menu.
+- Depth mode now applies to boxes, names, skeletons, and other ESP drawings as well as native chams.
+
 ## 2.1.1 — 2026-09-07
 
 - Restyled the menu to a charcoal two-column suite: title-bar search, text tabs with a cyan underline, square checkboxes, stacked dropdowns, and knobless cyan sliders.

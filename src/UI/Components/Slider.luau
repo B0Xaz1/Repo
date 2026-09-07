@@ -1,18 +1,19 @@
 --!nonstrict
 return function(services: any): any
-    local dom, theme = services:Get("DOM"), services:Get("ThemeEngine")
+    local dom, theme, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Slider capture")
     local input = game:GetService("UserInputService")
     local Slider = { _active = nil }
-    local function update(position: Vector3)
+    local function update(event: InputObject)
         local active = Slider._active
         if not active or active.Handle.Scope:IsDisposed() then return end
+        local position = environment:GetPointerLocation(event)
         local alpha = math.clamp((position.X - active.Track.AbsolutePosition.X) / math.max(active.Track.AbsoluteSize.X, 1), 0, 1)
         active.Handle:Set(active.Min + alpha * (active.Max - active.Min))
     end
     scope:Connect(input.InputChanged, function(event: InputObject)
-        if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then update(event.Position) end
+        if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then update(event) end
     end)
     scope:Connect(input.InputEnded, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then Slider._active = nil end
@@ -44,7 +45,7 @@ return function(services: any): any
         owner:Connect(hit.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
             Slider._active = { Handle = handle, Track = track, Min = minimum, Max = maximum }
-            update(event.Position)
+            update(event)
         end)
         owner:Add(function() if Slider._active and Slider._active.Handle == handle then Slider._active = nil end end)
         return handle

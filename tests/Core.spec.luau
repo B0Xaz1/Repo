@@ -162,6 +162,8 @@ return function(sources: { [string]: string }): any
         expect(state:Get("Aimbot.Enabled") and state:Get("Movement.Fling"), "Hydration preserves enabled settings without an access sweep")
         state:Set("Settings.MenuKeybind", enumTypes.KeyCode.B)
         expect(state:Get("Settings.Binds.Menu").Name == "B", "Menu key aliases remain consistent")
+        state:Set("ESP.DepthMode", "Occluded")
+        expect(state:Get("Chams.DepthMode") == "Occluded", "ESP depth mode stays aliased onto chams")
         local scheduler = loadModule("src/Core/TaskScheduler.luau")(master)
         local frames, after, deltas = 0, 0, {}
         local job = scheduler:RegisterRender("Broken", 0, function() frames += 1; error("deliberate") end)

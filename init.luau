@@ -1,5 +1,5 @@
 --!nonstrict
-local VERSION: string = "2.1.1"
+local VERSION: string = "2.1.2"
 -- Split the CDN error sentinel so this entry point cannot reject its own source during relaunch.
 local NOT_FOUND_BODY: string = "404" .. ": Not Found"
 local DEFAULT_REF: string = "main"

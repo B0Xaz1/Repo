@@ -9,7 +9,7 @@ local R6 = { { "Head", "Torso" }, { "Torso", "Left Arm" }, { "Torso", "Right Arm
 
 return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
-    local scheduler, bus, environment = services:Get("TaskScheduler"), services:Get("EventBus"), services:Get("Environment")
+    local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
     local players, workspace = game:GetService("Players"), game:GetService("Workspace")
     local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true }
@@ -46,11 +46,12 @@ return function(services: any): any
         for property, value in pairs(properties) do object[property] = value end
         object.Visible = true
     end
-    local function project(camera: Camera, position: Vector3, inset: Vector2): (Vector2, boolean)
+    -- Drawing primitives live in WorldToViewportPoint space. Adding GuiInset drops every overlay by the topbar height.
+    local function project(camera: Camera, position: Vector3): (Vector2, boolean)
         local point, visible = camera:WorldToViewportPoint(position)
-        return Vector2.new(point.X, point.Y) + inset, visible and point.Z > 0
+        return Vector2.new(point.X, point.Y), visible and point.Z > 0
     end
-    local function bounds(camera: Camera, character: Model, inset: Vector2): (Vector2?, Vector2?)
+    local function bounds(camera: Camera, character: Model): (Vector2?, Vector2?)
         local frame, size = character:GetBoundingBox()
         local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
         for x = -1, 1, 2 do for y = -1, 1, 2 do for z = -1, 1, 2 do
@@ -59,7 +60,7 @@ return function(services: any): any
             minX, minY, maxX, maxY = math.min(minX, point.X), math.min(minY, point.Y), math.max(maxX, point.X), math.max(maxY, point.Y)
         end end end
         if maxX < 0 or minX > camera.ViewportSize.X or maxY < 0 or minY > camera.ViewportSize.Y then return nil, nil end
-        return Vector2.new(minX, minY) + inset, Vector2.new(maxX - minX, maxY - minY)
+        return Vector2.new(minX, minY), Vector2.new(maxX - minX, maxY - minY)
     end
     local function updateInventory(record: any, character: Model)
         if os.clock() - record.InventoryAt < 0.25 then return end
@@ -96,7 +97,7 @@ return function(services: any): any
         object.Adornee, object.Parent = assets.Character, assets.Character
         object.FillColor = if config.UseTeamColor then filter:GetTeamColor(record.Player) else config.FillColor
         object.OutlineColor = config.OutlineColor
-        object.DepthMode = if config.DepthMode == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
+        object.DepthMode = if state:Get("ESP.DepthMode") == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
         object.Enabled = true
     end
     local function render(_dt: number)
@@ -104,7 +105,7 @@ return function(services: any): any
         local config, chamsConfig = state:Get("ESP"), state:Get("Chams")
         local espEnabled = pool.Available and config.Enabled
         local chamsEnabled = chamsConfig.Enabled
-        local inset = environment:GetGuiInset()
+        local occluded = config.DepthMode == "Occluded"
         for player, record in pairs(ESPController._records) do
             hide(record)
             if not camera or (not espEnabled and not chamsEnabled) then continue end
@@ -115,7 +116,8 @@ return function(services: any): any
             if distance > math.max(1, config.MaxDist) then continue end
             if chamsEnabled then chams(record, assets, chamsConfig) end
             if not espEnabled then continue end
-            local position, size = bounds(camera, assets.Character, inset)
+            if occluded and not filter:IsVisible(assets.Head or assets.RootPart) then continue end
+            local position, size = bounds(camera, assets.Character)
             if not position or not size then continue end
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
             local color = config.Color
@@ -142,11 +144,11 @@ return function(services: any): any
             if config.Backpack and record.InventoryText ~= "" then
                 draw(record, "Backpack", { Text = "Bag: " .. record.InventoryText, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color })
             end
-            if config.Tracers then draw(record, "Tracer", { From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y) + inset, To = Vector2.new(centerX, bottom), Color = color }) end
-            local head, headVisible = project(camera, assets.Head.Position, inset)
+            if config.Tracers then draw(record, "Tracer", { From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y), To = Vector2.new(centerX, bottom), Color = color }) end
+            local head, headVisible = project(camera, assets.Head.Position)
             if config.HeadDot and headVisible then draw(record, "HeadDot", { Position = head, Radius = math.clamp(size.X / 8, 2, 7), Filled = true, Color = color }) end
             if config.LookDir and headVisible then
-                local endpoint, visible = project(camera, assets.Head.Position + assets.Head.CFrame.LookVector * 5, inset)
+                local endpoint, visible = project(camera, assets.Head.Position + assets.Head.CFrame.LookVector * 5)
                 if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color }) end
             end
             if config.Skeleton then
@@ -154,8 +156,8 @@ return function(services: any): any
                 for index, pair in ipairs(bones) do
                     local first, second = assets.Character:FindFirstChild(pair[1]), assets.Character:FindFirstChild(pair[2])
                     if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
-                        local a, aVisible = project(camera, first.Position, inset)
-                        local b, bVisible = project(camera, second.Position, inset)
+                        local a, aVisible = project(camera, first.Position)
+                        local b, bVisible = project(camera, second.Position)
                         if aVisible and bVisible then draw(record, "Bone" .. index, { From = a, To = b, Color = color, Thickness = 1 }) end
                     end
                 end

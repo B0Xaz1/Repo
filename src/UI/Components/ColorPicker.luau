@@ -1,20 +1,21 @@
 --!nonstrict
 return function(services: any): any
-    local dom, theme, input = services:Get("DOM"), services:Get("ThemeEngine"), game:GetService("UserInputService")
+    local dom, theme, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment")
+    local input = game:GetService("UserInputService")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Color picker capture")
     local ColorPicker = { _active = nil }
-    local function drag(position: Vector3)
+    local function drag(event: InputObject)
         local active = ColorPicker._active
         if not active or active.Handle.Scope:IsDisposed() then return end
-        local handle, field = active.Handle, active.Field
+        local handle, field, position = active.Handle, active.Field, environment:GetPointerLocation(event)
         local x = math.clamp((position.X - field.AbsolutePosition.X) / math.max(field.AbsoluteSize.X, 1), 0, 1)
         local y = math.clamp((position.Y - field.AbsolutePosition.Y) / math.max(field.AbsoluteSize.Y, 1), 0, 1)
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
         handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness))
     end
     scope:Connect(input.InputChanged, function(event: InputObject)
-        if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event.Position) end
+        if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event) end
     end)
     scope:Connect(input.InputEnded, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then ColorPicker._active = nil end
@@ -66,7 +67,7 @@ return function(services: any): any
         end)
         for field, mode in pairs({ [square] = "SV", [hue] = "Hue" }) do owner:Connect(field.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            ColorPicker._active = { Handle = handle, Field = field, Mode = mode }; drag(event.Position)
+            ColorPicker._active = { Handle = handle, Field = field, Mode = mode }; drag(event)
         end) end
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(close)
         return handle

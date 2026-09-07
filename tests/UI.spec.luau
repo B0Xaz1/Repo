@@ -74,6 +74,7 @@ return function(sources: any, core: any): any
         core.Services.GuiService = { GetGuiInset = function() return vector2.zero end }
         core.Services.TeleportService = {}
         core.Services.UserInputService.InputChanged = core.Signal()
+        function core.Services.UserInputService:GetMouseLocation() return vector2.zero end
         core.Services.Players.LocalPlayer.FindFirstChildOfClass = function() return nil end
         runtime.game.PlaceId, runtime.game.GameId = 100, 200
         runtime.Drawing = nil

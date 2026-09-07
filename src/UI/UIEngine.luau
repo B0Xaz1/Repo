@@ -125,25 +125,29 @@ return function(services: any): any
     end
     function UIEngine:MakeDraggable(frame: GuiObject, handle: GuiObject): any
         local owner = scope:CreateChild("Window drag")
-        local dragStart: Vector3? = nil
-        local startCentre: Vector2? = nil
+        local dragStart: Vector2? = nil
+        local startPos: UDim2? = nil
         local activeTouch: InputObject? = nil
         owner:Connect(handle.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            dragStart, startCentre = event.Position, frame.AbsolutePosition + frame.AbsoluteSize * frame.AnchorPoint
+            -- Delta against the live UDim2, not AbsolutePosition: mixing those spaces jumps the window by the topbar inset on the first click.
+            dragStart, startPos = environment:GetPointerLocation(event), frame.Position
             activeTouch = if event.UserInputType == Enum.UserInputType.Touch then event else nil
         end)
         owner:Connect(input.InputChanged, function(event: InputObject)
-            if not dragStart or not startCentre or not frame.Parent then return end
+            if not dragStart or not startPos or not frame.Parent then return end
             if activeTouch and event ~= activeTouch then return end
             if event.UserInputType ~= Enum.UserInputType.MouseMovement and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            local delta, size, screen = event.Position - dragStart, frame.AbsoluteSize, viewport()
+            local delta, size, screen = environment:GetPointerLocation(event) - dragStart, frame.AbsoluteSize, viewport()
+            local scale = math.max(if UIEngine._scale then UIEngine._scale.Scale else 1, 0.01)
+            local centre = Vector2.new(startPos.X.Scale * screen.X + startPos.X.Offset + delta.X / scale,
+                startPos.Y.Scale * screen.Y + startPos.Y.Offset + delta.Y / scale)
             local minimum = Vector2.new(math.min(size.X / 2 + 8, screen.X / 2), math.min(size.Y / 2 + 8, screen.Y / 2))
-            frame.Position = UDim2.fromOffset(math.clamp(startCentre.X + delta.X, minimum.X, screen.X - minimum.X),
-                math.clamp(startCentre.Y + delta.Y, minimum.Y, screen.Y - minimum.Y))
+            centre = Vector2.new(math.clamp(centre.X, minimum.X, screen.X - minimum.X), math.clamp(centre.Y, minimum.Y, screen.Y - minimum.Y))
+            frame.Position = UDim2.new(startPos.X.Scale, centre.X - startPos.X.Scale * screen.X, startPos.Y.Scale, centre.Y - startPos.Y.Scale * screen.Y)
         end)
         owner:Connect(input.InputEnded, function(event: InputObject)
-            if event.UserInputType == Enum.UserInputType.MouseButton1 or event == activeTouch then dragStart, activeTouch = nil, nil end
+            if event.UserInputType == Enum.UserInputType.MouseButton1 or event == activeTouch then dragStart, startPos, activeTouch = nil, nil, nil end
         end)
         owner:Connect(frame.Destroying, function() owner:Dispose() end)
         return owner

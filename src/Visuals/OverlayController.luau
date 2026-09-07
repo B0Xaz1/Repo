@@ -28,7 +28,7 @@ return function(services: any): any
         local time = OverlayController._time
         local fov = state:Get("Aimbot.FOV")
         if fov.Show then
-            paint("FOV", { Position = environment:GetAimPoint(camera) + environment:GetGuiInset(),
+            paint("FOV", { Position = environment:GetAimPoint(camera),
                 Radius = math.clamp(fov.Size, 1, 1500) * (if fov.Pulse then 1 + math.sin(time * 2) * 0.07 else 1),
                 Thickness = math.clamp(fov.Thickness, 1, 8), Filled = fov.Filled, Transparency = if fov.Filled then 0.15 else 0.85,
                 NumSides = math.clamp(math.floor(fov.Sides), 16, 128), Color = if fov.Rainbow then Color3.fromHSV(time * 0.12 % 1, 0.7, 1) else accent })
@@ -55,7 +55,7 @@ return function(services: any): any
             local assets = services:Get("PlayerTracker"):GetLocalAssets()
             local speed = if assets then assets.RootPart.AssemblyLinearVelocity.Magnitude else 0
             if speed > 5 then
-                local centre = camera.ViewportSize / 2 + environment:GetGuiInset()
+                local centre = camera.ViewportSize / 2
                 local radius = camera.ViewportSize.Magnitude / 2
                 for index, line in ipairs(OverlayController._lines) do
                     line.Progress += dt * line.Speed * math.clamp(speed / 70, 0.1, 3)

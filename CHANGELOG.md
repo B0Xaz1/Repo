@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.6 — 2026-09-07
+
+- Added Movement touch fling: the Heartbeat / RenderStepped / Stepped velocity pulse, gated by a suite toggle. No third-party UI.
+
 ## 2.1.5 — 2026-09-07
 
 - Removed the Jump Height override and its Movement-tab slider. Jump power remains.

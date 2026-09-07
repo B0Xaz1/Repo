@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.1.5` · **Default source ref:** `main`
+**Version:** `2.1.6` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -58,7 +58,7 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | --- | --- |
 | Combat | Camera/mouse aim, R6/R15 hit parts, hold/toggle locks, exponential smoothing, WindMouse, prediction, target filters, FOV circle, and triggerbot. |
 | Visuals | Boxes, names, health, distance, tools/backpacks, tracers, skeletons, head dots/look direction, chams, optimization, lighting, telemetry, and speed lines. |
-| Movement | Humanoid overrides, sprint/air jump, displacement, flight, gravity/FOV, bookmarks, and click/tap teleport. |
+| Movement | Humanoid overrides, sprint/air jump, touch fling, displacement, flight, gravity/FOV, bookmarks, and click/tap teleport. |
 | Players | Live name filter, teleport, spectate, copy name, whitelist, and bounded fling controls. |
 | Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
 | Game | Place/universe information and an active adapter, or an explicit Universal Mode panel. |

@@ -15,7 +15,7 @@ local DEFAULT_SETTINGS: any = {
         Speed = 0, JumpPower = 0, InfJump = false,
         FlyEnabled = false, FlySpeed = 50, FlyKeybind = Enum.KeyCode.F,
         MobileFlyUp = false, MobileFlyDown = false, SprintEnabled = false, SprintSpeed = 28,
-        CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false,
+        CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false,
     },
     ESP = {
         Enabled = false, Box = true, Name = true, Health = true, Distance = true,

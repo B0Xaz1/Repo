@@ -6,6 +6,7 @@ return function(services: any): any
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
     local workspace, input, players = game:GetService("Workspace"), game:GetService("UserInputService"), game:GetService("Players")
+    local runService = game:GetService("RunService")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
         _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _initialized = false }
 
@@ -130,9 +131,37 @@ return function(services: any): any
             owner:SetProperty(root, "AssemblyLinearVelocity", Vector3.new(math.cos(angle) * 400, 100, math.sin(angle) * 400), true)
         end
     end
+    local function touchFlingLoop()
+        -- Heartbeat / RenderStepped / Stepped order is the fling: replicate a huge impulse, then restore locally before physics.
+        local movel = 0.1
+        while not scope:IsDisposed() do
+            runService.Heartbeat:Wait()
+            if scope:IsDisposed() then break end
+            if not state:Get("Movement.TouchFling") or LocomotionService._flingTarget then
+                task.wait(0.15)
+                continue
+            end
+            local character = players.LocalPlayer and players.LocalPlayer.Character
+            if not character then continue end
+            local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+            if not hrp then continue end
+            suppress(0.3)
+            local ok, oldVelocity = pcall(function() return hrp.Velocity end)
+            if not ok or typeof(oldVelocity) ~= "Vector3" then continue end
+            pcall(function() hrp.Velocity = oldVelocity * 10000 + Vector3.new(0, 10000, 0) end)
+            runService.RenderStepped:Wait()
+            if scope:IsDisposed() then break end
+            if hrp.Parent then pcall(function() hrp.Velocity = oldVelocity end) end
+            runService.Stepped:Wait()
+            if scope:IsDisposed() then break end
+            if hrp.Parent then pcall(function() hrp.Velocity = oldVelocity + Vector3.new(0, movel, 0) end) end
+            movel *= -1
+        end
+    end
     function LocomotionService:Initialize()
         if self._initialized then return end
         self._initialized = true
+        scope:Spawn(touchFlingLoop)
         scope:Add(scheduler:RegisterHeartbeat("Movement.Overrides", 10, update))
         scope:Connect(input.JumpRequest, function()
             if not state:Get("Movement.InfJump") or input:GetFocusedTextBox() then return end
@@ -158,6 +187,13 @@ return function(services: any): any
     function LocomotionService:Destroy() scope:Dispose() end
     scope:Add(function()
         stopFling()
+        local assets = tracker:GetLocalAssets()
+        if assets then
+            pcall(function()
+                assets.RootPart.Velocity = Vector3.zero
+                assets.RootPart.AssemblyLinearVelocity = Vector3.zero
+            end)
+        end
         for humanoid, original in pairs(LocomotionService._jumpStates) do
             if humanoid.Parent and humanoid.Health > 0 then pcall(function() humanoid:ChangeState(original) end) end
         end

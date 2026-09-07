@@ -1,0 +1,2 @@
+-- src/UI/Tabs/HomeTab.lua
+-- Placeholder; implementation will be added separately.

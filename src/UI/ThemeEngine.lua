@@ -1,0 +1,2 @@
+-- src/UI/ThemeEngine.lua
+-- Placeholder; implementation will be added separately.

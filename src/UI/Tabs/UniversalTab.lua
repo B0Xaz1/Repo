@@ -1,0 +1,2 @@
+-- src/UI/Tabs/UniversalTab.lua
+-- Placeholder; implementation will be added separately.

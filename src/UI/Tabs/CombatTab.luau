@@ -11,7 +11,7 @@ return function(services: any, tab: any): any
     toggle(aim, "Use Camera Lock (CFrame)", "Aimbot.UseCamera", nil)
     keybind(aim, "Activation Bind", "Aimbot.Keybind", nil)
     dropdown(aim, "Lock Mode", "Aimbot.LockMode", { "Hold", "Toggle" }, nil)
-    dropdown(aim, "Target Hitpart", "Aimbot.Hitpart", { "Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, nil)
+    dropdown(aim, "Hit Part", "Aimbot.Hitpart", { "Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, nil)
     slider(aim, "Smoothness", "Aimbot.Smoothness", 1, 50, 0.5, "", nil)
     dropdown(aim, "Movement Mode", "Aimbot.MovementMode", { "Linear", "WindMouse" }, nil)
     slider(aim, "Wind Strength", "Aimbot.WindStrength", 0, 30, 0.1, "", nil)
@@ -28,7 +28,7 @@ return function(services: any, tab: any): any
     toggle(fov, "Rainbow", "Aimbot.FOV.Rainbow", nil)
     toggle(fov, "Pulse", "Aimbot.FOV.Pulse", nil)
     local filters = section:Create(tab.RightCol, "Target Settings")
-    for _, entry in ipairs({ { "Team Check", "TeamCheck" }, { "Ignore Friends", "FriendCheck" }, { "Ignore Whitelisted", "WhitelistCheck" }, { "Ignore ForceField", "ForceFieldCheck" }, { "Visibility (Wall) Check", "VisCheck" } }) do
+    for _, entry in ipairs({ { "Team Check", "TeamCheck" }, { "Ignore Friends", "FriendCheck" }, { "Ignore Whitelisted", "WhitelistCheck" }, { "Ignore ForceField", "ForceFieldCheck" }, { "Visibility Check", "VisCheck" } }) do
         toggle(filters, entry[1], "Aimbot." .. entry[2], nil)
     end
     toggle(filters, "Unlock On Death", "Aimbot.UnlockOnDeath", nil)
@@ -38,7 +38,7 @@ return function(services: any, tab: any): any
     local trigger = section:Create(tab.RightCol, "Prediction & Triggerbot")
     slider(trigger, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
     slider(trigger, "Vertical Prediction", "Aimbot.Prediction.Vertical", 0, 1, 0.01, " s", nil)
-    toggle(trigger, "Enable triggerbot", "Aimbot.Triggerbot.Enabled", nil)
+    toggle(trigger, "Enable Triggerbot", "Aimbot.Triggerbot.Enabled", nil)
     slider(trigger, "Trigger delay", "Aimbot.Triggerbot.Delay", 0, 2, 0.01, " s", nil)
     slider(trigger, "Trigger distance", "Aimbot.Triggerbot.MaxDistance", 50, 10000, 50, " studs", nil)
     for _, entry in ipairs({ { "Trigger team check", "TeamCheck" }, { "Trigger friend check", "FriendCheck" }, { "Trigger whitelist check", "WhitelistCheck" }, { "Trigger force-field check", "ForceFieldCheck" }, { "Trigger visibility check", "VisCheck" } }) do

@@ -38,8 +38,10 @@ return function(services: any): any
         function handle:_Render(value: number)
             local alpha = (value - minimum) / (maximum - minimum)
             fill.Size = UDim2.fromScale(alpha, 1)
-            local formatted = string.format("%.3f", value):gsub("0+$", ""):gsub("%.$", "")
-            valueLabel.Text, text.Text = formatted .. (suffix or ""), label
+            local function fmt(number: number): string
+                return (string.format("%.3f", number):gsub("0+$", ""):gsub("%.$", ""))
+            end
+            valueLabel.Text, text.Text = fmt(value) .. "/" .. fmt(maximum) .. (suffix or ""), label
         end
         section:Bind(handle, defaultOrPath, callback)
         owner:Connect(hit.InputBegan, function(event: InputObject)

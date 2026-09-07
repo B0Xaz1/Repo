@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.1.7` · **Default source ref:** `main`
+**Version:** `2.1.8` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -60,11 +60,11 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Visuals | Boxes, names, health, distance, tools/backpacks, tracers, skeletons, head dots/look direction, chams, rainbow/team color, a live ESP preview, optimization, lighting, telemetry, and speed lines. |
 | Movement | Humanoid overrides, sprint/air jump, touch fling, displacement, flight, gravity/FOV, bookmarks, and click/tap teleport. |
 | Players | Live name filter, teleport, spectate, copy name, whitelist, and bounded fling controls. |
-| Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
 | Game | Place/universe information and an active adapter, or an explicit Universal Mode panel. |
+| Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
 | Settings | Profiles, Default/Legit/Rage presets, launch behavior, JSON import/export, scale/hotkeys, full theme palettes, and lifecycle actions. |
 
-The window is a charcoal two-column suite: **B0Xaz Universal Suite** in the title bar, version at the bottom-right of the frame, a compact `search...` field on the right, text tabs with an underline, square checkboxes, stacked dropdowns, and knobless sliders. In-game labels use ASCII so they render on every executor font. Search is case-insensitive and matches controls, sections, and tab names. Clearing search restores the original parent and layout order for every row. The menu includes six theme presets and 18 live color tokens.
+The window is a charcoal two-column suite: **B0Xaz Universal** in the title bar, version at the bottom-right of the frame, a compact `search...` field on the right, text tabs with a cyan underline, cyan-outlined groupboxes, square checkboxes, stacked dropdowns, and knobless cyan sliders that show `value/max`. In-game labels use ASCII so they render on every executor font. Search is case-insensitive and matches controls, sections, and tab names. Clearing search restores the original parent and layout order for every row. The menu includes six theme presets and 18 live color tokens.
 
 ## Settings and profiles
 

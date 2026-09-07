@@ -104,6 +104,32 @@ return function(sources: any, core: any): any
         expect(#ui._tabs == 7 and ui._active.Name == "Combat", "All seven real tab factories construct in registration order")
         expect(ui._versionLabel.Text:find(services.Version, 1, true) ~= nil, "Version is visible on the menu")
         expect(ui._versionLabel.Parent == ui._main, "Version sits on the main menu frame, not the title bar")
+        local brandText = nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Text == "B0Xaz Universal" then brandText = child.Text; break end
+        end
+        expect(brandText == "B0Xaz Universal", "Title bar uses the charcoal-suite brand")
+        local tabNames = {}
+        for _, tab in ipairs(ui._tabs) do table.insert(tabNames, tab.Name) end
+        expect(table.concat(tabNames, ",") == "Combat,Visuals,Movement,Players,Game,Utility,Settings", "Tab strip matches the charcoal-suite order")
+        local accent = theme:GetToken("Accent")
+        expect(accent.R < 0.1 and accent.G > 0.8 and accent.B > 0.85, "Midnight accent is a bright cyan")
+        local groupTitle, groupStroke = nil, nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Text == "Aimbot Controls" then groupTitle = child end
+            if child:IsA("UIStroke") and child.Parent and child.Parent:GetAttribute("B0XazSection") == "Aimbot Controls" then groupStroke = child end
+        end
+        expect(groupTitle ~= nil and groupTitle.TextColor3 == accent, "Groupbox titles use the accent color")
+        expect(groupStroke ~= nil and groupStroke.Color == accent, "Groupbox borders use the accent color")
+        local sliderText = nil
+        for row, record in pairs(ui._controls) do
+            if record.Label == "Max Distance" then
+                for _, child in ipairs(row:GetChildren()) do
+                    if child:IsA("TextLabel") and tostring(child.Text):find("/", 1, true) then sliderText = child.Text end
+                end
+            end
+        end
+        expect(sliderText == "2000/10000 studs", "Sliders show current/max with the unit suffix")
         local function isAscii(value: string): boolean
             for index = 1, #value do if string.byte(value, index) > 127 then return false end end
             return true

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.8 — 2026-09-07
+
+- Restyled the menu to the charcoal cyan suite: accent groupbox titles and borders, brighter Midnight cyan, `value/max` sliders, and the `B0Xaz Universal` title.
+
 ## 2.1.7 — 2026-09-07
 
 - Theme presets now swap the full palette (backgrounds, panels, buttons, borders, and accents), not only the accent color.

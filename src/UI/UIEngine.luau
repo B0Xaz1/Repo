@@ -2,7 +2,7 @@
 local TABS = {
     { Name = "Combat", Path = "src/UI/Tabs/CombatTab.luau" }, { Name = "Visuals", Path = "src/UI/Tabs/VisualsTab.luau" },
     { Name = "Movement", Path = "src/UI/Tabs/MovementTab.luau" }, { Name = "Players", Path = "src/UI/Tabs/PlayersTab.luau" },
-    { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" }, { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" },
+    { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" }, { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" },
     { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau" },
 }
 
@@ -218,7 +218,7 @@ return function(services: any): any
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
         local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Active = true })
         local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 11), Size = UDim2.new(1, -200, 0, 22),
-            Text = "B0Xaz Universal Suite", Font = Enum.Font.GothamMedium, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+            Text = "B0Xaz Universal", Font = Enum.Font.GothamMedium, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
         theme:BindToken(brand, "TextColor3", "Text")
         local close = dom:Create("TextButton", { Parent = titleBar, Text = "X", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -28, 0, 9), Size = UDim2.fromOffset(20, 22), Font = Enum.Font.GothamMedium, TextSize = 13 })
         theme:BindToken(close, "TextColor3", "TextMuted")

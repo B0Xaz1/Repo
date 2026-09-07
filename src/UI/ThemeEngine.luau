@@ -28,9 +28,9 @@ return function(services: any): any
     end
     local presets: any = {
         Midnight = finish({
-            Bg = rgb(16, 16, 18), Panel = rgb(22, 22, 26), Elem = rgb(30, 30, 34), ElemHover = rgb(40, 40, 46),
-            Side = rgb(14, 14, 16), Accent = rgb(64, 176, 196), Text = rgb(226, 226, 230), TextDim = rgb(160, 162, 170),
-            TextMuted = rgb(102, 104, 112), Border = rgb(48, 48, 54), BorderDim = rgb(36, 36, 40), ToggleOff = rgb(44, 44, 50),
+            Bg = rgb(14, 16, 20), Panel = rgb(18, 20, 26), Elem = rgb(28, 30, 36), ElemHover = rgb(38, 42, 50),
+            Side = rgb(12, 14, 18), Accent = rgb(0, 210, 232), Text = rgb(230, 234, 240), TextDim = rgb(168, 176, 186),
+            TextMuted = rgb(108, 116, 128), Border = rgb(42, 50, 60), BorderDim = rgb(32, 38, 46), ToggleOff = rgb(40, 44, 52),
         }),
         Graphite = finish({
             Bg = rgb(28, 28, 30), Panel = rgb(38, 38, 42), Elem = rgb(50, 50, 56), ElemHover = rgb(64, 64, 72),

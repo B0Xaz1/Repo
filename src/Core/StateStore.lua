@@ -1,2 +1,0 @@
--- src/Core/StateStore.lua
--- Placeholder; implementation will be added separately.

@@ -1,2 +1,0 @@
--- src/UI/Tabs/PerformanceTab.lua
--- Placeholder; implementation will be added separately.

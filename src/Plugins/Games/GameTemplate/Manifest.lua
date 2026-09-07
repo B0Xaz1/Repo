@@ -1,2 +1,0 @@
--- src/Plugins/Games/GameTemplate/Manifest.lua
--- Placeholder; implementation will be added separately.

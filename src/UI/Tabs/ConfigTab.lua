@@ -1,2 +1,0 @@
--- src/UI/Tabs/ConfigTab.lua
--- Placeholder; implementation will be added separately.

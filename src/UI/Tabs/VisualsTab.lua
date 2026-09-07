@@ -1,2 +1,0 @@
--- src/UI/Tabs/VisualsTab.lua
--- Placeholder; implementation will be added separately.

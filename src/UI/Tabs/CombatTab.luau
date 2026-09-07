@@ -8,7 +8,6 @@ return function(services: any, tab: any): any
     local keybind = load("src/UI/Components/Keybind.luau", services)
     local aim = section:Create(tab.LeftCol, "Aimbot Controls")
     toggle(aim, "Aimbot Enabled", "Aimbot.Enabled", nil)
-    toggle(aim, "Use Camera Lock (CFrame)", "Aimbot.UseCamera", nil)
     keybind(aim, "Activation Bind", "Aimbot.Keybind", nil)
     dropdown(aim, "Lock Mode", "Aimbot.LockMode", { "Hold", "Toggle" }, nil)
     dropdown(aim, "Hit Part", "Aimbot.Hitpart", { "Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, nil)
@@ -17,31 +16,32 @@ return function(services: any, tab: any): any
     slider(aim, "Wind Strength", "Aimbot.WindStrength", 0, 30, 0.1, "", nil)
     slider(aim, "Wind Damping", "Aimbot.WindDamping", 0, 0.99, 0.01, "", nil)
     slider(aim, "Shake Intensity", "Aimbot.ShakeIntensity", 0, 3, 0.05, "", nil)
-    section:Info(aim, if services:Get("Environment"):IsMobile() then "Touch: enabling aim assist engages it at the viewport centre. Camera correction is recommended."
-        else "Hold or toggle the activation key. Linear disables wind. Missing relative mouse input falls back to camera correction.")
-    local fov = section:Create(tab.LeftCol, "FOV Circle")
+    toggle(aim, "Use Camera Lock (CFrame)", "Aimbot.UseCamera", nil)
+    local fov = section:Create(tab.LeftCol, "Aimbot FOV")
     toggle(fov, "Show FOV", "Aimbot.FOV.Show", nil)
-    slider(fov, "FOV radius", "Aimbot.FOV.Size", 10, 700, 1, " px", nil)
+    slider(fov, "FOV Size", "Aimbot.FOV.Size", 10, 700, 1, " px", nil)
     toggle(fov, "Filled circle", "Aimbot.FOV.Filled", nil)
     slider(fov, "Circle thickness", "Aimbot.FOV.Thickness", 1, 8, 1, " px", nil)
     slider(fov, "Circle sides", "Aimbot.FOV.Sides", 16, 128, 1, "", nil)
     toggle(fov, "Rainbow", "Aimbot.FOV.Rainbow", nil)
     toggle(fov, "Pulse", "Aimbot.FOV.Pulse", nil)
     local filters = section:Create(tab.RightCol, "Target Settings")
-    for _, entry in ipairs({ { "Team Check", "TeamCheck" }, { "Ignore Friends", "FriendCheck" }, { "Ignore Whitelisted", "WhitelistCheck" }, { "Ignore ForceField", "ForceFieldCheck" }, { "Visibility Check", "VisCheck" } }) do
-        toggle(filters, entry[1], "Aimbot." .. entry[2], nil)
-    end
+    toggle(filters, "Team Check", "Aimbot.TeamCheck", nil)
+    toggle(filters, "Visibility Check", "Aimbot.VisCheck", nil)
     toggle(filters, "Unlock On Death", "Aimbot.UnlockOnDeath", nil)
     toggle(filters, "Break On Mouse Pull", "Aimbot.BreakOnPull", nil)
-    slider(filters, "Max Distance", "Aimbot.MaxDistance", 50, 10000, 50, " studs", nil)
     slider(filters, "Max Lock Radius", "Aimbot.MaxLockRadius", 10, 1000, 5, " px", nil)
+    slider(filters, "Max Distance", "Aimbot.MaxDistance", 50, 10000, 50, " studs", nil)
+    for _, entry in ipairs({ { "Ignore Friends", "FriendCheck" }, { "Ignore Whitelisted", "WhitelistCheck" }, { "Ignore ForceField", "ForceFieldCheck" } }) do
+        toggle(filters, entry[1], "Aimbot." .. entry[2], nil)
+    end
     local trigger = section:Create(tab.RightCol, "Prediction & Triggerbot")
     slider(trigger, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
     slider(trigger, "Vertical Prediction", "Aimbot.Prediction.Vertical", 0, 1, 0.01, " s", nil)
     toggle(trigger, "Enable Triggerbot", "Aimbot.Triggerbot.Enabled", nil)
     slider(trigger, "Trigger delay", "Aimbot.Triggerbot.Delay", 0, 2, 0.01, " s", nil)
     slider(trigger, "Trigger distance", "Aimbot.Triggerbot.MaxDistance", 50, 10000, 50, " studs", nil)
-    for _, entry in ipairs({ { "Trigger team check", "TeamCheck" }, { "Trigger friend check", "FriendCheck" }, { "Trigger whitelist check", "WhitelistCheck" }, { "Trigger force-field check", "ForceFieldCheck" }, { "Trigger visibility check", "VisCheck" } }) do
+    for _, entry in ipairs({ { "Triggerbot Team Check", "TeamCheck" }, { "Trigger friend check", "FriendCheck" }, { "Trigger whitelist check", "WhitelistCheck" }, { "Trigger force-field check", "ForceFieldCheck" }, { "Trigger visibility check", "VisCheck" } }) do
         toggle(trigger, entry[1], "Aimbot.Triggerbot." .. entry[2], nil)
     end
     return { Name = tab.Name }

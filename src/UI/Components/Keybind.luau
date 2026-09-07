@@ -22,10 +22,10 @@ return function(services: any): any
         finishCapture(environment:ParseKeybind(value))
     end)
     function Keybind:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
-        local row, text, owner = section:Control(parent, label, 26)
-        text.Size = UDim2.new(1, -78, 1, 0)
-        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(1, -72, 0, 2), Size = UDim2.fromOffset(72, 22),
-            Font = Enum.Font.Code, TextSize = 11, Text = "Unbound" })
+        local row, text, owner = section:Control(parent, label, 22)
+        text.Size = UDim2.new(1, -70, 1, 0)
+        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(1, -64, 0, 1), Size = UDim2.fromOffset(64, 20),
+            Font = Enum.Font.Gotham, TextSize = 11, Text = "Unbound" })
         section:StyleButton(button, owner)
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return environment:ParseKeybind(value) or Enum.KeyCode.Unknown end }
         function handle:_Render(value: any)

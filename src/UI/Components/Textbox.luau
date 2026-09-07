@@ -5,13 +5,13 @@ return function(services: any): any
     local Textbox = {}
     -- Exception to the shared string convention: text is literal initial text; use the explicit path argument to bind it.
     function Textbox:Create(parent: Instance, label: string, text: string?, callback: any?, path: string?): any
-        local row, labelObject, owner = section:Control(parent, label, 46)
-        labelObject.Size, labelObject.Position = UDim2.new(1, 0, 0, 16), UDim2.fromOffset(0, 0)
-        local box = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 26),
+        local row, labelObject, owner = section:Control(parent, label, 38)
+        labelObject.Size, labelObject.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)
+        local box = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 16), Size = UDim2.new(1, 0, 0, 20),
             ClearTextOnFocus = false, PlaceholderText = label, Text = "", Font = Enum.Font.Gotham, TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(box, "BackgroundColor3", "Elem"); theme:BindToken(box, "TextColor3", "Text"); theme:BindToken(box, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(box, theme:GetToken("BorderDim")), "Color", "BorderDim")
-        dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 3) }); dom:CreatePadding(box, 0, 8)
+        dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(box, 0, 8)
         local handle = { Row = row, Label = labelObject, Box = box, Scope = owner, Normalize = function(value: any) return tostring(value or "") end }
         function handle:_Render(value: string)
             box.Text, labelObject.Text = value, label

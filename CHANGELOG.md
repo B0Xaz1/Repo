@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.10 — 2026-09-07
+
+- Tightened the live menu toward the Combat-tab screenshot: cyan window frame, denser groupboxes/controls, compact title/tabs, and Combat laid out as Aimbot Controls / Aimbot FOV / Target Settings.
+
 ## 2.1.9 — 2026-09-07
 
 - Cut idle frame cost: disabled ESP/chams/aimbot/flight/extras no longer run every frame, drawings are allocated lazily, and high-rate engine signals no longer spawn a thread per event.

@@ -191,14 +191,14 @@ return function(services: any): any
         if not UIEngine._main then return end
         local screen = viewport()
         local requested = math.clamp(state:Get("Settings.UIScale"), 0.6, 1.5)
-        local width = if environment:IsMobile() then math.clamp(screen.X / requested - 28, 320, 760) else 760
-        local height = math.clamp(screen.Y / requested - 40, 380, 540)
+        local width = if environment:IsMobile() then math.clamp(screen.X / requested - 28, 320, 720) else 720
+        local height = math.clamp(screen.Y / requested - 40, 360, 500)
         local scale = math.max(0.25, math.min(requested, (screen.X - 24) / width, (screen.Y - 24) / height))
         UIEngine._main.Size, UIEngine._scale.Scale = UDim2.fromOffset(width, height), scale
         local stacked = width < 620
         for _, tab in ipairs(UIEngine._tabs) do
             tab.ColumnLayout.FillDirection = if stacked then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
-            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -6, 0, 0), UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -6, 0, 0)
+            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -4, 0, 0), UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -4, 0, 0)
         end
         UIEngine._toastRoot.Size = UDim2.new(0, math.min(330, screen.X - 32), 1, -40)
     end
@@ -211,49 +211,49 @@ return function(services: any): any
         self._root = root
         theme:RegisterRoot(root)
         local main = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(760, 540), BackgroundColor3 = theme:GetToken("Bg"), Active = true })
+            Size = UDim2.fromOffset(720, 500), BackgroundColor3 = theme:GetToken("Bg"), Active = true })
         self._main = main
-        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 6) })
-        theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
+        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 4) })
+        theme:BindToken(dom:CreateStroke(main, theme:GetToken("Accent")), "Color", "Accent")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
-        local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Active = true })
-        local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 11), Size = UDim2.new(1, -200, 0, 22),
-            Text = "B0Xaz Universal", Font = Enum.Font.GothamMedium, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+        local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 34), Active = true })
+        local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -180, 0, 18),
+            Text = "B0Xaz Universal", Font = Enum.Font.GothamMedium, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
         theme:BindToken(brand, "TextColor3", "Text")
-        local close = dom:Create("TextButton", { Parent = titleBar, Text = "X", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -28, 0, 9), Size = UDim2.fromOffset(20, 22), Font = Enum.Font.GothamMedium, TextSize = 13 })
+        local close = dom:Create("TextButton", { Parent = titleBar, Text = "X", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -26, 0, 6), Size = UDim2.fromOffset(18, 20), Font = Enum.Font.GothamMedium, TextSize = 12 })
         theme:BindToken(close, "TextColor3", "TextMuted")
         scope:Connect(close.Activated, function() state:Set("Settings.MenuVisible", false) end)
-        local search = dom:Create("TextBox", { Parent = titleBar, BorderSizePixel = 0, Position = UDim2.new(1, -168, 0, 10), Size = UDim2.fromOffset(132, 22), ClearTextOnFocus = false,
-            Text = "", PlaceholderText = "search...", TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
+        local search = dom:Create("TextBox", { Parent = titleBar, BorderSizePixel = 0, Position = UDim2.new(1, -150, 0, 7), Size = UDim2.fromOffset(118, 20), ClearTextOnFocus = false,
+            Text = "", PlaceholderText = "search...", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
         self._searchBox = search
         theme:BindToken(search, "BackgroundColor3", "Elem"); theme:BindToken(search, "TextColor3", "Text"); theme:BindToken(search, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
-        dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 3) }); dom:CreatePadding(search, 0, 8)
+        dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(search, 0, 8)
         scope:Connect(search:GetPropertyChangedSignal("Text"), function() UIEngine:Search(search.Text) end)
         self:MakeDraggable(main, titleBar)
-        local strip = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 42), Size = UDim2.new(1, -16, 0, 28),
+        local strip = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 34), Size = UDim2.new(1, -16, 0, 24),
             ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X })
         theme:BindToken(strip, "ScrollBarImageColor3", "Accent")
-        dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-        local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(16, 70), Size = UDim2.new(1, -32, 0, 1) })
+        dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 0, 1) })
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
         for index, entry in ipairs(TABS) do
-            local button = dom:Create("TextButton", { Parent = strip, BackgroundTransparency = 1, BorderSizePixel = 0, Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 12, Size = UDim2.fromOffset(0, 26), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = index })
+            local button = dom:Create("TextButton", { Parent = strip, BackgroundTransparency = 1, BorderSizePixel = 0, Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 13, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = index })
             dom:CreatePadding(button, 0, 8, 0, 8)
-            local underline = dom:Create("Frame", { Parent = button, BorderSizePixel = 0, Position = UDim2.new(0.14, 0, 1, -2), Size = UDim2.new(0.72, 0, 0, 2), Visible = false })
+            local underline = dom:Create("Frame", { Parent = button, BorderSizePixel = 0, Position = UDim2.new(0.08, 0, 1, -1), Size = UDim2.new(0.84, 0, 0, 2), Visible = false })
             theme:BindToken(underline, "BackgroundColor3", "Accent")
-            local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(14, 78), Size = UDim2.new(1, -28, 1, -96),
+            local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(10, 64), Size = UDim2.new(1, -20, 1, -82),
                 Visible = false, ScrollBarThickness = 3, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
             page:SetAttribute("B0XazTab", entry.Name)
             theme:BindToken(page, "ScrollBarImageColor3", "Accent")
-            dom:CreatePadding(page, 2, 7, 12, 1)
+            dom:CreatePadding(page, 2, 4, 8, 2)
             dom:Create("UIListLayout", { Parent = page, SortOrder = Enum.SortOrder.LayoutOrder })
             local columns = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, -1, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder })
-            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
+            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
+            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
+            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
-            for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 12), SortOrder = Enum.SortOrder.LayoutOrder }) end
+            for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 8), SortOrder = Enum.SortOrder.LayoutOrder }) end
             local tab = { Name = entry.Name, Button = button, Underline = underline, Page = page, LeftCol = left, RightCol = right,
                 ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index }
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab

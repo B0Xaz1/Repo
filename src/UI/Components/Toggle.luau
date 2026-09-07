@@ -4,10 +4,10 @@ return function(services: any): any
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local Toggle = {}
     function Toggle:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
-        local row, text, owner = section:Control(parent, label, 24)
-        text.Position, text.Size = UDim2.fromOffset(22, 0), UDim2.new(1, -22, 1, 0)
+        local row, text, owner = section:Control(parent, label, 20)
+        text.Position, text.Size = UDim2.fromOffset(20, 0), UDim2.new(1, -20, 1, 0)
         local box = dom:Create("TextButton", { Parent = row, Text = "", AutoButtonColor = false, BorderSizePixel = 0,
-            Position = UDim2.fromOffset(0, 5), Size = UDim2.fromOffset(14, 14) })
+            Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(12, 12) })
         dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 2) })
         local stroke = dom:CreateStroke(box, theme:GetToken("Border"), 1)
         theme:BindToken(stroke, "Color", "Border")

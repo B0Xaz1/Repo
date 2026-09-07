@@ -121,6 +121,13 @@ return function(sources: any, core: any): any
         end
         expect(groupTitle ~= nil and groupTitle.TextColor3 == accent, "Groupbox titles use the accent color")
         expect(groupStroke ~= nil and groupStroke.Color == accent, "Groupbox borders use the accent color")
+        local windowStroke, fovTitle = nil, nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("UIStroke") and child.Parent == ui._main then windowStroke = child end
+            if child:IsA("TextLabel") and child.Text == "Aimbot FOV" then fovTitle = child end
+        end
+        expect(windowStroke ~= nil and windowStroke.Color == accent, "The window frame uses the cyan accent stroke")
+        expect(fovTitle ~= nil and fovTitle.TextColor3 == accent, "Combat FOV groupbox matches the charcoal-suite title")
         local sliderText = nil
         for row, record in pairs(ui._controls) do
             if record.Label == "Max Distance" then

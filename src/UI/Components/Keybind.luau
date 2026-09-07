@@ -30,7 +30,7 @@ return function(services: any): any
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return environment:ParseKeybind(value) or Enum.KeyCode.Unknown end }
         function handle:_Render(value: any)
             text.Text = label
-            button.Text = if Keybind._active == handle then "Press a key…" else environment:FormatKeybindName(value)
+            button.Text = if Keybind._active == handle then "Press a key..." else environment:FormatKeybindName(value)
         end
         section:Bind(handle, defaultOrPath, callback)
         owner:Connect(button.Activated, function()

@@ -103,6 +103,23 @@ return function(sources: any, core: any): any
         ui:ConstructInterface()
         expect(#ui._tabs == 7 and ui._active.Name == "Combat", "All seven real tab factories construct in registration order")
         expect(ui._versionLabel.Text:find(services.Version, 1, true) ~= nil, "Version is visible on the menu")
+        expect(ui._versionLabel.Parent == ui._main, "Version sits on the main menu frame, not the title bar")
+        local function isAscii(value: string): boolean
+            for index = 1, #value do if string.byte(value, index) > 127 then return false end end
+            return true
+        end
+        local function scanAscii(node: any)
+            if type(node.Text) == "string" then expect(isAscii(node.Text), "Live UI text is ASCII: " .. node.Text) end
+            if type(node.PlaceholderText) == "string" then expect(isAscii(node.PlaceholderText), "Live UI placeholder is ASCII: " .. node.PlaceholderText) end
+            for _, child in ipairs(node:GetChildren()) do scanAscii(child) end
+        end
+        scanAscii(ui._root)
+        expect(ui._searchBox.PlaceholderText == "search...", "Search placeholder stays ASCII")
+        local closeText = nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("TextButton") and child.Text == "X" then closeText = child.Text; break end
+        end
+        expect(closeText == "X", "Close control uses an ASCII X instead of a multiply glyph")
         local rows, count, boundCount = {}, 0, 0
         for row, record in pairs(ui._controls) do
             rows[row] = { Parent = row.Parent, Order = row.LayoutOrder, Record = record }; count += 1

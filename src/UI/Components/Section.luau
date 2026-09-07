@@ -10,13 +10,13 @@ return function(services: any): any
         local frame = dom:Create("Frame", { Parent = parent, Name = "Section", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent], BackgroundColor3 = theme:GetToken("Panel") })
         frame:SetAttribute("B0XazSection", title)
-        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 4) })
+        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 3) })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
-        theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Border")), "Color", "Border")
-        dom:CreatePadding(frame, 12, 12, 12, 12)
-        dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
-        local header = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 0,
-            Text = title, Font = Enum.Font.GothamSemibold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Text") })
+        theme:BindToken(dom:CreateStroke(frame, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:CreatePadding(frame, 10, 12, 10, 12)
+        dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
+        local header = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 0,
+            Text = title, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Text") })
         theme:BindToken(header, "TextColor3", "Text")
         local content = dom:Create("Frame", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
         dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
@@ -26,7 +26,7 @@ return function(services: any): any
         orders[parent] = (orders[parent] or 0) + 1
         local row = dom:Create("Frame", { Parent = parent, Name = "Control", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, height or 26), LayoutOrder = orders[parent] })
         local text = dom:Create("TextLabel", { Parent = row, BackgroundTransparency = 1, Size = UDim2.new(0.56, -8, 1, 0),
-            Text = label, TextSize = 13, Font = Enum.Font.Gotham, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Text") })
+            Text = label, TextSize = 12, Font = Enum.Font.Gotham, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Text") })
         theme:BindToken(text, "TextColor3", "Text")
         local owner = disposer:CreateChild("Control " .. label)
         owner:Connect(row.Destroying, function() owner:Dispose() end)
@@ -50,7 +50,8 @@ return function(services: any): any
         button.AutoButtonColor = false
         theme:BindToken(button, "BackgroundColor3", normal)
         theme:BindToken(button, "TextColor3", "Text")
-        dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 4) })
+        theme:BindToken(dom:CreateStroke(button, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 3) })
         owner:Connect(button.MouseEnter, function() theme:BindToken(button, "BackgroundColor3", "ElemHover") end)
         owner:Connect(button.MouseLeave, function() theme:BindToken(button, "BackgroundColor3", normal) end)
     end

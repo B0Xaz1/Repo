@@ -9,7 +9,7 @@ return function(services: any, tab: any): any
     local textbox = load("src/UI/Components/Textbox.luau", services)
     local environment, lighting = services:Get("Environment"), services:Get("LightingService")
     local esp = section:Create(tab.LeftCol, "ESP features")
-    section:Info(esp, if services:Get("DrawingPool").Available then "Drawing available · pooled per-player overlays" else "Drawing is unavailable. ESP and telemetry overlays will not render; native chams can still work.")
+    section:Info(esp, if services:Get("DrawingPool").Available then "Drawing available / pooled per-player overlays" else "Drawing is unavailable. ESP and telemetry overlays will not render; native chams can still work.")
     toggle(esp, "Enable ESP", "ESP.Enabled", nil)
     for _, entry in ipairs({ { "Boxes", "Box" }, { "Names", "Name" }, { "Health bars", "Health" }, { "Distance", "Distance" }, { "Equipped tools", "Tool" },
         { "Backpack contents", "Backpack" }, { "Tracers", "Tracers" }, { "Skeleton", "Skeleton" }, { "Head dots", "HeadDot" }, { "Look direction", "LookDir" }, { "Hide teammates", "TeamCheck" } }) do
@@ -33,7 +33,7 @@ return function(services: any, tab: any): any
         { "Disable particles", "NoParticles" }, { "Optimize terrain", "OptimizeTerrain" }, { "Disable post-processing", "NoPostProcessing" } }) do
         toggle(performance, entry[1], "Performance." .. entry[2], nil)
     end
-    slider(performance, "FPS cap · 0 uncaps", "Performance.FpsCap", 0, 360, 15, " FPS", nil)
+    slider(performance, "FPS cap - 0 uncaps", "Performance.FpsCap", 0, 360, 15, " FPS", nil)
     section:Info(performance, if environment:HasFpsCap() then "FPS-cap wrapper available. Unload always requests an uncapped limit." else "FPS cap is unsupported by this executor. Other optimizations remain available.")
     textbox:CreateButton(performance, "Request memory collection", function() return services:Get("OptimizerService"):FlushMemory() end)
     local light = section:Create(tab.RightCol, "Cinematic lighting")
@@ -42,7 +42,7 @@ return function(services: any, tab: any): any
     slider(light, "Time of day", "Lighting.TimeOfDay", 0, 24, 0.1, " h", function(value: number) lighting:SetTime(value) end)
     slider(light, "Day-cycle duration", "Lighting.CycleDuration", 30, 1800, 10, " s", nil)
     toggle(light, "Pause dynamic cycle", "Lighting.Paused", nil)
-    slider(light, "Preset brightness", "Lighting.PresetBrightness", 0.25, 2, 0.05, "×", nil)
+    slider(light, "Preset brightness", "Lighting.PresetBrightness", 0.25, 2, 0.05, "x", nil)
     toggle(light, "Soft vignette", "Lighting.Vignette", nil)
     toggle(light, "Remaster materials", "Lighting.RemasterMaterials", nil)
     section:Info(light, "Time and grade apply when a lighting mode is active. Fullbright takes precedence; the game's own effects are never borrowed.")

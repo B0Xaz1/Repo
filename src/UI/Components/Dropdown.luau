@@ -11,13 +11,14 @@ return function(services: any): any
         section:StyleButton(button, owner)
         dom:CreatePadding(button, 0, 0, 0, 10)
         local chevron = dom:Create("TextLabel", { Parent = button, BackgroundTransparency = 1, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(16, 26),
-            Text = "▾", Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center })
+            Text = "v", Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center })
         theme:BindToken(chevron, "TextColor3", "TextMuted")
         local menu = dom:Create("ScrollingFrame", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 46), Size = UDim2.new(1, 0, 0, 0),
             Visible = false, ScrollBarThickness = 3, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
         theme:BindToken(menu, "BackgroundColor3", "Elem")
         theme:BindToken(menu, "ScrollBarImageColor3", "Accent")
-        dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 4) })
+        theme:BindToken(dom:CreateStroke(menu, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 3) })
         dom:CreatePadding(menu, 4)
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
         local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false }

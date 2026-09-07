@@ -7,7 +7,7 @@ return function(services: any, tab: any): any
     local scope = services:Get("Disposer"):CreateChild("Game tab")
     local info = section:Create(tab.LeftCol, "Game integration")
     local active = section:Info(info, "Active adapter: " .. manager:GetActivePluginName())
-    section:Info(info, "Place " .. game.PlaceId .. "  ·  Universe " .. game.GameId)
+    section:Info(info, "Place " .. game.PlaceId .. "  /  Universe " .. game.GameId)
     textbox:CreateButton(info, "Copy place ID", function()
         local ok, message = services:Get("Environment"):SetClipboard(tostring(game.PlaceId))
         return ok, message or "Place ID copied"

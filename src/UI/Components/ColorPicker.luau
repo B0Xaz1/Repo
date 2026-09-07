@@ -26,9 +26,11 @@ return function(services: any): any
         local hex = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, ClearTextOnFocus = false, Size = UDim2.fromOffset(78, 22), Position = UDim2.new(1, -116, 0, 3),
             Text = "#FFFFFF", Font = Enum.Font.Code, TextSize = 11 })
         theme:BindToken(hex, "BackgroundColor3", "Elem"); theme:BindToken(hex, "TextColor3", "TextDim")
-        dom:Create("UICorner", { Parent = hex, CornerRadius = UDim.new(0, 4) })
+        theme:BindToken(dom:CreateStroke(hex, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = hex, CornerRadius = UDim.new(0, 3) })
         local swatch = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(28, 22), Position = UDim2.new(1, -28, 0, 3) })
-        dom:Create("UICorner", { Parent = swatch, CornerRadius = UDim.new(0, 4) })
+        theme:BindToken(dom:CreateStroke(swatch, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = swatch, CornerRadius = UDim.new(0, 3) })
         local panel = dom:Create("Frame", { Parent = row, BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 124), Visible = false })
         local square = dom:Create("TextButton", { Parent = panel, AutoButtonColor = false, Text = "", BorderSizePixel = 0, Size = UDim2.new(1, -25, 0, 112) })
         local white = dom:Create("Frame", { Parent = square, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) })

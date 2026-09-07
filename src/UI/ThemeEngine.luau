@@ -7,11 +7,11 @@ return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ThemeEngine")
     local base: any = {
-        Bg = Color3.fromRGB(17, 18, 21), Panel = Color3.fromRGB(23, 25, 29), Elem = Color3.fromRGB(28, 30, 36),
-        ElemHover = Color3.fromRGB(38, 41, 48), Side = Color3.fromRGB(14, 15, 18), Accent = Color3.fromRGB(0, 204, 230),
-        AccentDark = Color3.fromRGB(0, 140, 160), AccentDim = Color3.fromRGB(0, 72, 86), Text = Color3.fromRGB(232, 234, 238),
-        TextDim = Color3.fromRGB(168, 174, 184), TextMuted = Color3.fromRGB(98, 104, 116), Border = Color3.fromRGB(42, 46, 54),
-        BorderDim = Color3.fromRGB(32, 35, 42), ToggleOn = Color3.fromRGB(0, 204, 230), ToggleOff = Color3.fromRGB(42, 46, 54),
+        Bg = Color3.fromRGB(16, 16, 18), Panel = Color3.fromRGB(22, 22, 26), Elem = Color3.fromRGB(30, 30, 34),
+        ElemHover = Color3.fromRGB(40, 40, 46), Side = Color3.fromRGB(14, 14, 16), Accent = Color3.fromRGB(64, 176, 196),
+        AccentDark = Color3.fromRGB(40, 118, 134), AccentDim = Color3.fromRGB(28, 64, 74), Text = Color3.fromRGB(226, 226, 230),
+        TextDim = Color3.fromRGB(160, 162, 170), TextMuted = Color3.fromRGB(102, 104, 112), Border = Color3.fromRGB(48, 48, 54),
+        BorderDim = Color3.fromRGB(36, 36, 40), ToggleOn = Color3.fromRGB(64, 176, 196), ToggleOff = Color3.fromRGB(44, 44, 50),
         Success = Color3.fromRGB(106, 220, 169), Danger = Color3.fromRGB(248, 109, 137), Warning = Color3.fromRGB(244, 193, 111),
     }
     local presets: any = { Midnight = table.clone(base) }

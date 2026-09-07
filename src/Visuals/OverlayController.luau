@@ -27,7 +27,7 @@ return function(services: any): any
         local accent = if services:Has("ThemeEngine") then services:Get("ThemeEngine"):GetToken("Accent") else Color3.fromRGB(140, 167, 255)
         local time = OverlayController._time
         local fov = state:Get("Aimbot.FOV")
-        if fov.Show and state:HasPermission("Aimbot.FOV.Show") then
+        if fov.Show then
             paint("FOV", { Position = environment:GetAimPoint(camera) + environment:GetGuiInset(),
                 Radius = math.clamp(fov.Size, 1, 1500) * (if fov.Pulse then 1 + math.sin(time * 2) * 0.07 else 1),
                 Thickness = math.clamp(fov.Thickness, 1, 8), Filled = fov.Filled, Transparency = if fov.Filled then 0.15 else 0.85,
@@ -35,7 +35,7 @@ return function(services: any): any
         end
         local y = 18
         if state:Get("Settings.Watermark") then
-            paint("Watermark", { Text = "B0Xaz Universal  /  " .. services.Version .. "  /  " .. services:Get("KeyService"):GetTierName(),
+            paint("Watermark", { Text = "B0Xaz Universal  /  " .. services.Version,
                 Position = Vector2.new(18, y), Center = false, Size = 14, Font = 2, Outline = true, Color = accent }); y += 21
         end
         if state:Get("Settings.ShowFPS") then
@@ -51,7 +51,7 @@ return function(services: any): any
             end
             paint("Ping", { Text = math.round(OverlayController._ping) .. " ms", Position = Vector2.new(18, y), Center = false, Size = 13, Outline = true, Color = Color3.new(1, 1, 1) })
         end
-        if state:Get("Extras.SpeedLines") and state:HasPermission("Extras.SpeedLines") then
+        if state:Get("Extras.SpeedLines") then
             local assets = services:Get("PlayerTracker"):GetLocalAssets()
             local speed = if assets then assets.RootPart.AssemblyLinearVelocity.Magnitude else 0
             if speed > 5 then

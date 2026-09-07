@@ -113,7 +113,7 @@ return function(services: any): any
     local function reconcile()
         if scope:IsDisposed() then return end
         local config = state:Get("Lighting")
-        local fullbright = state:Get("Visuals.Fullbright") and state:HasPermission("Visuals.Fullbright")
+        local fullbright = state:Get("Visuals.Fullbright")
         if fullbright then
             -- Fullbright has exclusive grading ownership until disabled, not a competing reassert loop.
             restoreMode()
@@ -124,7 +124,7 @@ return function(services: any): any
             return
         end
         fullbrightChanges:RestoreProperties()
-        if config.Mode == "Off" or not state:HasPermission("Lighting.Mode") then
+        if config.Mode == "Off" then
             restoreMode(); LightingService._original = nil; return
         end
         LightingService._mode = config.Mode

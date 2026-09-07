@@ -2,15 +2,6 @@
 return function(sources: { [string]: string }, core: any): any
     local Test = { Passed = 0 }
     local function expect(condition: boolean, message: string) assert(condition, message); Test.Passed += 1 end
-    local function finish(callback: () -> ...any): any
-        local result = nil
-        local worker = coroutine.create(function() result = table.pack(callback()) end)
-        for _ = 1, 10 do
-            local ok, message = coroutine.resume(worker); assert(ok, message)
-            if coroutine.status(worker) == "dead" then return result end
-        end
-        error("Test exceeded its yield budget")
-    end
     local function instance(class: string, properties: any?): any
         local object = properties or {}
         object.ClassName, object.Name = class, object.Name or class
@@ -25,6 +16,7 @@ return function(sources: { [string]: string }, core: any): any
     end
     function Test:Run(): number
         local runtime = core.Environment
+        local initialFiles = table.clone(core.Files)
         core.EnumType("Material", { "Plastic", "SmoothPlastic", "Neon", "Metal" })
         local material = runtime.Enum.Material
         local world = instance("Workspace")
@@ -33,49 +25,22 @@ return function(sources: { [string]: string }, core: any): any
             EnvironmentSpecularScale = 1, GlobalShadows = true, ShadowSoftness = 0.3, FogStart = 2, FogEnd = 400, FogColor = runtime.Color3.new(1, 1, 1) })
         core.Services.Workspace, core.Services.Lighting = world, lighting
         runtime.Instance = { new = function(class: string) return instance(class) end }
-        local requests, responses = {}, {}
-        runtime.request = function(options: any): any
-            table.insert(requests, options)
-            local response = table.remove(responses, 1)
-            if not response then error("offline") end
-            return response
-        end
         local master = core.Load("src/Core/Disposer.luau")().new("ServicesTest")
         local bus = core.Load("src/Core/EventBus.luau")(master)
-        local state = core.Load("src/Core/StateStore.luau")(bus, master); state:SetTier(3)
+        local state = core.Load("src/Core/StateStore.luau")(bus, master)
         local environment = core.Load("src/Core/Environment.luau")(master)
         local scheduler = core.Load("src/Core/TaskScheduler.luau")(master)
         local services = core.Load("src/Core/ServiceContainer.luau")(master)
         services.Version = "test"
         for name, value in pairs({ Disposer = master, Environment = environment, StateStore = state, EventBus = bus, TaskScheduler = scheduler,
             DOM = { Create = function(_dom: any, class: string, props: any) return instance(class, props) end } }) do services:Register(name, value) end
-        local unconfigured = core.Load("src/Services/KeyService.luau")(services)
-        local ok, tier, message, category = unconfigured:AuthenticateKey("test")
-        expect(not ok and tier == 0 and category == "unconfigured" and #requests == 0, "Unconfigured licensing fails closed without a request")
-        local originalSource = sources["src/Services/KeyService.luau"]
-        sources["src/Services/KeyService.luau"] = originalSource:gsub('local LICENSE_ENDPOINT: string = ""', 'local LICENSE_ENDPOINT: string = "https://license.invalid/verify"')
-        local keys = core.Load("src/Services/KeyService.luau")(services)
-        sources["src/Services/KeyService.luau"] = originalSource
-        responses = { { StatusCode = 503, Body = core.Http:JSONEncode({ message = "maintenance" }) }, { StatusCode = 429, Body = core.Http:JSONEncode({ message = "slow down" }) },
-            { StatusCode = 200, Body = core.Http:JSONEncode({ success = true, tier = "Full", message = "welcome" }) } }
-        local result = finish(function() return keys:AuthenticateKey("  abcdefgh  ") end)
-        expect(result[1] and result[2] == 3 and #requests == 3, "Transient 5xx and 429 retry before successful authentication")
-        local body = core.Http:JSONDecode(requests[1].Body)
-        expect(body.key == "abcdefgh" and #body.hwid >= 16 and requests[1].Method == "POST", "License request contains normalized key and stable HWID")
-        local saved = core.Files["B0XazUniversal/_key.json"]
-        expect(saved and not saved:find("abcdefgh", 1, true), "Saved key is obfuscated")
-        local clear = core.Http:JSONDecode(environment:XorCipher(environment:Base64Decode(saved), "B0XazUniversal/key/v1"))
-        expect(clear.Key == "abcdefgh", "Obfuscated key round-trips")
-        local count = #requests
-        responses = { { StatusCode = 403, Body = core.Http:JSONEncode({ message = "Device limit reached" }) } }
-        result = finish(function() return keys:AuthenticateKey("bad") end)
-        expect(not result[1] and result[3] == "Device limit reached" and #requests == count + 1, "Genuine rejection is immediate and server text is preserved")
-        count = #requests; responses = {}
-        result = finish(function() return keys:AuthenticateKey("offline") end)
-        expect(not result[1] and result[4] == "transient" and #requests == count + 3, "Network errors exhaust three retries without claiming a bad key")
-        responses = { { StatusCode = 200, Body = core.Http:JSONEncode({ success = true, tier = "Entry" }) } }
-        result = finish(function() return keys:VerifySavedKey() end)
-        expect(result[1] and result[2] == 1, "Saved key is reverified rather than trusting a stored tier")
+        local storageUnchanged = true
+        for path, value in pairs(core.Files) do
+            if initialFiles[path] ~= value then storageUnchanged = false; break end
+            initialFiles[path] = nil
+        end
+        if next(initialFiles) then storageUnchanged = false end
+        expect(storageUnchanged, "Boot services do not create obsolete authentication storage")
         local configs = core.Load("src/Services/ConfigService.luau")(services)
         configs:Initialize()
         state:Set("Movement.FlySpeed", 77)

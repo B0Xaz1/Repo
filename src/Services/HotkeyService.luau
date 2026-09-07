@@ -46,7 +46,6 @@ return function(services: any): any
         return ok, if ok then "Rejoining this server…" else tostring(message)
     end
     function HotkeyService:ServerHop(): (boolean, string)
-        if not state:HasPermission("Settings.AutoRejoin") then return false, "Server hopping requires Entry" end
         local cursor = ""
         for _ = 1, 3 do
             local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
@@ -69,7 +68,7 @@ return function(services: any): any
         return false, "No open public server was found in the first three pages"
     end
     local function onDisconnect(message: string?)
-        if not state:Get("Settings.AutoRejoin") or not state:HasPermission("Settings.AutoRejoin") or HotkeyService._rejoining then return end
+        if not state:Get("Settings.AutoRejoin") or HotkeyService._rejoining then return end
         if message == "" then return end
         local ok, text = HotkeyService:Rejoin()
         bus:Publish("Notify", if ok then "Auto-rejoin" else "Rejoin failed", text)
@@ -81,9 +80,7 @@ return function(services: any): any
             if input:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             for _, entry in ipairs(BIND_TARGETS) do
                 if (not processed or entry.Key == "Menu") and environment:MatchesInput(event, state:Get("Settings.Binds." .. entry.Key)) then
-                    if not state:HasPermission(entry.Path) then
-                        bus:Publish("Notify", "Tier locked", entry.Label .. " requires tier " .. state:GetRequiredTier(entry.Path))
-                    elseif entry.Cycle then
+                    if entry.Cycle then
                         local index = table.find(entry.Cycle, state:Get(entry.Path)) or 0
                         services:Get("LightingService"):SetMode(entry.Cycle[index % #entry.Cycle + 1])
                     else state:Set(entry.Path, not state:Get(entry.Path)) end

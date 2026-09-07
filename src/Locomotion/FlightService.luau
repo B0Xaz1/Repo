@@ -12,7 +12,7 @@ return function(services: any): any
         if owner then owner:Dispose() end
     end
     function FlightService:Start(): (boolean, string)
-        if scope:IsDisposed() or not state:Get("Movement.FlyEnabled") or not state:HasPermission("Movement.FlyEnabled") then return false, "Flight is disabled or tier locked" end
+        if scope:IsDisposed() or not state:Get("Movement.FlyEnabled") then return false, "Flight is disabled" end
         local assets = tracker:GetLocalAssets()
         local camera = workspace.CurrentCamera
         if not assets or assets.Humanoid.Health <= 0 or not camera then return false, "Character is not ready" end
@@ -51,7 +51,7 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         scope:Add(scheduler:RegisterHeartbeat("Movement.Flight", 20, function(_dt: number)
-            if not state:Get("Movement.FlyEnabled") or not state:HasPermission("Movement.FlyEnabled") then FlightService:Stop(); return end
+            if not state:Get("Movement.FlyEnabled") then FlightService:Stop(); return end
             local assets, camera = tracker:GetLocalAssets(), workspace.CurrentCamera
             if not assets or assets.Humanoid.Health <= 0 or not camera then FlightService:Stop(); return end
             if not FlightService._active or FlightService._root ~= assets.RootPart or not FlightService._velocity or not FlightService._velocity.Parent then

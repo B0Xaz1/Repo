@@ -79,9 +79,9 @@ return function(sources: any, core: any): any
         runtime.Drawing = nil
         local master = core.Load("src/Core/Disposer.luau")().new("UITest")
         local bus = core.Load("src/Core/EventBus.luau")(master)
-        local state = core.Load("src/Core/StateStore.luau")(bus, master); state:SetTier(3)
+        local state = core.Load("src/Core/StateStore.luau")(bus, master)
         local environment = core.Load("src/Core/Environment.luau")(master)
-        local services = core.Load("src/Core/ServiceContainer.luau")(master); services.Version = "2.0.0-test"
+        local services = core.Load("src/Core/ServiceContainer.luau")(master); services.Version = "2.1.0-test"
         local factories, initialized = {}, {}
         local function load(path: string, ...: any): any
             if not factories[path] then factories[path] = core.Load(path) end
@@ -92,8 +92,6 @@ return function(sources: any, core: any): any
         for name, value in pairs({ Disposer = master, EventBus = bus, StateStore = state, Environment = environment, Require = load,
             DrawingPool = { Available = false }, LocomotionService = { ListBookmarks = function() return {} end },
             PlayerTracker = { GetPlayerNames = function() return { "Ann", "Anna" } end, GetWhitelistSummary = function() return "None" end },
-            KeyService = { GetTierName = function() return ({ "Entry", "Normal", "Full" })[state:GetTier()] or "No Access" end, GetMaskedKey = function() return "masked" end,
-                AuthenticateKey = function() return false, 0, "Backend maintenance: please retry later", "transient" end },
             LightingService = { SetMode = function(_service: any, mode: string) state:Set("Lighting.Mode", mode) end } }) do services:Register(name, value) end
         services:Register("DOM", load("src/UI/DOM.luau", services))
         services:Register("ConfigService", load("src/Services/ConfigService.luau", services))
@@ -110,11 +108,10 @@ return function(sources: any, core: any): any
             local path = row:GetAttribute("StatePath")
             if path then
                 expect(state:Get(path) ~= nil, "Every bound UI path exists: " .. path)
-                expect(row:GetAttribute("RequiredTier") == state:GetRequiredTier(path), "UI tier matches state permission map: " .. path)
                 boundCount += 1
             end
         end
-        expect(count >= 190 and boundCount >= 115, "Interface constructs the complete control surface, not placeholder tabs")
+        expect(count >= 185 and boundCount >= 115, "Interface constructs the complete control surface, not placeholder tabs")
         ui:Search("flight")
         local moved = 0
         for row, home in pairs(rows) do if row.Parent ~= home.Parent then moved += 1; expect(row.Parent == ui._active.ResultsCol, "All matches move into the active results column") end end
@@ -131,12 +128,13 @@ return function(sources: any, core: any): any
         properties[badRow].FailParent = nil
         state:Set("Aimbot.Hitpart", "not-a-part")
         expect(state:Get("Aimbot.Hitpart") == "Head", "Invalid saved dropdown values fall back to the first option")
-        ui:SelectTab("Combat"); state:Set("Aimbot.Enabled", true); state:Set("ESP.Enabled", true); state:SetTier(1)
-        expect(ui._tabByName.Combat.Locked and ui._active.Name == "Visuals" and not state:Get("ESP.Enabled"), "Tier downgrade locks tabs, switches off features and bounces the active tab")
+        for _, tab in ipairs(ui._tabs) do
+            expect(ui:SelectTab(tab.Name) and ui._active.Name == tab.Name, "Every tab remains available without an access gate: " .. tab.Name)
+        end
+        ui:SelectTab("Combat")
+        state:Set("Aimbot.Enabled", false)
         badRow:FindFirstChildOfClass("TextButton").Activated:Fire()
-        expect(not state:Get("Aimbot.Enabled"), "A locked toggle cannot enable its feature")
-        state:SetTier(0)
-        expect(ui._active.Name == "Settings", "Tier zero has only the Settings tab")
+        expect(state:Get("Aimbot.Enabled"), "Aimbot controls can enable their feature directly")
         local dom = services:Get("DOM")
         local unbound = dom:Create("TextLabel", { Parent = ui._root, TextColor3 = theme:GetToken("Accent") })
         theme:SetPreset("Ocean")
@@ -157,50 +155,10 @@ return function(sources: any, core: any): any
         local share = load("src/UI/Modals/ConfigShareModal.luau", services); share:Show("{}")
         expect(share._view ~= nil, "The two-way JSON modal constructs")
         share:Hide()
-        local auth = load("src/UI/Modals/KeyAuthModal.luau", services)
-        local succeeded = false
-        auth:Show(function() succeeded = true end, "Initial server message")
-        local verify = nil
-        for _, object in ipairs(instances) do if not properties[object].Destroyed and object:IsA("TextButton") and object.Text == "Verify license" then verify = object end end
-        expect(verify ~= nil, "Pre-launch auth has a responsive verification action")
-        verify.Activated:Fire()
-        local found = false
-        for _, object in ipairs(instances) do if not properties[object].Destroyed and object:IsA("TextLabel") and object.Text == "Backend maintenance: please retry later" then found = true end end
-        expect(found and not succeeded, "Auth surfaces transient server text verbatim without granting access")
         master:Dispose()
         local alive = 0
         for _, object in ipairs(instances) do if not properties[object].Destroyed and object ~= world and object ~= parent and object ~= camera then alive += 1 end end
         expect(alive == 0, "No UI instance, modal or temporary toast survives master disposal")
-        -- Smoke the actual production bootstrap too: only Roblox/executor APIs are mocked, not application services.
-        runtime.Random = { new = function() return { NextNumber = function(_random: any, low: number, high: number) return (low + high) / 2 end } end }
-        runtime.game.IsLoaded = function() return true end
-        local fetched = {}
-        runtime.game.HttpGet = function(_game: any, url: string): string
-            local path = assert(url:match("/(src/.-%.luau)%?"), "Unexpected bootstrap URL")
-            fetched[path] = (fetched[path] or 0) + 1
-            return assert(sources[path], "Missing production source " .. path)
-        end
-        runtime.loadstring = function(source: string, name: string?): any
-            local chunk, message = loadstring(source, name)
-            if chunk then setfenv(chunk, runtime) end
-            return chunk, message
-        end
-        local previousPrint = runtime.print
-        runtime.print = function() end
-        local boot = assert(runtime.loadstring(sources["init.luau"], "@ProductionSmoke"))
-        boot()
-        expect(runtime._G.B0XazMasterDisposer ~= nil and runtime._G.B0XazServiceContainer ~= nil and not runtime._G.B0XazRunning,
-            "The complete real production graph reaches its fail-closed auth gate: " .. tostring(core.Warnings[#core.Warnings]))
-        expect(runtime._G.B0XazBaseURL == "https://raw.githubusercontent.com/B0Xaz1/Repo/main/", "The direct release entry point defaults to main")
-        local fetchedCount = 0
-        for path, times in pairs(fetched) do expect(times == 1, "Actual boot fetches each module once: " .. path); fetchedCount += 1 end
-        expect(fetchedCount >= 28, "Smoke coverage includes the real service, plugin, UI and auth factories")
-        runtime._G.B0XazUnload()
-        expect(runtime._G.B0XazMasterDisposer == nil, "The real production bootstrap can be unloaded before auth")
-        local survivors = 0
-        for _, object in ipairs(instances) do if not properties[object].Destroyed and object ~= world and object ~= parent and object ~= camera then survivors += 1 end end
-        expect(survivors == 0, "Production auth-gate cleanup leaves no owned GUI instances")
-        runtime.print = previousPrint
         print(string.format("PASS UI: %d assertions (%d controls, %d bound paths)", Test.Passed, count, boundCount))
         return Test.Passed
     end

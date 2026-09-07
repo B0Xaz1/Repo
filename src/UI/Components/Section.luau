@@ -54,33 +54,24 @@ return function(services: any): any
         owner:Connect(button.MouseEnter, function() theme:BindToken(button, "BackgroundColor3", "ElemHover") end)
         owner:Connect(button.MouseLeave, function() theme:BindToken(button, "BackgroundColor3", normal) end)
     end
-    function Section:NotifyLocked(required: number)
-        local names = { "Entry", "Normal", "Full" }
-        bus:Publish("Notify", "Tier locked", "This control requires " .. (names[required] or tostring(required)) .. " access")
-    end
-    function Section:Bind(handle: any, defaultOrPath: any, callback: any?, requiredTier: number?, literal: boolean?): any
+    function Section:Bind(handle: any, defaultOrPath: any, callback: any?, literal: boolean?): any
         local path = if type(defaultOrPath) == "string" and not literal then defaultOrPath else nil
-        local mapped = if path then state:GetRequiredTier(path) else 0
-        if path and requiredTier ~= nil then assert(requiredTier == mapped, "UI tier mismatch for " .. path) end
-        handle.Path, handle.RequiredTier = path, requiredTier or mapped
-        handle.Row:SetAttribute("RequiredTier", handle.RequiredTier)
+        handle.Path = path
         handle.Row:SetAttribute("StatePath", path)
         function handle:Get(): any return self._value end
         function handle:Set(value: any, silent: boolean?): boolean
             if self.Scope:IsDisposed() then return false end
             if self.Normalize then value = self.Normalize(value) end
-            if not silent and state:GetTier() < self.RequiredTier and value ~= false then Section:NotifyLocked(self.RequiredTier); return false end
             if not silent and self.Path then
                 local ok, message = state:Set(self.Path, value)
                 if not ok then bus:Publish("Notify", "Control", tostring(message)); return false end
             end
-            self._value, self.Locked = value, state:GetTier() < self.RequiredTier
-            if self._Render then self:_Render(value, self.Locked) end
+            self._value = value
+            if self._Render then self:_Render(value) end
             if not silent and callback then callback(value) end
             return true
         end
         if path then handle.Scope:Add(state:Observe(path, function(value: any) handle:Set(value, true) end)) end
-        handle.Scope:Add(bus:Subscribe("TierChanged", function() handle:Set(if path then state:Get(path) else handle._value, true) end))
         handle:Set(if path then state:Get(path) else defaultOrPath, true)
         return handle
     end

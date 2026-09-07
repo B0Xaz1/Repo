@@ -17,7 +17,7 @@ return function(services: any): any
     scope:Connect(input.InputEnded, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then Slider._active = nil end
     end)
-    function Slider:Create(parent: Instance, label: string, defaultOrPath: any, minimum: number, maximum: number, step: number?, suffix: string?, callback: any?, requiredTier: number?): any
+    function Slider:Create(parent: Instance, label: string, defaultOrPath: any, minimum: number, maximum: number, step: number?, suffix: string?, callback: any?): any
         assert(maximum > minimum, "Slider needs an increasing range")
         local increment = math.max(step or 1, 0.0001)
         local row, text, owner = section:Control(parent, label, 59)
@@ -36,17 +36,15 @@ return function(services: any): any
             local number = tonumber(value) or minimum
             return math.clamp(minimum + math.floor((number - minimum) / increment + 0.5) * increment, minimum, maximum)
         end }
-        function handle:_Render(value: number, locked: boolean)
+        function handle:_Render(value: number)
             local alpha = (value - minimum) / (maximum - minimum)
             fill.Size, knob.Position = UDim2.fromScale(alpha, 1), UDim2.fromScale(alpha, 0.5)
             local formatted = string.format("%.3f", value):gsub("0+$", ""):gsub("%.$", "")
-            valueLabel.Text = formatted .. (suffix or "")
-            text.Text = label .. (if locked then "  [locked]" else "")
+            valueLabel.Text, text.Text = formatted .. (suffix or ""), label
         end
-        section:Bind(handle, defaultOrPath, callback, requiredTier)
+        section:Bind(handle, defaultOrPath, callback)
         owner:Connect(hit.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            if handle.Locked then section:NotifyLocked(handle.RequiredTier); return end
             Slider._active = { Handle = handle, Track = track, Min = minimum, Max = maximum }
             update(event.Position)
         end)

@@ -144,7 +144,6 @@ return function(sources: { [string]: string }): any
         expect(#calls == 2 and calls[1] == 1 and calls[2] == 3, "Disconnect and throwing handlers cannot starve neighbours")
         expect(first.Next and first.Next.Previous == first, "Doubly-linked list is repaired after O(1) removal")
         local state = loadModule("src/Core/StateStore.luau")(bus, master)
-        state:SetTier(3)
         local changes = 0
         state:Observe("Settings.Whitelist", function() changes += 1 end)
         local list = state:Get("Settings.Whitelist"); list[1] = "Tester"; state:Set("Settings.Whitelist", list)
@@ -157,12 +156,10 @@ return function(sources: { [string]: string }): any
         expect(state:Get("Movement.FlySpeed") == 77 and state:Get("Movement.SprintSpeed") == 28, "Old profiles merge over new defaults")
         expect(state:Get("Settings.UIScale") == 1, "Hydration rejects mismatched scalar types")
         state:Set("Aimbot.Enabled", true); state:Set("ESP.Enabled", true); state:Set("Movement.FlyEnabled", true)
-        state:SetTier(1)
-        expect(not state:Get("Aimbot.Enabled") and not state:Get("ESP.Enabled") and state:Get("Movement.FlyEnabled"), "Tier downgrade disables only locked features")
-        expect(not state:Set("Aimbot.Enabled", true), "Locked booleans cannot be enabled")
-        expect(not state:Set("Game.DoorOpen", true), "Game.* inherits Full gating")
+        expect(state:Get("Aimbot.Enabled") and state:Get("ESP.Enabled") and state:Get("Movement.FlyEnabled"), "All built-in feature settings can be enabled directly")
+        expect(state:Set("Game.DoorOpen", true) and state:Get("Game.DoorOpen"), "Game plugin state accepts free-form settings")
         state:LoadSettingsSnapshot({ Aimbot = { Enabled = true }, Movement = { Fling = true } })
-        expect(not state:Get("Aimbot.Enabled") and not state:Get("Movement.Fling"), "Hydration cannot bypass nested tier requirements")
+        expect(state:Get("Aimbot.Enabled") and state:Get("Movement.Fling"), "Hydration preserves enabled settings without an access sweep")
         state:Set("Settings.MenuKeybind", enumTypes.KeyCode.B)
         expect(state:Get("Settings.Binds.Menu").Name == "B", "Menu key aliases remain consistent")
         local scheduler = loadModule("src/Core/TaskScheduler.luau")(master)
@@ -188,23 +185,13 @@ return function(sources: { [string]: string }): any
         expect(#initialized == 1 and container:Has("Dummy"), "Services initialize exactly once")
         expect(not pcall(function() container:Get("Missing") end), "Missing dependencies throw loudly")
         local env = loadModule("src/Core/Environment.luau")(master)
-        local vectors = { { "", "" }, { "f", "Zg==" }, { "fo", "Zm8=" }, { "foo", "Zm9v" }, { "foob", "Zm9vYg==" }, { "fooba", "Zm9vYmE=" }, { "foobar", "Zm9vYmFy" } }
-        for _, vector in ipairs(vectors) do
-            expect(env:Base64Encode(vector[1]) == vector[2], "RFC4648 encoding: " .. vector[1])
-            expect(env:Base64Decode(vector[2]) == vector[1], "RFC4648 decoding: " .. vector[2])
-        end
-        local binary = {}; for index = 0, 255 do table.insert(binary, string.char(index)) end
-        local bytes = table.concat(binary)
-        expect(env:Base64Decode(env:Base64Encode(bytes)) == bytes, "Base64 covers every byte, including NUL")
-        expect(not pcall(function() env:Base64Decode("Z===") end), "Corrupt padding is rejected")
-        expect(env:XorCipher(env:XorCipher(bytes, "salt"), "salt") == bytes, "XOR is symmetric for binary input")
         expect(env:ParseKeybind("MB2") == enumTypes.UserInputType.MouseButton2, "Mouse aliases parse")
         expect(env:ParseKeybind({ __type = "EnumItem", enum = "KeyCode", name = "F" }) == enumTypes.KeyCode.F, "Serialized enum binds parse")
         expect(env:ParseKeybind("invalid") == nil, "Unknown key names are harmless")
         expect(not env:WriteFile("../escape", "no"), "File sandbox rejects parent traversal")
         expect(env:WriteFile("B0XazUniversal/Configs/a.json", "ok"), "Root prefix is accepted exactly once")
         expect(files["B0XazUniversal/Configs/a.json"] == "ok", "Filesystem writes stay under owned root")
-        expect(#env:GetDeviceId() >= 16 and env:GetDeviceId() == env:GetDeviceId(), "Weak-executor device ID is stable")
+        expect(env.GetDeviceId == nil, "The environment no longer exposes a device-identifier API")
         expect(not env:HasFpsCap() and not env:MouseMove(1, 1), "Optional capabilities degrade without crashing")
         local pressed, releaseAttempts = false, 0
         services.UserInputService.GetMouseLocation = function() return { X = 10, Y = 20 } end

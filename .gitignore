@@ -1,8 +1,5 @@
-# Executor-owned files may contain device identifiers and license keys.
+# Executor-owned runtime files are local session data.
 B0XazUniversal/
-_device.json
-_key.json
-_autoload.json
 *.log
 .DS_Store
 .arena/

@@ -44,13 +44,6 @@ local DEFAULT_SETTINGS: any = {
     Theme = { ActivePreset = "Midnight", CustomTokens = {} },
 }
 
--- Longest-prefix resolution is shared by setters, hydration, services AND component lock badges.
-local TIER_REQUIREMENTS: { [string]: number } = {
-    Aimbot = 3, ESP = 2, Chams = 2, Movement = 1, ["Movement.Fling"] = 3,
-    Camera = 1, Visuals = 1, Lighting = 1, Extras = 1, Performance = 1, Game = 3,
-    ["Settings.TpToMouse"] = 1, ["Settings.AntiAfk"] = 1, ["Settings.AutoRejoin"] = 1,
-    ["Settings.Whitelist"] = 1,
-}
 local ALIASES: { [string]: string } = {
     ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
     ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
@@ -106,7 +99,7 @@ local function merge(defaults: any, incoming: any): any
 end
 
 return function(eventBus: any, disposer: any): any
-    local StateStore = { _settings = clone(DEFAULT_SETTINGS), _transient = {}, _tier = 0, _revision = 0, _hydrating = false }
+    local StateStore = { _settings = clone(DEFAULT_SETTINGS), _transient = {}, _revision = 0, _hydrating = false }
 
     local function publishChanges(path: string, value: any, old: any)
         if equal(value, old) then return end
@@ -127,31 +120,14 @@ return function(eventBus: any, disposer: any): any
     end
 
     function StateStore:Get(path: string): any return clone(read(self._settings, path)) end
-    function StateStore:GetRequiredTier(path: string): number
-        local required, length = 0, 0
-        for prefix, tier in pairs(TIER_REQUIREMENTS) do
-            if (path == prefix or path:sub(1, #prefix + 1) == prefix .. ".") and #prefix > length then required, length = tier, #prefix end
-        end
-        return required
-    end
-    function StateStore:HasPermission(path: string): boolean return self._tier >= self:GetRequiredTier(path) end
-    function StateStore:GetTier(): number return self._tier end
-    function StateStore:GetTierRequirements(): any return clone(TIER_REQUIREMENTS) end
-
-    function StateStore:Set(path: string, value: any, bypassPerm: boolean?): (boolean, string?)
+    function StateStore:Set(path: string, value: any, _bypass: boolean?): (boolean, string?)
         assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"), "Invalid state path")
         local default = read(DEFAULT_SETTINGS, path)
         if not compatible(value, default) then return false, "Invalid value for " .. path end
-        if not bypassPerm and not self:HasPermission(path) and not equal(value, default) and value ~= false then
-            return false, "Requires tier " .. self:GetRequiredTier(path)
-        end
-        if not bypassPerm and value == true and not self:HasPermission(path) then return false, "Feature is tier locked" end
         local old = read(self._settings, path)
         if equal(old, value) then return true end
         local stored = clone(value)
         write(self._settings, path, stored)
-        -- Parent writes cannot smuggle Game.* or a higher-tier child through an accessible ancestor.
-        if type(stored) == "table" and not bypassPerm then self:EnforcePermissions(true); stored = read(self._settings, path) end
         publishChanges(path, stored, old)
         local alias = ALIASES[path]
         if alias then
@@ -161,7 +137,6 @@ return function(eventBus: any, disposer: any): any
         end
         return true
     end
-
     function StateStore:Observe(path: string, callback: (...any) -> ()): any
         return eventBus:Subscribe("StateChanged:" .. path, callback)
     end
@@ -172,26 +147,6 @@ return function(eventBus: any, disposer: any): any
         self._transient[key] = value
         eventBus:Publish("TransientChanged:" .. key, value, old)
     end
-    function StateStore:EnforcePermissions(silent: boolean?)
-        for path, tier in pairs(TIER_REQUIREMENTS) do
-            if self._tier < tier then
-                local old, default = read(self._settings, path), clone(read(DEFAULT_SETTINGS, path))
-                write(self._settings, path, default)
-                if not silent then publishChanges(path, default, old) end
-            end
-        end
-        -- Feature revocation must not change a user's accessible hotkey preferences through a legacy alias.
-        self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
-        self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
-        if self._tier < 3 then self:SetTransient("FlingTarget", nil) end
-    end
-    function StateStore:SetTier(tier: number)
-        assert(type(tier) == "number" and tier == tier, "Invalid tier")
-        local old = self._tier
-        self._tier = math.clamp(math.floor(tier), 0, 3)
-        self:EnforcePermissions()
-        if old ~= self._tier then eventBus:Publish("TierChanged", self._tier, old) end
-    end
     function StateStore:GetSettingsSnapshot(): any return clone(self._settings) end
     function StateStore:GetDefaultSettings(): any return clone(DEFAULT_SETTINGS) end
     function StateStore:LoadSettingsSnapshot(snapshot: any)
@@ -199,7 +154,7 @@ return function(eventBus: any, disposer: any): any
         local old = self._settings
         self._hydrating = true
         self._settings = merge(DEFAULT_SETTINGS, snapshot)
-        self:EnforcePermissions(true)
+        -- Keep legacy/current bind fields in lockstep after a profile supplies either representation.
         self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
         self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
         for branch, value in pairs(self._settings) do publishChanges(branch, value, old[branch]) end

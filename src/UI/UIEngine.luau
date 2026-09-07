@@ -1,9 +1,9 @@
 --!nonstrict
 local TABS = {
-    { Name = "Combat", Path = "src/UI/Tabs/CombatTab.luau", Tier = 3 }, { Name = "Visuals", Path = "src/UI/Tabs/VisualsTab.luau", Tier = 1 },
-    { Name = "Movement", Path = "src/UI/Tabs/MovementTab.luau", Tier = 1 }, { Name = "Players", Path = "src/UI/Tabs/PlayersTab.luau", Tier = 1 },
-    { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau", Tier = 1 }, { Name = "Game", Path = "src/UI/Tabs/GameTab.luau", Tier = 3 },
-    { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau", Tier = 0 },
+    { Name = "Combat", Path = "src/UI/Tabs/CombatTab.luau" }, { Name = "Visuals", Path = "src/UI/Tabs/VisualsTab.luau" },
+    { Name = "Movement", Path = "src/UI/Tabs/MovementTab.luau" }, { Name = "Players", Path = "src/UI/Tabs/PlayersTab.luau" },
+    { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" }, { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" },
+    { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau" },
 }
 
 return function(services: any): any
@@ -64,7 +64,7 @@ return function(services: any): any
             local results = {}
             for _, record in pairs(self._controls) do
                 local tab = self._tabByName[record.TabName]
-                if not tab or tab.Locked or not record.Row.Parent then continue end
+                if not tab or not record.Row.Parent then continue end
                 local searchable = (record.TabName .. " " .. record.SectionName .. " " .. record.Label):lower()
                 local matches = true
                 for word in self._query:gmatch("%S+") do if not searchable:find(word, 1, true) then matches = false; break end end
@@ -93,7 +93,7 @@ return function(services: any): any
             end
             if #results == 0 then
                 local empty = dom:Create("TextLabel", { Parent = active.ResultsCol, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 80),
-                    Text = "No matching controls in your accessible tabs.\nTry a feature, section, or tab name.", TextSize = 13, Font = Enum.Font.Gotham, TextWrapped = true })
+                    Text = "No matching controls.\nTry a feature, section, or tab name.", TextSize = 13, Font = Enum.Font.Gotham, TextWrapped = true })
                 theme:BindToken(empty, "TextColor3", "TextMuted"); table.insert(self._searchHeaders, empty)
             end
             active.Page.CanvasPosition = Vector2.zero
@@ -112,29 +112,16 @@ return function(services: any): any
     function UIEngine:SelectTab(name: string): boolean
         local tab = self._tabByName[name]
         if not tab then return false end
-        if tab.Locked then self:Notify("Tier locked", name .. " requires tier " .. tab.RequiredTier); return false end
         restoreSearch(); self:CloseAllDropdownsExcept(nil)
         self._active = tab
         for _, candidate in ipairs(self._tabs) do
             local active = candidate == tab
             candidate.Page.Visible, candidate.Underline.Visible = active, active
-            theme:BindToken(candidate.Button, "TextColor3", if candidate.Locked then "TextMuted" else if active then "Accent" else "TextDim")
+            theme:BindToken(candidate.Button, "TextColor3", if active then "Accent" else "TextDim")
             theme:BindToken(candidate.Button, "BackgroundColor3", if active then "AccentDim" else "Bg")
         end
         if self._query ~= "" then self:Search(self._query) end
         return true
-    end
-    local function refreshTiers()
-        for _, tab in ipairs(UIEngine._tabs) do
-            tab.Locked = state:GetTier() < tab.RequiredTier
-            tab.Button.Text = (if tab.Locked then "🔒 " else "") .. tab.Name
-            tab.Button.Size = UDim2.fromOffset(#tab.Name * 8 + (if tab.Locked then 42 else 26), 32)
-        end
-        if UIEngine._active and UIEngine._active.Locked then
-            UIEngine:Notify("Access changed", "The active tab is no longer included in your license")
-            for _, tab in ipairs(UIEngine._tabs) do if not tab.Locked then UIEngine:SelectTab(tab.Name); break end end
-        elseif UIEngine._active then UIEngine:SelectTab(UIEngine._active.Name) end
-        if UIEngine._versionLabel then UIEngine._versionLabel.Text = "v" .. services.Version .. "  ·  " .. services:Get("KeyService"):GetTierName() end
     end
     function UIEngine:MakeDraggable(frame: GuiObject, handle: GuiObject): any
         local owner = scope:CreateChild("Window drag")
@@ -231,7 +218,7 @@ return function(services: any): any
             Text = "U N I V E R S A L", Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(universal, "TextColor3", "TextDim")
         self._versionLabel = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(21, 43), Size = UDim2.new(1, -80, 0, 17),
-            Text = "v" .. services.Version .. "  ·  " .. services:Get("KeyService"):GetTierName(), Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
+            Text = "v" .. services.Version, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
         local close = dom:Create("TextButton", { Parent = titleBar, Text = "×", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -48, 0, 14), Size = UDim2.fromOffset(30, 30), Font = Enum.Font.Gotham, TextSize = 25 })
         theme:BindToken(close, "TextColor3", "TextMuted")
@@ -264,8 +251,8 @@ return function(services: any): any
             local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
             for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 12), SortOrder = Enum.SortOrder.LayoutOrder }) end
-            local tab = { Name = entry.Name, RequiredTier = entry.Tier, Locked = state:GetTier() < entry.Tier, Button = button, Underline = underline,
-                Page = page, LeftCol = left, RightCol = right, ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index }
+            local tab = { Name = entry.Name, Button = button, Underline = underline, Page = page, LeftCol = left, RightCol = right,
+                ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index }
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab
             scope:Connect(button.Activated, function() UIEngine:SelectTab(tab.Name) end)
             print("[B0Xaz][Trace] step start tab " .. entry.Name)
@@ -295,8 +282,7 @@ return function(services: any): any
             resize()
         end
         scope:Connect(workspace:GetPropertyChangedSignal("CurrentCamera"), bindViewport); bindViewport()
-        refreshTiers()
-        for _, tab in ipairs(self._tabs) do if not tab.Locked then self:SelectTab(tab.Name); break end end
+        if self._tabs[1] then self:SelectTab(self._tabs[1].Name) end
         self._constructing = false
         local pending = self._pending; self._pending = {}
         for _, notification in ipairs(pending) do self:Notify(table.unpack(notification, 1, 4)) end
@@ -309,7 +295,6 @@ return function(services: any): any
     end
     function UIEngine:Destroy() scope:Dispose() end
     scope:Add(bus:Subscribe("Notify", function(...: any) UIEngine:Notify(...) end))
-    scope:Add(bus:Subscribe("TierChanged", refreshTiers))
     scope:Add(function()
         restoreSearch()
         if UIEngine._root then dom:DestroyInstance(UIEngine._root) end

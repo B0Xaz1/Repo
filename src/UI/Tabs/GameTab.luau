@@ -11,7 +11,7 @@ return function(services: any, tab: any): any
     textbox:CreateButton(info, "Copy place ID", function()
         local ok, message = services:Get("Environment"):SetClipboard(tostring(game.PlaceId))
         return ok, message or "Place ID copied"
-    end, 0)
+    end)
     scope:Add(services:Get("EventBus"):Subscribe("PluginChanged", function(name: string) active:Set("Active adapter: " .. name) end))
     manager:MountUI(tab)
     return { Name = tab.Name }

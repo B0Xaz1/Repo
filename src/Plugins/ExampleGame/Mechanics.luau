@@ -7,7 +7,7 @@ return function(services: any): any
     local Plugin = { Name = manifest.Name, _doors = {}, _weapons = {}, _initialized = false }
     local function applyDoor(part: BasePart, owner: any)
         if scope:IsDisposed() then return end
-        if state:Get("Game.Example.DoorsOpen") and state:HasPermission("Game.Example.DoorsOpen") then
+        if state:Get("Game.Example.DoorsOpen") then
             owner:SetProperty(part, "CanCollide", false)
             owner:SetProperty(part, "Transparency", manifest.Doors.OpenTransparency)
         else owner:RestoreProperties() end
@@ -21,7 +21,7 @@ return function(services: any): any
     end
     local function applyWeapon(tool: Tool, owner: any)
         if scope:IsDisposed() then return end
-        if state:Get("Game.Example.WeaponTuning") and state:HasPermission("Game.Example.WeaponTuning") then
+        if state:Get("Game.Example.WeaponTuning") then
             for attribute, value in pairs(manifest.Weapons.Attributes) do owner:SetAttribute(tool, attribute, value) end
         else owner:RestoreProperties() end
     end
@@ -64,13 +64,13 @@ return function(services: any): any
         local textbox = load("src/UI/Components/Textbox.luau", services)
         local controls = section:Create(tab.LeftCol, "Example mechanics")
         section:Info(controls, "Opt-in test-place adapter. Only tagged doors and explicitly named tools are touched. Server-owned behavior may reject client changes.")
-        toggle(controls, "Phase tagged doors", "Game.Example.DoorsOpen", nil, 3)
-        toggle(controls, "Tune example weapon", "Game.Example.WeaponTuning", nil, 3)
+        toggle(controls, "Phase tagged doors", "Game.Example.DoorsOpen", nil)
+        toggle(controls, "Tune example weapon", "Game.Example.WeaponTuning", nil)
         local travel = section:Create(tab.RightCol, "Manifest destinations")
         textbox:CreateButton(travel, "Go to test lobby", function()
             local ok, message = services:Get("LocomotionService"):Teleport(manifest.Coordinates.Lobby)
             services:Get("EventBus"):Publish("Notify", if ok then "Plugin" else "Unavailable", message)
-        end, 3)
+        end)
     end
     function Plugin:Destroy() scope:Dispose(); table.clear(self._doors); table.clear(self._weapons) end
     return Plugin

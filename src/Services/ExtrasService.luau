@@ -30,7 +30,7 @@ return function(services: any): any
     end
     local function updateHitboxes()
         local config = state:Get("Extras.Hitbox")
-        if not config.Enabled or not state:HasPermission("Extras.Hitbox.Enabled") then restoreHitboxes(); return end
+        if not config.Enabled then restoreHitboxes(); return end
         local size = math.clamp(config.Size, 2, 20)
         for _, player in ipairs(players:GetPlayers()) do
             if player == players.LocalPlayer then continue end
@@ -70,7 +70,7 @@ return function(services: any): any
         if not assets then restoreDefence(); ExtrasService._baselineRoot = nil; return end
         local root, humanoid = assets.RootPart, assets.Humanoid
         local config = state:Get("Extras.AntiFling")
-        local enabled = config.Enabled and state:HasPermission("Extras.AntiFling.Enabled")
+        local enabled = config.Enabled
         local suppressed = os.clock() < (state:GetTransient("AntiFlingSuppressUntil") or 0)
         if ExtrasService._guardRoot ~= root then guardChanges:RestoreProperties(); ExtrasService._guardRoot = root end
         if not enabled or suppressed or humanoid.Health <= 0 or ExtrasService._baselineRoot ~= root then
@@ -112,7 +112,7 @@ return function(services: any): any
             if elapsed >= 0.2 then elapsed = 0; updateHitboxes() end
             local assets = tracker:GetLocalAssets()
             local config = state:Get("Extras.SpinBot")
-            if not config.Enabled or not state:HasPermission("Extras.SpinBot.Enabled") or not assets or assets.Humanoid.Health <= 0 then stopSpin(); return end
+            if not config.Enabled or not assets or assets.Humanoid.Health <= 0 then stopSpin(); return end
             local root = assets.RootPart
             if ExtrasService._spinRoot ~= root then
                 stopSpin()
@@ -130,7 +130,7 @@ return function(services: any): any
         scope:Add(state:Observe("Extras.SpinBot.Enabled", function(value: boolean) if not value then stopSpin() end end))
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
         scope:Connect(players.LocalPlayer.Idled, function()
-            if not state:Get("Settings.AntiAfk") or not state:HasPermission("Settings.AntiAfk") then return end
+            if not state:Get("Settings.AntiAfk") then return end
             local ok = pcall(function()
                 local virtualUser = game:GetService("VirtualUser")
                 virtualUser:CaptureController()

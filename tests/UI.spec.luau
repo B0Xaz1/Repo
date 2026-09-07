@@ -121,7 +121,7 @@ return function(sources: any, core: any): any
         ui:ClearSearch()
         for row, home in pairs(rows) do expect(row.Parent == home.Parent and row.LayoutOrder == home.Order, "Clearing search restores exact parent and order") end
         local badRow = nil
-        for row, home in pairs(rows) do if home.Record.Label == "Enable aimbot" then badRow = row; break end end
+        for row, home in pairs(rows) do if home.Record.Label == "Aimbot Enabled" then badRow = row; break end end
         properties[badRow].FailParent = ui._active.ResultsCol
         ui:Search("enable aimbot")
         expect(ui._query == "" and badRow.Parent == rows[badRow].Parent, "A mid-filter exception rolls back the whole search")

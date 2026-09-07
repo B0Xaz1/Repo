@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.1.0` · **Default source ref:** `main`
+**Version:** `2.1.1` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -64,7 +64,7 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Game | Place/universe information and an active adapter, or an explicit Universal Mode panel. |
 | Settings | Profiles, launch behavior, JSON import/export, scale/hotkeys, theme tokens, and lifecycle actions. |
 
-Search is case-insensitive and matches controls, sections, and tab names. Clearing search restores the original parent and layout order for every row. The menu includes six theme presets and 18 live color tokens.
+The window is a charcoal two-column suite: **B0Xaz Universal Suite** in the title bar, a compact `search...` field on the right, text tabs with a cyan underline, square checkboxes, stacked dropdowns, and knobless cyan sliders. Search is case-insensitive and matches controls, sections, and tab names. Clearing search restores the original parent and layout order for every row. The menu includes six theme presets and 18 live color tokens.
 
 ## Settings and profiles
 

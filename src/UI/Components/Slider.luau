@@ -20,25 +20,23 @@ return function(services: any): any
     function Slider:Create(parent: Instance, label: string, defaultOrPath: any, minimum: number, maximum: number, step: number?, suffix: string?, callback: any?): any
         assert(maximum > minimum, "Slider needs an increasing range")
         local increment = math.max(step or 1, 0.0001)
-        local row, text, owner = section:Control(parent, label, 59)
-        text.Size, text.Position = UDim2.new(0.7, 0, 0, 28), UDim2.fromOffset(0, 0)
-        local valueLabel = dom:Create("TextLabel", { Parent = row, BackgroundTransparency = 1, Position = UDim2.new(0.7, 0, 0, 0), Size = UDim2.new(0.3, 0, 0, 28),
-            TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code, TextSize = 12, TextColor3 = theme:GetToken("Accent") })
-        theme:BindToken(valueLabel, "TextColor3", "Accent")
-        local hit = dom:Create("TextButton", { Parent = row, BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Position = UDim2.fromOffset(0, 30), Size = UDim2.new(1, 0, 0, 24) })
-        local track = dom:Create("Frame", { Parent = hit, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 4) })
+        local row, text, owner = section:Control(parent, label, 36)
+        text.Size, text.Position = UDim2.new(0.62, 0, 0, 18), UDim2.fromOffset(0, 0)
+        local valueLabel = dom:Create("TextLabel", { Parent = row, BackgroundTransparency = 1, Position = UDim2.new(0.62, 0, 0, 0), Size = UDim2.new(0.38, 0, 0, 18),
+            TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = theme:GetToken("TextDim") })
+        theme:BindToken(valueLabel, "TextColor3", "TextDim")
+        local hit = dom:Create("TextButton", { Parent = row, BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Position = UDim2.fromOffset(0, 18), Size = UDim2.new(1, 0, 0, 16) })
+        local track = dom:Create("Frame", { Parent = hit, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 4) })
         theme:BindToken(track, "BackgroundColor3", "ToggleOff"); dom:Create("UICorner", { Parent = track, CornerRadius = UDim.new(1, 0) })
         local fill = dom:Create("Frame", { Parent = track, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) })
         theme:BindToken(fill, "BackgroundColor3", "Accent"); dom:Create("UICorner", { Parent = fill, CornerRadius = UDim.new(1, 0) })
-        local knob = dom:Create("Frame", { Parent = track, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(10, 10), BorderSizePixel = 0 })
-        theme:BindToken(knob, "BackgroundColor3", "Accent"); dom:Create("UICorner", { Parent = knob, CornerRadius = UDim.new(1, 0) })
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any)
             local number = tonumber(value) or minimum
             return math.clamp(minimum + math.floor((number - minimum) / increment + 0.5) * increment, minimum, maximum)
         end }
         function handle:_Render(value: number)
             local alpha = (value - minimum) / (maximum - minimum)
-            fill.Size, knob.Position = UDim2.fromScale(alpha, 1), UDim2.fromScale(alpha, 0.5)
+            fill.Size = UDim2.fromScale(alpha, 1)
             local formatted = string.format("%.3f", value):gsub("0+$", ""):gsub("%.$", "")
             valueLabel.Text, text.Text = formatted .. (suffix or ""), label
         end

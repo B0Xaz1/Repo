@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1 — 2026-09-07
+
+- Restyled the menu to a charcoal two-column suite: title-bar search, text tabs with a cyan underline, square checkboxes, stacked dropdowns, and knobless cyan sliders.
+
 ## 2.1.0 — 2026-09-07
 
 - Removed the remote key-authentication flow, saved-key/device-ID storage, and gated feature levels.

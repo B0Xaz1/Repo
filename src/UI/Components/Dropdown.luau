@@ -3,7 +3,7 @@ return function(services: any): any
     local dom, theme, state = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local Dropdown = {}
-    function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?, requiredTier: number?): any
+    function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?): any
         local row, text, owner = section:Control(parent, label, 38)
         text.Size = UDim2.new(0.47, -5, 0, 38)
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(0.47, 0, 0, 4), Size = UDim2.new(0.53, 0, 0, 30),
@@ -18,8 +18,8 @@ return function(services: any): any
         local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false }
         handle.Normalize = function(value: any): any return if table.find(handle._options, value) then value else handle._options[1] end
         local function close() handle._open = false; menu.Visible = false; row.Size = UDim2.new(1, 0, 0, 38) end
-        function handle:_Render(value: any, locked: boolean)
-            text.Text = label .. (if locked then "  [locked]" else "")
+        function handle:_Render(value: any)
+            text.Text = label
             button.Text = tostring(value or "No options") .. "  ▾"
         end
         function handle:Refresh(nextOptions: { any }, preserveSelection: boolean?)
@@ -39,13 +39,13 @@ return function(services: any): any
             local selection = if preserveSelection then self:Get() else nil
             local nextValue = self.Normalize(selection)
             if nextValue ~= nil then
-                if self.Path then self:Set(nextValue, not state:HasPermission(self.Path)) else self:Set(nextValue, true) end
+                if self.Path then self:Set(nextValue) else self:Set(nextValue, true) end
             else self:Set(nil, true) end
         end
-        section:Bind(handle, defaultOrPath, callback, requiredTier)
+        section:Bind(handle, defaultOrPath, callback)
         handle:Refresh(options, true)
         if handle.Path then owner:Add(state:Observe(handle.Path, function(value: any)
-            if not table.find(handle._options, value) and handle._options[1] ~= nil and state:HasPermission(handle.Path) then handle:Set(handle._options[1]) end
+            if not table.find(handle._options, value) and handle._options[1] ~= nil then handle:Set(handle._options[1]) end
         end)) end
         owner:Connect(button.Activated, function()
             if handle._open then close(); return end

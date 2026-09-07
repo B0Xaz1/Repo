@@ -61,7 +61,7 @@ return function(services: any): any
     local function update(dt: number)
         local config = state:Get("Aimbot")
         AimbotService._time += dt
-        if not config.Enabled or not state:HasPermission("Aimbot.Enabled") then
+        if not config.Enabled then
             drop(); cameraChanges:RestoreProperties(); AimbotService._camera = nil; return
         end
         if input:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then drop(); return end

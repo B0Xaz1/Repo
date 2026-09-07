@@ -19,7 +19,7 @@ return function(services: any): any
     scope:Connect(input.InputEnded, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then ColorPicker._active = nil end
     end)
-    function ColorPicker:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?, requiredTier: number?): any
+    function ColorPicker:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
         local row, text, owner = section:Control(parent, label, 38)
         text.Size = UDim2.new(1, -131, 0, 38)
         local hex = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, ClearTextOnFocus = false, Size = UDim2.fromOffset(87, 28), Position = UDim2.new(1, -127, 0, 5),
@@ -43,16 +43,15 @@ return function(services: any): any
         local handle = { Row = row, Label = text, Scope = owner, _hue = 0, _saturation = 1, _brightness = 1,
             Normalize = function(value: any) return if typeof(value) == "Color3" then value else Color3.new(1, 1, 1) end }
         local function close() panel.Visible = false; row.Size = UDim2.new(1, 0, 0, 38); if ColorPicker._active and ColorPicker._active.Handle == handle then ColorPicker._active = nil end end
-        function handle:_Render(value: Color3, locked: boolean)
+        function handle:_Render(value: Color3)
             local h, s, v = value:ToHSV()
             if s > 0 and v > 0 then self._hue = h end
             self._saturation, self._brightness = s, v
             square.BackgroundColor3, swatch.BackgroundColor3 = Color3.fromHSV(self._hue, 1, 1), value
             marker.Position = UDim2.fromScale(s, 1 - v)
-            hex.Text = string.format("#%02X%02X%02X", math.round(value.R * 255), math.round(value.G * 255), math.round(value.B * 255))
-            text.Text = label .. (if locked then "  [locked]" else "")
+            hex.Text, text.Text = string.format("#%02X%02X%02X", math.round(value.R * 255), math.round(value.G * 255), math.round(value.B * 255)), label
         end
-        section:Bind(handle, defaultOrPath, callback, requiredTier)
+        section:Bind(handle, defaultOrPath, callback)
         owner:Connect(swatch.Activated, function()
             if panel.Visible then close(); return end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
@@ -67,7 +66,6 @@ return function(services: any): any
         end)
         for field, mode in pairs({ [square] = "SV", [hue] = "Hue" }) do owner:Connect(field.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            if handle.Locked then section:NotifyLocked(handle.RequiredTier); return end
             ColorPicker._active = { Handle = handle, Field = field, Mode = mode }; drag(event.Position)
         end) end
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(close)

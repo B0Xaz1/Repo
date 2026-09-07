@@ -10,7 +10,7 @@ return function(services: any): any
         self._initialized = true
         scope:Add(scheduler:RegisterPreSim("Combat.Triggerbot", 20, function(dt: number)
             local config = state:Get("Aimbot.Triggerbot")
-            if not config.Enabled or not state:HasPermission("Aimbot.Triggerbot.Enabled") or input:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then
+            if not config.Enabled or input:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then
                 TriggerbotService._candidate, TriggerbotService._elapsed = nil, 0; return
             end
             local camera = workspace.CurrentCamera

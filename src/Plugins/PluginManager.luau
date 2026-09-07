@@ -4,7 +4,7 @@ export type IGamePlugin = {
 }
 return function(services: any): any
     local load = services:Get("Require")
-    local state, bus = services:Get("StateStore"), services:Get("EventBus")
+    local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("PluginManager")
     local registry = load("src/Plugins/PluginRegistry.luau", services)
     local match = registry:Resolve(game.PlaceId, game.GameId)
@@ -25,7 +25,7 @@ return function(services: any): any
         if PluginManager._active then PluginManager._active:BuildUI(tab) else
             local section = load("src/UI/Components/Section.luau", services)
             local panel = section:Create(tab.LeftCol, "Universal mode")
-            section:Info(panel, if match then "The matching game plugin requires Full access." else "No plugin is registered for this place or universe. Universal tools remain available.")
+            section:Info(panel, if match then "The matching game plugin is available for this place or universe." else "No plugin is registered for this place or universe. Universal tools remain available.")
         end
     end
     local function deactivate()
@@ -34,7 +34,7 @@ return function(services: any): any
         if owner then owner:Dispose() end
     end
     local function activate()
-        if scope:IsDisposed() or not match or state:GetTier() < 3 or PluginManager._active then return end
+        if scope:IsDisposed() or not match or PluginManager._active then return end
         local owner = scope:CreateChild("Active plugin")
         PluginManager._activeOwner = owner
         local pluginServices = setmetatable({ Version = services.Version }, { __index = services })
@@ -42,7 +42,7 @@ return function(services: any): any
             return if name == "Disposer" then owner else services:Get(name)
         end
         local ok, plugin = pcall(function()
-            -- A tier re-upgrade gets a fresh plugin instance, while its source and compiled factory stay cached.
+            -- The factory stays cached while each activation receives an isolated instance and disposer.
             local factory = load(match.PluginModule)
             local instance = factory(pluginServices)
             assert(type(instance) == "table" and type(instance.Initialize) == "function" and type(instance.Destroy) == "function", "Invalid plugin contract")
@@ -70,11 +70,7 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         activate()
-        scope:Add(bus:Subscribe("TierChanged", function()
-            if state:GetTier() < 3 then deactivate() else activate() end
-            refreshMount()
-            bus:Publish("PluginChanged", PluginManager:GetActivePluginName())
-        end))
+        bus:Publish("PluginChanged", PluginManager:GetActivePluginName())
     end
     function PluginManager:Destroy() scope:Dispose() end
     scope:Add(deactivate)

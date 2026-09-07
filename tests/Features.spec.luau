@@ -74,7 +74,7 @@ return function(_sources: any, core: any): any
         local registry = { [localPlayer] = localAssets, [target] = targetAssets }
         local master = core.Load("src/Core/Disposer.luau")().new("FeaturesTest")
         local bus = core.Load("src/Core/EventBus.luau")(master)
-        local state = core.Load("src/Core/StateStore.luau")(bus, master); state:SetTier(3)
+        local state = core.Load("src/Core/StateStore.luau")(bus, master)
         local environment = core.Load("src/Core/Environment.luau")(master)
         local scheduler = core.Load("src/Core/TaskScheduler.luau")(master)
         local tracker = {}
@@ -129,8 +129,9 @@ return function(_sources: any, core: any): any
         local newAssets = assets(localPlayer); registry[localPlayer] = newAssets
         bus:Publish("LocalCharacterRespawn", newAssets); core.Services.RunService.Heartbeat:Fire(0.02)
         expect(flight:IsFlying() and flight._root == newAssets.RootPart and not localAssets.Humanoid.PlatformStand, "Respawn rebuilds flight on the new assembly and restores the old one")
-        state:SetTier(0)
-        expect(not flight:IsFlying() and not state:Get("Movement.FlyEnabled"), "Tier revocation stops flight immediately")
+        state:Set("Settings.Watermark", false)
+        core.Services.RunService.Heartbeat:Fire(0.02)
+        expect(flight:IsFlying() and state:Get("Movement.FlyEnabled"), "Unrelated settings do not revoke active flight")
         local attributeObject = { Values = { Existing = 9 } }
         function attributeObject:GetAttribute(name: string): any return self.Values[name] end
         function attributeObject:SetAttribute(name: string, value: any) self.Values[name] = value end
@@ -147,7 +148,6 @@ return function(_sources: any, core: any): any
         expect(not pcall(function() manifest.Weapons.Attributes.Spread = 10 end), "Accidental manifest mutation fails loudly")
         local registryModule = core.Load("src/Plugins/PluginRegistry.luau")()
         expect(registryModule:Resolve(123, 456) == nil, "The example plugin is never silently registered for a live game")
-        state:SetTier(3)
         local pluginValue = { Value = 7 }
         services:Register("Require", function(path: string): any
             if path == "src/Plugins/PluginRegistry.luau" then return { Resolve = function() return { Name = "Broken test plugin", PluginModule = "src/TestPlugin.luau" } end } end

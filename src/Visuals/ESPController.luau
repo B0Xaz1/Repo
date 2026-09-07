@@ -102,8 +102,8 @@ return function(services: any): any
     local function render(_dt: number)
         local camera = workspace.CurrentCamera
         local config, chamsConfig = state:Get("ESP"), state:Get("Chams")
-        local espEnabled = pool.Available and config.Enabled and state:HasPermission("ESP.Enabled")
-        local chamsEnabled = chamsConfig.Enabled and state:HasPermission("Chams.Enabled")
+        local espEnabled = pool.Available and config.Enabled
+        local chamsEnabled = chamsConfig.Enabled
         local inset = environment:GetGuiInset()
         for player, record in pairs(ESPController._records) do
             hide(record)

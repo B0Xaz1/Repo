@@ -5,7 +5,7 @@ return function(sources: { [string]: string }, core: any): any
     function Test:Run(): number
         local runtime = core.Environment
         local globals, modules, requests, traces, initialized = {}, {}, {}, {}, {}
-        local menuCount, peakMenus, modalCount, fakeClock = 0, 0, 0, 0
+        local menuCount, peakMenus, fakeClock = 0, 0, 0
         local failures, stalls, metrics = {}, {}, { Execute = 0, Factory = 0 }
         for path, source in pairs(sources) do modules[path] = source end
         runtime._G, runtime.getgenv = globals, nil
@@ -26,13 +26,12 @@ return function(sources: { [string]: string }, core: any): any
         runtime._lifecycle = {
             Initialized = function(name: string) table.insert(initialized, name) end,
             Menu = function(delta: number) menuCount += delta; peakMenus = math.max(peakMenus, menuCount) end,
-            Modal = function(delta: number) modalCount += delta end,
             Metrics = metrics,
         }
         modules["src/UI/DOM.luau"] = "return function(services: any): any return {} end"
         local registration = {
-            { "KeyService", "Services" }, { "ConfigService", "Services" }, { "PlayerTracker", "Services" },
-            { "OptimizerService", "Services" }, { "LightingService", "Services" }, { "HotkeyService", "Services" },
+            { "ConfigService", "Services" }, { "PlayerTracker", "Services" }, { "OptimizerService", "Services" },
+            { "LightingService", "Services" }, { "HotkeyService", "Services" },
             { "DrawingPool", "Visuals" }, { "TargetFilter", "Combat" }, { "ESPController", "Visuals" },
             { "OverlayController", "Visuals" }, { "LocomotionService", "Locomotion" }, { "FlightService", "Locomotion" },
             { "ExtrasService", "Services" }, { "AimbotService", "Combat" }, { "TriggerbotService", "Combat" },
@@ -40,7 +39,6 @@ return function(sources: { [string]: string }, core: any): any
         }
         for _, entry in ipairs(registration) do
             local extra = ""
-            if entry[1] == "KeyService" then extra = "function Service:VerifySavedKey() return true, 3 end" end
             if entry[1] == "ConfigService" then extra = "function Service:ApplyLaunchState() return 'defaults' end" end
             if entry[1] == "UIEngine" then extra = "function Service:ConstructInterface() _lifecycle.Menu(1); owner:Add(function() _lifecycle.Menu(-1) end) end" end
             modules["src/" .. entry[2] .. "/" .. entry[1] .. ".luau"] = string.format([[return function(services: any): any
@@ -52,14 +50,6 @@ return function(sources: { [string]: string }, core: any): any
                 return Service
             end]], entry[1], entry[1], extra)
         end
-        modules["src/UI/Modals/KeyAuthModal.luau"] = [[return function(services: any): any
-            local Modal = {}
-            function Modal:Show(_success: any, _message: any)
-                _lifecycle.Modal(1)
-                services:Get("Disposer"):Add(function() _lifecycle.Modal(-1) end)
-            end
-            return Modal
-        end]]
         local loaded = true
         function runtime.game:IsLoaded(): boolean return loaded end
         local function route(url: string): string
@@ -137,14 +127,13 @@ return function(sources: { [string]: string }, core: any): any
         local active = 0
         for _, connection in ipairs(input.InputBegan.Handlers) do if connection.Connected then active += 1 end end
         expect(active == 0, "No quick-unload listener survives disposal")
-        modules["src/Services/KeyService.luau"] = "return function(services: any): any return { VerifySavedKey = function() return false, 0, 'test gate' end } end"
         finish(worker(sources["loader.luau"]))
-        expect(modalCount == 1 and not globals.B0XazRunning, "An unverified license remains in the pre-launch gate")
+        expect(globals.B0XazRunning and menuCount == 1, "The loader starts the suite immediately without a key gate")
         local before = requests["init.luau"]
         finish(worker(sources["loader.luau"]))
-        expect(requests["init.luau"] == before and modalCount == 1, "Repeated runs do not stack auth modals")
+        expect(requests["init.luau"] == before and menuCount == 1, "Repeated runs do not stack an active suite")
         input.InputBegan:Fire({ KeyCode = runtime.Enum.KeyCode.End, UserInputType = runtime.Enum.UserInputType.Keyboard }, false)
-        expect(modalCount == 0 and globals.B0XazMasterDisposer == nil, "The quick unload key works before authentication")
+        expect(not globals.B0XazRunning and globals.B0XazMasterDisposer == nil, "The quick unload key cleans a running session")
         globals.B0XazBaseURL = "https://raw.githubusercontent.com/B0Xaz1/Repo/arena/01a07b6b-repo/B0XazUniversal/init.lua?old=1#legacy"
         finish(worker(sources["init.luau"]))
         expect(globals.B0XazBaseURL == "https://raw.githubusercontent.com/B0Xaz1/Repo/arena/01a07b6b-repo/" and globals.B0XazInitURL == globals.B0XazBaseURL .. "init.luau", "URL normalization preserves slash-containing refs and removes legacy file/folder/query suffixes")
@@ -152,7 +141,7 @@ return function(sources: { [string]: string }, core: any): any
         before = requests["init.luau"]
         failures["init.luau"] = 4
         finish(worker(sources["loader.luau"]))
-        expect(requests["init.luau"] == before + 5 and modalCount == 1 and not globals.B0XazLoaderBusy, "The outer loader survives four CDN failures and succeeds on its fifth attempt")
+        expect(requests["init.luau"] == before + 5 and globals.B0XazRunning and not globals.B0XazLoaderBusy, "The outer loader survives four CDN failures and succeeds on its fifth attempt")
         globals.B0XazUnload()
         failures["init.luau"] = 5; finish(worker(sources["loader.luau"]))
         expect(globals.B0XazLoaderBusy == nil and globals.B0XazMasterDisposer == nil, "Exhausted downloads clear busy on their failure exit")

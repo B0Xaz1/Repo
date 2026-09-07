@@ -1,7 +1,5 @@
 --!nonstrict
 local ROOT: string = "B0XazUniversal/"
-local ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-
 return function(disposer: any): any
     local scope = disposer:CreateChild("Environment")
     local runtime: any = getfenv(0)
@@ -19,7 +17,7 @@ return function(disposer: any): any
         local ok, value = pcall(getGlobal)
         if ok and type(value) == "table" then globals = value end
     end
-    local syn, fluxus, http, crypt = probe("syn"), probe("fluxus"), probe("http"), probe("crypt")
+    local syn, fluxus, http = probe("syn"), probe("fluxus"), probe("http")
     local function first(...: any): any
         for index = 1, select("#", ...) do
             local candidate = select(index, ...)
@@ -39,8 +37,6 @@ return function(disposer: any): any
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
-    local nativeEncode = first(member(crypt, "base64encode"), member(crypt, "base64_encode"), member(member(crypt, "base64"), "encode"))
-    local nativeDecode = first(member(crypt, "base64decode"), member(crypt, "base64_decode"), member(member(crypt, "base64"), "decode"))
     local consoleClear = { probe("rconsoleclear"), probe("consoleclear"), probe("clearconsole"), probe("clearoutput") }
     local httpService = game:GetService("HttpService")
     local players = game:GetService("Players")
@@ -56,7 +52,6 @@ return function(disposer: any): any
     keyLookup.mb1, keyLookup.mb2, keyLookup.mb3 = Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3
     keyLookup.none, keyLookup.unbound = Enum.KeyCode.Unknown, Enum.KeyCode.Unknown
     local cachedParent: Instance? = nil
-    local deviceId: string? = nil
     local virtualInput: any = nil
     pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
     local mousePressed = false
@@ -146,70 +141,6 @@ return function(disposer: any): any
         return nil
     end
 
-    function Environment:GetDeviceId(): string
-        if deviceId then return deviceId end
-        local raw = self:ReadFile("_device.json")
-        if raw then
-            local ok, data = pcall(httpService.JSONDecode, httpService, raw)
-            local id = if ok and type(data) == "table" then data.Id else if ok then data else nil
-            if type(id) == "string" and #id >= 16 then deviceId = id; return id end
-        end
-        local cached = globals.B0XazDeviceId
-        if type(cached) == "string" and #cached >= 16 then deviceId = cached end
-        if not deviceId then
-            local ok, id = pcall(function() return game:GetService("RbxAnalyticsService"):GetClientId() end)
-            if ok and type(id) == "string" and #id >= 16 then deviceId = id end
-        end
-        if not deviceId then deviceId = httpService:GenerateGUID(false) end
-        globals.B0XazDeviceId = deviceId
-        self:WriteFile("_device.json", httpService:JSONEncode({ Id = deviceId }))
-        return deviceId :: string
-    end
-
-    function Environment:Base64Encode(data: string): string
-        if nativeEncode then local ok, result = pcall(nativeEncode, data); if ok and type(result) == "string" then return result end end
-        local output = {}
-        for index = 1, #data, 3 do
-            local a, b, c = string.byte(data, index, index + 2)
-            local value = a * 65536 + (b or 0) * 256 + (c or 0)
-            local x = math.floor(value / 262144) % 64
-            local y = math.floor(value / 4096) % 64
-            local z = math.floor(value / 64) % 64
-            table.insert(output, ALPHABET:sub(x + 1, x + 1) .. ALPHABET:sub(y + 1, y + 1)
-                .. (if b then ALPHABET:sub(z + 1, z + 1) else "=")
-                .. (if c then ALPHABET:sub(value % 64 + 1, value % 64 + 1) else "="))
-        end
-        return table.concat(output)
-    end
-
-    local decodeLookup = {}
-    for index = 1, #ALPHABET do decodeLookup[ALPHABET:sub(index, index)] = index - 1 end
-    function Environment:Base64Decode(data: string): string
-        data = data:gsub("%s", "")
-        assert(#data % 4 == 0 and not data:find("[^%w+/=]"), "Invalid base64")
-        local output = {}
-        for index = 1, #data, 4 do
-            local a, b, c, d = data:sub(index, index), data:sub(index + 1, index + 1), data:sub(index + 2, index + 2), data:sub(index + 3, index + 3)
-            assert(decodeLookup[a] ~= nil and decodeLookup[b] ~= nil, "Invalid base64 quartet")
-            assert((c ~= "=" or d == "=") and (index + 3 == #data or (c ~= "=" and d ~= "=")), "Invalid base64 padding")
-            local cv, dv = if c == "=" then 0 else decodeLookup[c], if d == "=" then 0 else decodeLookup[d]
-            assert(cv ~= nil and dv ~= nil, "Invalid base64 alphabet")
-            local value = decodeLookup[a] * 262144 + decodeLookup[b] * 4096 + cv * 64 + dv
-            table.insert(output, string.char(math.floor(value / 65536) % 256))
-            if c ~= "=" then table.insert(output, string.char(math.floor(value / 256) % 256)) end
-            if d ~= "=" then table.insert(output, string.char(value % 256)) end
-        end
-        -- Validate with the fallback first; permissive native decoders otherwise accept corrupt saved keys.
-        if nativeDecode then local ok, result = pcall(nativeDecode, data); if ok and type(result) == "string" then return result end end
-        return table.concat(output)
-    end
-
-    function Environment:XorCipher(data: string, key: string): string
-        assert(#key > 0, "XOR key cannot be empty")
-        local output = table.create(#data)
-        for index = 1, #data do output[index] = string.char(bit32.bxor(data:byte(index), key:byte((index - 1) % #key + 1))) end
-        return table.concat(output)
-    end
     function Environment:MouseMove(x: number, y: number): boolean
         if not move then return false end
         return pcall(move, math.round(x), math.round(y))

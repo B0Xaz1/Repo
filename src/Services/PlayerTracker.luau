@@ -96,7 +96,6 @@ return function(services: any): any
     end
     function PlayerTracker:OnLocalCharacterRespawn(callback: (Assets) -> ()): any return bus:Subscribe("LocalCharacterRespawn", callback) end
     function PlayerTracker:StartSpectate(player: Player): (boolean, string)
-        if not services:Get("StateStore"):HasPermission("Movement") then return false, "Spectate requires Entry" end
         if not player or not player.Parent then return false, "Select a player who is still in the server" end
         self._spectating = player
         applySpectate()
@@ -155,7 +154,6 @@ return function(services: any): any
             if playerScope then playerScope:Dispose() end
             bus:Publish("PlayerLeft", player)
         end)
-        scope:Add(bus:Subscribe("TierChanged", function(tier: number) if tier < 1 then PlayerTracker:StopSpectate() end end))
         scope:Connect(workspace:GetPropertyChangedSignal("CurrentCamera"), applySpectate)
         for _, player in ipairs(players:GetPlayers()) do attach(player) end
     end

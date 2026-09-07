@@ -26,7 +26,6 @@ return function(services: any): any
         owner:SetProperty(root, "CFrame", target, true)
     end
     function LocomotionService:Teleport(target: any): (boolean, string)
-        if not state:HasPermission("Settings.TpToMouse") then return false, "Teleport requires Entry" end
         local assets = tracker:GetLocalAssets()
         if not assets then return false, "Your character is not ready" end
         if typeof(target) == "Vector3" then target = CFrame.new(target) * assets.RootPart.CFrame.Rotation end
@@ -75,7 +74,6 @@ return function(services: any): any
         return true, "Bookmark removed"
     end
     function LocomotionService:FlingPlayer(player: Player): (boolean, string)
-        if not state:HasPermission("Movement.Fling") then return false, "Fling requires Full" end
         if not player or player == players.LocalPlayer or not tracker:IsAlive(player) then return false, "Select a living target" end
         if state:Get("Movement.FlyEnabled") then return false, "Stop flight before a fling attack" end
         local assets = tracker:GetLocalAssets()
@@ -99,8 +97,7 @@ return function(services: any): any
             characterChanges:RestoreProperties(); positionChanges:RestoreProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
         elseif not assets then characterChanges:RestoreProperties(); positionChanges:RestoreProperties(); stopFling(); LocomotionService._humanoid = nil end
-        local permitted = state:HasPermission("Movement")
-        if assets and permitted then
+        if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
             local sprint = config.SprintEnabled and not input:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and input:IsKeyDown(Enum.KeyCode.LeftShift)
             local speed = if sprint then config.SprintSpeed else config.Speed
@@ -115,18 +112,18 @@ return function(services: any): any
                 positionChanges:SetProperty(root, "CFrame", root.CFrame + humanoid.MoveDirection * math.clamp(config.CFrameSpeedValue, 0, 200) * math.min(dt, 0.1), true)
             end
         else characterChanges:RestoreProperties() end
-        if permitted and config.WorldGravity > 0 then worldChanges:SetProperty(workspace, "Gravity", math.clamp(config.WorldGravity, 0.1, 1000))
+        if config.WorldGravity > 0 then worldChanges:SetProperty(workspace, "Gravity", math.clamp(config.WorldGravity, 0.1, 1000))
         else worldChanges:RestoreProperties() end
         local camera = workspace.CurrentCamera
         if camera ~= LocomotionService._camera then cameraChanges:RestoreProperties(); LocomotionService._camera = camera end
         local fov = state:Get("Camera.FOV")
-        if camera and fov > 0 and state:HasPermission("Camera.FOV") then cameraChanges:SetProperty(camera, "FieldOfView", math.clamp(fov, 20, 120))
+        if camera and fov > 0 then cameraChanges:SetProperty(camera, "FieldOfView", math.clamp(fov, 20, 120))
         else cameraChanges:RestoreProperties() end
         if LocomotionService._flingTarget then
             local target = tracker:GetPlayerAssets(LocomotionService._flingTarget)
             LocomotionService._flingElapsed += dt
             if not assets or not target or target.Humanoid.Health <= 0 or not state:Get("Movement.Fling")
-                or not state:HasPermission("Movement.Fling") or LocomotionService._flingElapsed >= 2 then stopFling(); return end
+                or LocomotionService._flingElapsed >= 2 then stopFling(); return end
             suppress(1)
             local owner, root = LocomotionService._flingScope, assets.RootPart
             local angle = LocomotionService._flingElapsed * 24
@@ -140,7 +137,7 @@ return function(services: any): any
         self._initialized = true
         scope:Add(scheduler:RegisterHeartbeat("Movement.Overrides", 10, update))
         scope:Connect(input.JumpRequest, function()
-            if not state:Get("Movement.InfJump") or not state:HasPermission("Movement.InfJump") or input:GetFocusedTextBox() then return end
+            if not state:Get("Movement.InfJump") or input:GetFocusedTextBox() then return end
             local assets = tracker:GetLocalAssets()
             if assets and assets.Humanoid.Health > 0 then
                 if LocomotionService._jumpStates[assets.Humanoid] == nil then LocomotionService._jumpStates[assets.Humanoid] = assets.Humanoid:GetState() end

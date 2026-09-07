@@ -1,5 +1,5 @@
 --!nonstrict
-local VERSION: string = "2.0.0"
+local VERSION: string = "2.1.0"
 -- Split the CDN error sentinel so this entry point cannot reject its own source during relaunch.
 local NOT_FOUND_BODY: string = "404" .. ": Not Found"
 local DEFAULT_REF: string = "main"
@@ -216,8 +216,8 @@ local ok, bootError = pcall(function()
         if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end
     end)
     local registration = {
-        { "KeyService", "src/Services/KeyService.luau" }, { "ConfigService", "src/Services/ConfigService.luau" },
-        { "PlayerTracker", "src/Services/PlayerTracker.luau" }, { "OptimizerService", "src/Services/OptimizerService.luau" },
+        { "ConfigService", "src/Services/ConfigService.luau" }, { "PlayerTracker", "src/Services/PlayerTracker.luau" },
+        { "OptimizerService", "src/Services/OptimizerService.luau" },
         { "LightingService", "src/Services/LightingService.luau" }, { "HotkeyService", "src/Services/HotkeyService.luau" },
         { "DrawingPool", "src/Visuals/DrawingPool.luau" }, { "TargetFilter", "src/Combat/TargetFilter.luau" },
         { "ESPController", "src/Visuals/ESPController.luau" }, { "OverlayController", "src/Visuals/OverlayController.luau" },
@@ -230,11 +230,10 @@ local ok, bootError = pcall(function()
         step(entry[1], function() services:Register(entry[1], requireModule(entry[2], services)) end)
     end
     local launched = false
-    local function launch(tier: number)
+    local function launch()
         if globals.B0XazActiveToken ~= sessionId or launched then return end
         launched = true
         local ran, err = pcall(function()
-            state:SetTier(tier)
             step("InitializeAll", function() services:InitializeAll() end)
             step("ConstructInterface", function() services:Get("UIEngine"):ConstructInterface() end)
             local branch = step("ApplyLaunchState", function() return services:Get("ConfigService"):ApplyLaunchState() end)
@@ -243,13 +242,6 @@ local ok, bootError = pcall(function()
         end)
         if not ran then fail(err) end
     end
-    local verified, tier, message = step("VerifySavedKey", function()
-        -- step returns one value, so pack the authentication tuple explicitly.
-        return table.pack(services:Get("KeyService"):VerifySavedKey())
-    end), nil, nil
-    tier, message = verified[2], verified[3]
-    if verified[1] then launch(tier) else
-        requireModule("src/UI/Modals/KeyAuthModal.luau", services):Show(launch, message)
-    end
+    launch()
 end)
 if not ok then fail(bootError) end

@@ -58,7 +58,6 @@ return function(services: any): any
         self:RestoreAll()
         local revision = self._revision
         local performance = state:Get("Performance")
-        if not state:HasPermission("Performance") then return end
         processInstance(lighting, performance)
         local descendants = workspace:GetDescendants()
         for _, object in ipairs(lighting:GetDescendants()) do table.insert(descendants, object) end

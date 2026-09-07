@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.3 — 2026-09-07
+
+- Aimbot, triggerbot, and the FOV circle now use `GetMouseLocation` directly so they sit on the cursor again. Subtracting GuiInset had been raising the aim point by the topbar after the ESP inset fix.
+
 ## 2.1.2 — 2026-09-07
 
 - Stopped adding GuiInset to Drawing ESP/FOV, which had dropped boxes, names, and skeletons below the player by the topbar height.

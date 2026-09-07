@@ -14,7 +14,11 @@ return function(services: any): any
         return localPlayer.TeamColor == player.TeamColor
     end
     function TargetFilter:GetTeamColor(player: Player): Color3
-        return if player.Team then player.Team.TeamColor.Color else player.TeamColor.Color
+        local ok, color = pcall(function()
+            if player.Team then return player.Team.TeamColor.Color end
+            return player.TeamColor.Color
+        end)
+        return if ok and typeof(color) == "Color3" then color else Color3.fromRGB(80, 140, 220)
     end
     function TargetFilter:IsFriend(player: Player): boolean
         local id = player.UserId

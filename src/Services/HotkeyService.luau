@@ -43,7 +43,7 @@ return function(services: any): any
         end)
         if not ok then self._rejoining = false end
         scope:Delay(10, function() HotkeyService._rejoining = false end)
-        return ok, if ok then "Rejoining this server…" else tostring(message)
+        return ok, if ok then "Rejoining this server..." else tostring(message)
     end
     function HotkeyService:ServerHop(): (boolean, string)
         local cursor = ""
@@ -59,7 +59,7 @@ return function(services: any): any
                 if type(server.id) == "string" and server.id ~= game.JobId and tonumber(server.playing) and tonumber(server.maxPlayers) and server.playing < server.maxPlayers then
                     self:QueueLoader()
                     local moved, errorMessage = pcall(function() teleport:TeleportToPlaceInstance(game.PlaceId, server.id, players.LocalPlayer) end)
-                    return moved, if moved then "Joining another server…" else tostring(errorMessage)
+                    return moved, if moved then "Joining another server..." else tostring(errorMessage)
                 end
             end
             cursor = data.nextPageCursor or ""
@@ -95,7 +95,7 @@ return function(services: any): any
         end)
         pcall(function()
             local coreGui = game:GetService("CoreGui")
-            scope:Connect(coreGui.DescendantAdded, function(object: Instance)
+            scope:ConnectImmediate(coreGui.DescendantAdded, function(object: Instance)
                 if object.Name == "ErrorPrompt" and object.Parent and object.Parent.Name == "promptOverlay" then
                     local root = object:FindFirstAncestor("RobloxPromptGui")
                     if root then onDisconnect(nil) end

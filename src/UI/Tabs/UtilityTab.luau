@@ -11,7 +11,7 @@ return function(services: any, tab: any): any
     section:Info(hitbox, "Expanded roots are semi-transparent. Original size, transparency and collision are restored on disable, respawn, leave and unload.")
     local spin = section:Create(tab.LeftCol, "Spin bot")
     toggle(spin, "Enable spin", "Extras.SpinBot.Enabled", nil)
-    slider(spin, "Spin rate", "Extras.SpinBot.Speed", -1440, 1440, 15, "°/s", nil)
+    slider(spin, "Spin rate", "Extras.SpinBot.Speed", -1440, 1440, 15, " deg/s", nil)
     local guard = section:Create(tab.RightCol, "Fling defense")
     toggle(guard, "Enable anti-fling", "Extras.AntiFling.Enabled", nil)
     slider(guard, "Impossible-speed threshold", "Extras.AntiFling.Threshold", 350, 2500, 25, " studs/s", nil)

@@ -101,6 +101,15 @@ return function(): any
         local scope = self
         return scope:Add(signal:Connect(function(...: any) scope:Spawn(callback, ...) end))
     end
+    -- High-rate engine signals (RenderStepped, InputChanged, DescendantAdded) cannot afford a thread per event.
+    function methods:ConnectImmediate(signal: any, callback: (...any) -> ()): any
+        local scope = self
+        return scope:Add(signal:Connect(function(...: any)
+            if scope._disposed then return end
+            local ok, err = pcall(callback, ...)
+            if not ok then warn("[B0Xaz][Handler:" .. scope.Name .. "] " .. tostring(err)) end
+        end))
+    end
 
     function methods:Bind(key: string, item: any, customMethod: string?): any
         self:Unbind(key)

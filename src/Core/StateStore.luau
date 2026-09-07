@@ -12,18 +12,18 @@ local DEFAULT_SETTINGS: any = {
         FOV = { Size = 120, Show = false, Filled = false, Thickness = 1, Sides = 64, Rainbow = false, Pulse = false },
     },
     Movement = {
-        Speed = 0, JumpPower = 0, JumpHeight = 0, InfJump = false,
+        Speed = 0, JumpPower = 0, InfJump = false,
         FlyEnabled = false, FlySpeed = 50, FlyKeybind = Enum.KeyCode.F,
         MobileFlyUp = false, MobileFlyDown = false, SprintEnabled = false, SprintSpeed = 28,
-        CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false,
+        CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false,
     },
     ESP = {
         Enabled = false, Box = true, Name = true, Health = true, Distance = true,
         Tool = false, Backpack = false, Tracers = false, Skeleton = false, HeadDot = false, LookDir = false,
-        TeamCheck = false, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
-        Font = "Plex", Outline = true, AutoScaling = true,
+        TeamCheck = false, UseTeamColor = false, Rainbow = false, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
+        Font = "Plex", Outline = true, AutoScaling = true, DepthMode = "AlwaysOnTop",
     },
-    Chams = { Enabled = false, UseTeamColor = false, DepthMode = "AlwaysOnTop",
+    Chams = { Enabled = false, UseTeamColor = false, Rainbow = false, DepthMode = "AlwaysOnTop",
         FillColor = Color3.fromRGB(117, 143, 255), OutlineColor = Color3.fromRGB(222, 230, 255) },
     Camera = { FOV = 0 }, Visuals = { Fullbright = false },
     Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
@@ -47,6 +47,7 @@ local DEFAULT_SETTINGS: any = {
 local ALIASES: { [string]: string } = {
     ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
     ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
+    ["ESP.DepthMode"] = "Chams.DepthMode", ["Chams.DepthMode"] = "ESP.DepthMode",
 }
 
 local function clone(value: any): any
@@ -120,6 +121,8 @@ return function(eventBus: any, disposer: any): any
     end
 
     function StateStore:Get(path: string): any return clone(read(self._settings, path)) end
+    -- Live table for frame loops. Callers must not mutate it; UI and profiles keep using Get().
+    function StateStore:Peek(path: string): any return read(self._settings, path) end
     function StateStore:Set(path: string, value: any, _bypass: boolean?): (boolean, string?)
         assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"), "Invalid state path")
         local default = read(DEFAULT_SETTINGS, path)
@@ -157,6 +160,12 @@ return function(eventBus: any, disposer: any): any
         -- Keep legacy/current bind fields in lockstep after a profile supplies either representation.
         self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
         self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
+        -- Older profiles only stored chams depth; keep ESP drawings on the same mode.
+        local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
+        local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode
+        if type(incomingEsp) == "string" then self._settings.ESP.DepthMode = incomingEsp
+        elseif type(incomingChams) == "string" then self._settings.ESP.DepthMode = incomingChams end
+        self._settings.Chams.DepthMode = self._settings.ESP.DepthMode
         for branch, value in pairs(self._settings) do publishChanges(branch, value, old[branch]) end
         self._hydrating = false
         eventBus:Publish("SettingsHydrated")

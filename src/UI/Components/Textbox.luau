@@ -5,11 +5,13 @@ return function(services: any): any
     local Textbox = {}
     -- Exception to the shared string convention: text is literal initial text; use the explicit path argument to bind it.
     function Textbox:Create(parent: Instance, label: string, text: string?, callback: any?, path: string?): any
-        local row, labelObject, owner = section:Control(parent, label, 42)
-        local box = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(0.47, 0, 0, 5), Size = UDim2.new(0.53, 0, 0, 32),
-            ClearTextOnFocus = false, PlaceholderText = label, Text = "", Font = Enum.Font.Gotham, TextSize = 11, TextTruncate = Enum.TextTruncate.AtEnd })
+        local row, labelObject, owner = section:Control(parent, label, 38)
+        labelObject.Size, labelObject.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)
+        local box = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 16), Size = UDim2.new(1, 0, 0, 20),
+            ClearTextOnFocus = false, PlaceholderText = label, Text = "", Font = Enum.Font.Gotham, TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(box, "BackgroundColor3", "Elem"); theme:BindToken(box, "TextColor3", "Text"); theme:BindToken(box, "PlaceholderColor3", "TextMuted")
-        dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 6) }); dom:CreatePadding(box, 4, 8)
+        theme:BindToken(dom:CreateStroke(box, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(box, 0, 8)
         local handle = { Row = row, Label = labelObject, Box = box, Scope = owner, Normalize = function(value: any) return tostring(value or "") end }
         function handle:_Render(value: string)
             box.Text, labelObject.Text = value, label
@@ -19,9 +21,9 @@ return function(services: any): any
         return handle
     end
     function Textbox:CreateButton(parent: Instance, text: string, onClick: () -> ...any): any
-        local row, label, owner = section:Control(parent, text, 39)
+        local row, label, owner = section:Control(parent, text, 30)
         label.Visible = false
-        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 3), Size = UDim2.new(1, 0, 0, 33),
+        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 26),
             Font = Enum.Font.GothamMedium, TextSize = 12, Text = text })
         section:StyleButton(button, owner)
         local handle = { Row = row, Label = label, Button = button, Scope = owner, _busy = false, Normalize = function(value: any) return tostring(value) end }

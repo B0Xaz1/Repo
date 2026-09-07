@@ -5,14 +5,20 @@ return function(services: any): any
     local Dropdown = {}
     function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?): any
         local row, text, owner = section:Control(parent, label, 38)
-        text.Size = UDim2.new(0.47, -5, 0, 38)
-        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(0.47, 0, 0, 4), Size = UDim2.new(0.53, 0, 0, 30),
-            Text = "", TextTruncate = Enum.TextTruncate.AtEnd, Font = Enum.Font.Gotham, TextSize = 11 })
+        text.Size, text.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)
+        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 16), Size = UDim2.new(1, 0, 0, 20),
+            Text = "", TextTruncate = Enum.TextTruncate.AtEnd, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
         section:StyleButton(button, owner)
-        local menu = dom:Create("ScrollingFrame", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 0, 0),
+        dom:CreatePadding(button, 0, 0, 0, 8)
+        local chevron = dom:Create("TextLabel", { Parent = button, BackgroundTransparency = 1, Position = UDim2.new(1, -16, 0, 0), Size = UDim2.fromOffset(14, 20),
+            Text = "v", Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center })
+        theme:BindToken(chevron, "TextColor3", "TextMuted")
+        local menu = dom:Create("ScrollingFrame", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 38), Size = UDim2.new(1, 0, 0, 0),
             Visible = false, ScrollBarThickness = 3, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
         theme:BindToken(menu, "BackgroundColor3", "Elem")
-        dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 6) })
+        theme:BindToken(menu, "ScrollBarImageColor3", "Accent")
+        theme:BindToken(dom:CreateStroke(menu, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 3) })
         dom:CreatePadding(menu, 4)
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
         local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false }
@@ -20,7 +26,7 @@ return function(services: any): any
         local function close() handle._open = false; menu.Visible = false; row.Size = UDim2.new(1, 0, 0, 38) end
         function handle:_Render(value: any)
             text.Text = label
-            button.Text = tostring(value or "No options") .. "  ▾"
+            button.Text = tostring(value or "No options")
         end
         function handle:Refresh(nextOptions: { any }, preserveSelection: boolean?)
             close()
@@ -30,12 +36,12 @@ return function(services: any): any
             local optionScope = owner:CreateChild("Options")
             owner:Bind("Options", optionScope)
             for index, option in ipairs(self._options) do
-                local choice = dom:Create("TextButton", { Parent = menu, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 26), LayoutOrder = index,
-                    Text = tostring(option), TextSize = 11, Font = Enum.Font.Gotham })
+                local choice = dom:Create("TextButton", { Parent = menu, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = index,
+                    Text = tostring(option), TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
                 section:StyleButton(choice, optionScope)
                 optionScope:Connect(choice.Activated, function() if handle:Set(option) then close() end end)
             end
-            menu.Size = UDim2.new(1, 0, 0, math.min(7, #self._options) * 28 + 8)
+            menu.Size = UDim2.new(1, 0, 0, math.min(7, #self._options) * 26 + 8)
             local selection = if preserveSelection then self:Get() else nil
             local nextValue = self.Normalize(selection)
             if nextValue ~= nil then

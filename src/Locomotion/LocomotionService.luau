@@ -6,6 +6,7 @@ return function(services: any): any
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
     local workspace, input, players = game:GetService("Workspace"), game:GetService("UserInputService"), game:GetService("Players")
+    local runService = game:GetService("RunService")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
         _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _initialized = false }
 
@@ -91,7 +92,18 @@ return function(services: any): any
     function LocomotionService:StopFling() stopFling() end
 
     local function update(dt: number)
-        local config = state:Get("Movement")
+        local config = state:Peek("Movement")
+        local fov = state:Peek("Camera.FOV")
+        if not LocomotionService._flingTarget and not config.CFrameSpeed and config.Speed <= 0 and config.JumpPower <= 0
+            and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
+            if LocomotionService._applied then
+                characterChanges:RestoreProperties(); positionChanges:RestoreProperties()
+                worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
+                LocomotionService._applied = false
+            end
+            return
+        end
+        LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
             characterChanges:RestoreProperties(); positionChanges:RestoreProperties(); stopFling()
@@ -102,10 +114,8 @@ return function(services: any): any
             local sprint = config.SprintEnabled and not input:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and input:IsKeyDown(Enum.KeyCode.LeftShift)
             local speed = if sprint then config.SprintSpeed else config.Speed
             if speed > 0 then characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, 1, 300)) else characterChanges:RestoreProperty(humanoid, "WalkSpeed") end
-            for _, property in ipairs({ "JumpPower", "JumpHeight" }) do
-                local value = config[property]
-                if value > 0 then characterChanges:SetProperty(humanoid, property, math.clamp(value, 0, 300)) else characterChanges:RestoreProperty(humanoid, property) end
-            end
+            if config.JumpPower > 0 then characterChanges:SetProperty(humanoid, "JumpPower", math.clamp(config.JumpPower, 0, 300))
+            else characterChanges:RestoreProperty(humanoid, "JumpPower") end
             if config.CFrameSpeed and not config.FlyEnabled and not LocomotionService._flingTarget then
                 suppress(0.3)
                 -- Bound hitch displacement: resuming a paused client must not jump hundreds of studs in one step.
@@ -116,8 +126,7 @@ return function(services: any): any
         else worldChanges:RestoreProperties() end
         local camera = workspace.CurrentCamera
         if camera ~= LocomotionService._camera then cameraChanges:RestoreProperties(); LocomotionService._camera = camera end
-        local fov = state:Get("Camera.FOV")
-        if camera and fov > 0 then cameraChanges:SetProperty(camera, "FieldOfView", math.clamp(fov, 20, 120))
+        if camera and fov and fov > 0 then cameraChanges:SetProperty(camera, "FieldOfView", math.clamp(fov, 20, 120))
         else cameraChanges:RestoreProperties() end
         if LocomotionService._flingTarget then
             local target = tracker:GetPlayerAssets(LocomotionService._flingTarget)
@@ -132,9 +141,38 @@ return function(services: any): any
             owner:SetProperty(root, "AssemblyLinearVelocity", Vector3.new(math.cos(angle) * 400, 100, math.sin(angle) * 400), true)
         end
     end
+    local function touchFlingLoop()
+        -- Heartbeat / RenderStepped / Stepped order is the fling: replicate a huge impulse, then restore locally before physics.
+        local movel = 0.1
+        while not scope:IsDisposed() do
+            if not state:Peek("Movement.TouchFling") or LocomotionService._flingTarget then
+                task.wait(0.25)
+                continue
+            end
+            runService.Heartbeat:Wait()
+            if scope:IsDisposed() then break end
+            if not state:Peek("Movement.TouchFling") or LocomotionService._flingTarget then continue end
+            local character = players.LocalPlayer and players.LocalPlayer.Character
+            if not character then continue end
+            local hrp = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+            if not hrp then continue end
+            suppress(0.3)
+            local ok, oldVelocity = pcall(function() return hrp.Velocity end)
+            if not ok or typeof(oldVelocity) ~= "Vector3" then continue end
+            pcall(function() hrp.Velocity = oldVelocity * 10000 + Vector3.new(0, 10000, 0) end)
+            runService.RenderStepped:Wait()
+            if scope:IsDisposed() then break end
+            if hrp.Parent then pcall(function() hrp.Velocity = oldVelocity end) end
+            runService.Stepped:Wait()
+            if scope:IsDisposed() then break end
+            if hrp.Parent then pcall(function() hrp.Velocity = oldVelocity + Vector3.new(0, movel, 0) end) end
+            movel *= -1
+        end
+    end
     function LocomotionService:Initialize()
         if self._initialized then return end
         self._initialized = true
+        scope:Spawn(touchFlingLoop)
         scope:Add(scheduler:RegisterHeartbeat("Movement.Overrides", 10, update))
         scope:Connect(input.JumpRequest, function()
             if not state:Get("Movement.InfJump") or input:GetFocusedTextBox() then return end
@@ -160,6 +198,13 @@ return function(services: any): any
     function LocomotionService:Destroy() scope:Dispose() end
     scope:Add(function()
         stopFling()
+        local assets = tracker:GetLocalAssets()
+        if assets then
+            pcall(function()
+                assets.RootPart.Velocity = Vector3.zero
+                assets.RootPart.AssemblyLinearVelocity = Vector3.zero
+            end)
+        end
         for humanoid, original in pairs(LocomotionService._jumpStates) do
             if humanoid.Parent and humanoid.Health > 0 then pcall(function() humanoid:ChangeState(original) end) end
         end

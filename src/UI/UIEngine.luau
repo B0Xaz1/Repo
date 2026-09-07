@@ -2,7 +2,7 @@
 local TABS = {
     { Name = "Combat", Path = "src/UI/Tabs/CombatTab.luau" }, { Name = "Visuals", Path = "src/UI/Tabs/VisualsTab.luau" },
     { Name = "Movement", Path = "src/UI/Tabs/MovementTab.luau" }, { Name = "Players", Path = "src/UI/Tabs/PlayersTab.luau" },
-    { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" }, { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" },
+    { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" }, { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" },
     { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau" },
 }
 
@@ -82,7 +82,7 @@ return function(services: any): any
                 if group ~= previousGroup then
                     order += 1
                     local header = dom:Create("TextLabel", { Parent = active.ResultsCol, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30),
-                        LayoutOrder = order, Text = group, Font = Enum.Font.GothamSemibold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
+                        LayoutOrder = order, Text = group, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
                     theme:BindToken(header, "TextColor3", "Accent")
                     table.insert(self._searchHeaders, header)
                     previousGroup = group
@@ -93,7 +93,7 @@ return function(services: any): any
             end
             if #results == 0 then
                 local empty = dom:Create("TextLabel", { Parent = active.ResultsCol, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 80),
-                    Text = "No matching controls.\nTry a feature, section, or tab name.", TextSize = 13, Font = Enum.Font.Gotham, TextWrapped = true })
+                    Text = "No matching controls.\nTry a feature, section, or tab name.", TextSize = 12, Font = Enum.Font.Gotham, TextWrapped = true })
                 theme:BindToken(empty, "TextColor3", "TextMuted"); table.insert(self._searchHeaders, empty)
             end
             active.Page.CanvasPosition = Vector2.zero
@@ -117,33 +117,38 @@ return function(services: any): any
         for _, candidate in ipairs(self._tabs) do
             local active = candidate == tab
             candidate.Page.Visible, candidate.Underline.Visible = active, active
-            theme:BindToken(candidate.Button, "TextColor3", if active then "Accent" else "TextDim")
-            theme:BindToken(candidate.Button, "BackgroundColor3", if active then "AccentDim" else "Bg")
+            candidate.Button.BackgroundTransparency = 1
+            theme:BindToken(candidate.Button, "TextColor3", if active then "Text" else "TextMuted")
         end
         if self._query ~= "" then self:Search(self._query) end
+        bus:Publish("TabSelected", name)
         return true
     end
     function UIEngine:MakeDraggable(frame: GuiObject, handle: GuiObject): any
         local owner = scope:CreateChild("Window drag")
-        local dragStart: Vector3? = nil
-        local startCentre: Vector2? = nil
+        local dragStart: Vector2? = nil
+        local startPos: UDim2? = nil
         local activeTouch: InputObject? = nil
         owner:Connect(handle.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            dragStart, startCentre = event.Position, frame.AbsolutePosition + frame.AbsoluteSize * frame.AnchorPoint
+            -- Delta against the live UDim2, not AbsolutePosition: mixing those spaces jumps the window by the topbar inset on the first click.
+            dragStart, startPos = environment:GetPointerLocation(event), frame.Position
             activeTouch = if event.UserInputType == Enum.UserInputType.Touch then event else nil
         end)
-        owner:Connect(input.InputChanged, function(event: InputObject)
-            if not dragStart or not startCentre or not frame.Parent then return end
+        owner:ConnectImmediate(input.InputChanged, function(event: InputObject)
+            if not dragStart or not startPos or not frame.Parent then return end
             if activeTouch and event ~= activeTouch then return end
             if event.UserInputType ~= Enum.UserInputType.MouseMovement and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            local delta, size, screen = event.Position - dragStart, frame.AbsoluteSize, viewport()
+            local delta, size, screen = environment:GetPointerLocation(event) - dragStart, frame.AbsoluteSize, viewport()
+            local scale = math.max(if UIEngine._scale then UIEngine._scale.Scale else 1, 0.01)
+            local centre = Vector2.new(startPos.X.Scale * screen.X + startPos.X.Offset + delta.X / scale,
+                startPos.Y.Scale * screen.Y + startPos.Y.Offset + delta.Y / scale)
             local minimum = Vector2.new(math.min(size.X / 2 + 8, screen.X / 2), math.min(size.Y / 2 + 8, screen.Y / 2))
-            frame.Position = UDim2.fromOffset(math.clamp(startCentre.X + delta.X, minimum.X, screen.X - minimum.X),
-                math.clamp(startCentre.Y + delta.Y, minimum.Y, screen.Y - minimum.Y))
+            centre = Vector2.new(math.clamp(centre.X, minimum.X, screen.X - minimum.X), math.clamp(centre.Y, minimum.Y, screen.Y - minimum.Y))
+            frame.Position = UDim2.new(startPos.X.Scale, centre.X - startPos.X.Scale * screen.X, startPos.Y.Scale, centre.Y - startPos.Y.Scale * screen.Y)
         end)
         owner:Connect(input.InputEnded, function(event: InputObject)
-            if event.UserInputType == Enum.UserInputType.MouseButton1 or event == activeTouch then dragStart, activeTouch = nil, nil end
+            if event.UserInputType == Enum.UserInputType.MouseButton1 or event == activeTouch then dragStart, startPos, activeTouch = nil, nil, nil end
         end)
         owner:Connect(frame.Destroying, function() owner:Dispose() end)
         return owner
@@ -165,12 +170,13 @@ return function(services: any): any
         local frame = dom:Create("Frame", { Parent = self._toastRoot, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             LayoutOrder = -self._toastId, BackgroundColor3 = theme:GetToken("Panel") })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
-        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 8) })
-        dom:CreateStroke(frame, color or theme:GetToken("Accent"), 1)
+        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 3) })
+        local stroke = dom:CreateStroke(frame, color or theme:GetToken("Accent"), 1)
+        if not color then theme:BindToken(stroke, "Color", "Accent") end
         dom:CreatePadding(frame, 12, 14)
         dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
-        local heading = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 17),
-            Text = tostring(title), Font = Enum.Font.GothamSemibold, TextSize = 12, TextColor3 = color or theme:GetToken("Accent"), TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0 })
+        local heading = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16),
+            Text = tostring(title), Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = color or theme:GetToken("Accent"), TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0 })
         if not color then theme:BindToken(heading, "TextColor3", "Accent") end
         local body = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             Text = tostring(message), TextWrapped = true, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1 })
@@ -185,14 +191,14 @@ return function(services: any): any
         if not UIEngine._main then return end
         local screen = viewport()
         local requested = math.clamp(state:Get("Settings.UIScale"), 0.6, 1.5)
-        local width = if environment:IsMobile() then math.clamp(screen.X / requested - 28, 320, 780) else 780
-        local height = math.clamp(screen.Y / requested - 40, 400, 620)
+        local width = if environment:IsMobile() then math.clamp(screen.X / requested - 28, 320, 720) else 720
+        local height = math.clamp(screen.Y / requested - 40, 360, 500)
         local scale = math.max(0.25, math.min(requested, (screen.X - 24) / width, (screen.Y - 24) / height))
         UIEngine._main.Size, UIEngine._scale.Scale = UDim2.fromOffset(width, height), scale
         local stacked = width < 620
         for _, tab in ipairs(UIEngine._tabs) do
             tab.ColumnLayout.FillDirection = if stacked then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
-            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -6, 0, 0), UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -6, 0, 0)
+            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -4, 0, 0), UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -4, 0, 0)
         end
         UIEngine._toastRoot.Size = UDim2.new(0, math.min(330, screen.X - 32), 1, -40)
     end
@@ -205,52 +211,49 @@ return function(services: any): any
         self._root = root
         theme:RegisterRoot(root)
         local main = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(780, 620), BackgroundColor3 = theme:GetToken("Bg"), Active = true })
+            Size = UDim2.fromOffset(720, 500), BackgroundColor3 = theme:GetToken("Bg"), Active = true })
         self._main = main
-        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 12) })
-        theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
+        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 4) })
+        theme:BindToken(dom:CreateStroke(main, theme:GetToken("Accent")), "Color", "Accent")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
-        local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 73), Active = true })
-        local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(20, 13), Size = UDim2.fromOffset(99, 28),
-            Text = "B0Xaz", Font = Enum.Font.GothamBold, TextSize = 23, TextXAlignment = Enum.TextXAlignment.Left })
-        theme:BindToken(brand, "TextColor3", "Accent")
-        local universal = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(119, 21), Size = UDim2.fromOffset(130, 17),
-            Text = "U N I V E R S A L", Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
-        theme:BindToken(universal, "TextColor3", "TextDim")
-        self._versionLabel = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(21, 43), Size = UDim2.new(1, -80, 0, 17),
-            Text = "v" .. services.Version, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
-        theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
-        local close = dom:Create("TextButton", { Parent = titleBar, Text = "×", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -48, 0, 14), Size = UDim2.fromOffset(30, 30), Font = Enum.Font.Gotham, TextSize = 25 })
+        local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 34), Active = true })
+        local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -180, 0, 18),
+            Text = "B0Xaz Universal", Font = Enum.Font.GothamMedium, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+        theme:BindToken(brand, "TextColor3", "Text")
+        local close = dom:Create("TextButton", { Parent = titleBar, Text = "X", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -26, 0, 6), Size = UDim2.fromOffset(18, 20), Font = Enum.Font.GothamMedium, TextSize = 12 })
         theme:BindToken(close, "TextColor3", "TextMuted")
         scope:Connect(close.Activated, function() state:Set("Settings.MenuVisible", false) end)
-        self:MakeDraggable(main, titleBar)
-        local strip = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(20, 77), Size = UDim2.new(1, -40, 0, 38),
-            ScrollBarThickness = 2, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X })
-        theme:BindToken(strip, "ScrollBarImageColor3", "Accent")
-        dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder })
-        local search = dom:Create("TextBox", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(20, 124), Size = UDim2.new(1, -40, 0, 34), ClearTextOnFocus = false,
-            Text = "", PlaceholderText = "Search all controls…", TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
+        local search = dom:Create("TextBox", { Parent = titleBar, BorderSizePixel = 0, Position = UDim2.new(1, -150, 0, 7), Size = UDim2.fromOffset(118, 20), ClearTextOnFocus = false,
+            Text = "", PlaceholderText = "search...", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
         self._searchBox = search
         theme:BindToken(search, "BackgroundColor3", "Elem"); theme:BindToken(search, "TextColor3", "Text"); theme:BindToken(search, "PlaceholderColor3", "TextMuted")
-        dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 7) }); dom:CreatePadding(search, 0, 12)
+        theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(search, 0, 8)
         scope:Connect(search:GetPropertyChangedSignal("Text"), function() UIEngine:Search(search.Text) end)
+        self:MakeDraggable(main, titleBar)
+        local strip = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 34), Size = UDim2.new(1, -16, 0, 24),
+            ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X })
+        theme:BindToken(strip, "ScrollBarImageColor3", "Accent")
+        dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 0, 1) })
+        theme:BindToken(divider, "BackgroundColor3", "BorderDim")
         for index, entry in ipairs(TABS) do
-            local button = dom:Create("TextButton", { Parent = strip, BorderSizePixel = 0, Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 12, Size = UDim2.fromOffset(95, 32), LayoutOrder = index })
-            dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 6) })
-            local underline = dom:Create("Frame", { Parent = button, BorderSizePixel = 0, Position = UDim2.new(0.15, 0, 1, -2), Size = UDim2.new(0.7, 0, 0, 2), Visible = false })
+            local button = dom:Create("TextButton", { Parent = strip, BackgroundTransparency = 1, BorderSizePixel = 0, Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 13, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = index })
+            dom:CreatePadding(button, 0, 8, 0, 8)
+            local underline = dom:Create("Frame", { Parent = button, BorderSizePixel = 0, Position = UDim2.new(0.08, 0, 1, -1), Size = UDim2.new(0.84, 0, 0, 2), Visible = false })
             theme:BindToken(underline, "BackgroundColor3", "Accent")
-            local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(20, 171), Size = UDim2.new(1, -40, 1, -205),
+            local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(10, 64), Size = UDim2.new(1, -20, 1, -82),
                 Visible = false, ScrollBarThickness = 3, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
             page:SetAttribute("B0XazTab", entry.Name)
             theme:BindToken(page, "ScrollBarImageColor3", "Accent")
-            dom:CreatePadding(page, 2, 7, 12, 1)
+            dom:CreatePadding(page, 2, 4, 8, 2)
             dom:Create("UIListLayout", { Parent = page, SortOrder = Enum.SortOrder.LayoutOrder })
             local columns = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, -1, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder })
-            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
+            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
+            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
+            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
-            for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 12), SortOrder = Enum.SortOrder.LayoutOrder }) end
+            for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 8), SortOrder = Enum.SortOrder.LayoutOrder }) end
             local tab = { Name = entry.Name, Button = button, Underline = underline, Page = page, LeftCol = left, RightCol = right,
                 ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index }
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab
@@ -261,17 +264,21 @@ return function(services: any): any
             if not ok then error("Init Error in '" .. entry.Path .. "': " .. tostring(result)) end
             print("[B0Xaz][Trace] step end tab " .. entry.Name)
         end
-        local footer = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, Position = UDim2.new(0, 21, 1, -26), Size = UDim2.new(1, -42, 0, 17),
+        local footer = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, Position = UDim2.new(0, 18, 1, -18), Size = UDim2.new(1, -96, 0, 14),
             Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(footer, "TextColor3", "TextMuted")
-        local function updateFooter() footer.Text = environment:FormatKeybindName(state:Get("Settings.MenuKeybind")) .. " • menu     " .. environment:FormatKeybindName(state:Get("Settings.UnloadKeybind")) .. " • unload & restore" end
+        local function updateFooter() footer.Text = environment:FormatKeybindName(state:Get("Settings.MenuKeybind")) .. "  menu     " .. environment:FormatKeybindName(state:Get("Settings.UnloadKeybind")) .. "  unload" end
         updateFooter(); scope:Add(state:Observe("Settings.MenuKeybind", updateFooter)); scope:Add(state:Observe("Settings.UnloadKeybind", updateFooter))
+        self._versionLabel = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 1, -18), Size = UDim2.fromOffset(72, 14),
+            Text = "v" .. services.Version, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
+        theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
         self._toastRoot = dom:Create("Frame", { Parent = root, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -18), Size = UDim2.new(0, 330, 1, -40) })
         dom:Create("UIListLayout", { Parent = self._toastRoot, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder })
         local reopen = dom:Create("TextButton", { Parent = root, BorderSizePixel = 0, Position = UDim2.new(0, 16, 1, -52), Size = UDim2.fromOffset(78, 34),
             Text = "B0Xaz", TextSize = 13, Font = Enum.Font.GothamBold })
         theme:BindToken(reopen, "BackgroundColor3", "Panel"); theme:BindToken(reopen, "TextColor3", "Accent")
-        dom:Create("UICorner", { Parent = reopen, CornerRadius = UDim.new(0, 8) })
+        theme:BindToken(dom:CreateStroke(reopen, theme:GetToken("Border")), "Color", "Border")
+        dom:Create("UICorner", { Parent = reopen, CornerRadius = UDim.new(0, 3) })
         scope:Connect(reopen.Activated, function() state:Set("Settings.MenuVisible", not state:Get("Settings.MenuVisible")) end)
         local function updateVisibility(value: boolean) main.Visible = value; reopen.Visible = not value or environment:IsMobile(); if not value then UIEngine:CloseAllDropdownsExcept(nil) end end
         scope:Add(state:Observe("Settings.MenuVisible", updateVisibility)); updateVisibility(state:Get("Settings.MenuVisible"))

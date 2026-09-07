@@ -74,6 +74,7 @@ return function(sources: any, core: any): any
         core.Services.GuiService = { GetGuiInset = function() return vector2.zero end }
         core.Services.TeleportService = {}
         core.Services.UserInputService.InputChanged = core.Signal()
+        function core.Services.UserInputService:GetMouseLocation() return vector2.zero end
         core.Services.Players.LocalPlayer.FindFirstChildOfClass = function() return nil end
         runtime.game.PlaceId, runtime.game.GameId = 100, 200
         runtime.Drawing = nil
@@ -101,7 +102,57 @@ return function(sources: any, core: any): any
         local ui = load("src/UI/UIEngine.luau", services); services:Register("UIEngine", ui)
         ui:ConstructInterface()
         expect(#ui._tabs == 7 and ui._active.Name == "Combat", "All seven real tab factories construct in registration order")
-        expect(ui._versionLabel.Text:find(services.Version, 1, true) ~= nil, "Version is visible in the title bar")
+        expect(ui._versionLabel.Text:find(services.Version, 1, true) ~= nil, "Version is visible on the menu")
+        expect(ui._versionLabel.Parent == ui._main, "Version sits on the main menu frame, not the title bar")
+        local brandText = nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Text == "B0Xaz Universal" then brandText = child.Text; break end
+        end
+        expect(brandText == "B0Xaz Universal", "Title bar uses the charcoal-suite brand")
+        local tabNames = {}
+        for _, tab in ipairs(ui._tabs) do table.insert(tabNames, tab.Name) end
+        expect(table.concat(tabNames, ",") == "Combat,Visuals,Movement,Players,Game,Utility,Settings", "Tab strip matches the charcoal-suite order")
+        local accent = theme:GetToken("Accent")
+        expect(accent.R < 0.1 and accent.G > 0.8 and accent.B > 0.85, "Midnight accent is a bright cyan")
+        local groupTitle, groupStroke = nil, nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Text == "Aimbot Controls" then groupTitle = child end
+            if child:IsA("UIStroke") and child.Parent and child.Parent:GetAttribute("B0XazSection") == "Aimbot Controls" then groupStroke = child end
+        end
+        expect(groupTitle ~= nil and groupTitle.TextColor3 == accent, "Groupbox titles use the accent color")
+        expect(groupStroke ~= nil and groupStroke.Color == accent, "Groupbox borders use the accent color")
+        local windowStroke, fovTitle = nil, nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("UIStroke") and child.Parent == ui._main then windowStroke = child end
+            if child:IsA("TextLabel") and child.Text == "Aimbot FOV" then fovTitle = child end
+        end
+        expect(windowStroke ~= nil and windowStroke.Color == accent, "The window frame uses the cyan accent stroke")
+        expect(fovTitle ~= nil and fovTitle.TextColor3 == accent, "Combat FOV groupbox matches the charcoal-suite title")
+        local sliderText = nil
+        for row, record in pairs(ui._controls) do
+            if record.Label == "Max Distance" then
+                for _, child in ipairs(row:GetChildren()) do
+                    if child:IsA("TextLabel") and tostring(child.Text):find("/", 1, true) then sliderText = child.Text end
+                end
+            end
+        end
+        expect(sliderText == "2000/10000 studs", "Sliders show current/max with the unit suffix")
+        local function isAscii(value: string): boolean
+            for index = 1, #value do if string.byte(value, index) > 127 then return false end end
+            return true
+        end
+        local function scanAscii(node: any)
+            if type(node.Text) == "string" then expect(isAscii(node.Text), "Live UI text is ASCII: " .. node.Text) end
+            if type(node.PlaceholderText) == "string" then expect(isAscii(node.PlaceholderText), "Live UI placeholder is ASCII: " .. node.PlaceholderText) end
+            for _, child in ipairs(node:GetChildren()) do scanAscii(child) end
+        end
+        scanAscii(ui._root)
+        expect(ui._searchBox.PlaceholderText == "search...", "Search placeholder stays ASCII")
+        local closeText = nil
+        for _, child in ipairs(ui._main:GetDescendants()) do
+            if child:IsA("TextButton") and child.Text == "X" then closeText = child.Text; break end
+        end
+        expect(closeText == "X", "Close control uses an ASCII X instead of a multiply glyph")
         local rows, count, boundCount = {}, 0, 0
         for row, record in pairs(ui._controls) do
             rows[row] = { Parent = row.Parent, Order = row.LayoutOrder, Record = record }; count += 1
@@ -111,7 +162,7 @@ return function(sources: any, core: any): any
                 boundCount += 1
             end
         end
-        expect(count >= 185 and boundCount >= 115, "Interface constructs the complete control surface, not placeholder tabs")
+        expect(count >= 184 and boundCount >= 114, "Interface constructs the complete control surface, not placeholder tabs")
         ui:Search("flight")
         local moved = 0
         for row, home in pairs(rows) do if row.Parent ~= home.Parent then moved += 1; expect(row.Parent == ui._active.ResultsCol, "All matches move into the active results column") end end
@@ -121,7 +172,7 @@ return function(sources: any, core: any): any
         ui:ClearSearch()
         for row, home in pairs(rows) do expect(row.Parent == home.Parent and row.LayoutOrder == home.Order, "Clearing search restores exact parent and order") end
         local badRow = nil
-        for row, home in pairs(rows) do if home.Record.Label == "Enable aimbot" then badRow = row; break end end
+        for row, home in pairs(rows) do if home.Record.Label == "Aimbot Enabled" then badRow = row; break end end
         properties[badRow].FailParent = ui._active.ResultsCol
         ui:Search("enable aimbot")
         expect(ui._query == "" and badRow.Parent == rows[badRow].Parent, "A mid-filter exception rolls back the whole search")
@@ -137,8 +188,18 @@ return function(sources: any, core: any): any
         expect(state:Get("Aimbot.Enabled"), "Aimbot controls can enable their feature directly")
         local dom = services:Get("DOM")
         local unbound = dom:Create("TextLabel", { Parent = ui._root, TextColor3 = theme:GetToken("Accent") })
+        local midnightBg = ui._main.BackgroundColor3
         theme:SetPreset("Ocean")
         expect(unbound.TextColor3 == theme:GetToken("Accent"), "Root rescanning recolors even an unbound previous-token color")
+        expect(ui._main.BackgroundColor3 == theme:GetToken("Bg") and ui._main.BackgroundColor3 ~= midnightBg, "Theme presets replace the window background, not only the accent")
+        theme:SetPreset("Paper")
+        expect(ui._main.BackgroundColor3 == theme:GetToken("Bg"), "Paper applies its full light palette to bound chrome")
+        ui:SelectTab("Visuals")
+        expect(ui._visualsPreview ~= nil and ui._visualsPreview.Visible, "Visuals tab opens a live ESP/chams preview")
+        ui:SelectTab("Combat")
+        expect(ui._visualsPreview.Visible == false, "ESP preview hides when leaving Visuals")
+        expect(state:Set("ESP.Rainbow", true) and state:Get("ESP.Rainbow") and state:Set("Chams.Rainbow", true) and state:Get("Chams.Rainbow"), "ESP and chams expose rainbow mode")
+        expect(state:Set("ESP.UseTeamColor", true) and state:Get("ESP.UseTeamColor"), "ESP can follow team color")
         local keyButtons = {}
         for row in pairs(ui._controls) do
             local path = row:GetAttribute("StatePath")

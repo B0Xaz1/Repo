@@ -50,10 +50,42 @@ return function(services: any): any
     local function sanitize(name: string): string
         return (tostring(name):gsub('[/\\%.:%*%?<>|"%z\1-\31\127]', ""):gsub("^%s+", ""):gsub("%s+$", "")):sub(1, 64)
     end
+    local BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" }
+    local function builtinKey(name: string): string?
+        local key = string.lower(sanitize(name))
+        return if BUILTIN_LABELS[key] then key else nil
+    end
+    local function buildBuiltin(key: string): any
+        local snapshot = state:GetDefaultSettings()
+        if key == "legit" then
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness, snapshot.Aimbot.UseCamera = false, 16, true
+            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck = true, true, true
+            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 70, true, 120
+            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.2
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Health, snapshot.ESP.Distance = true, true, true, true, true
+            snapshot.ESP.Tool, snapshot.ESP.Backpack, snapshot.ESP.Tracers, snapshot.ESP.Skeleton, snapshot.ESP.HeadDot, snapshot.ESP.LookDir = false, false, false, false, false, false
+            snapshot.ESP.TeamCheck, snapshot.ESP.UseTeamColor, snapshot.ESP.Rainbow, snapshot.ESP.MaxDist = true, true, false, 800
+            snapshot.Chams.Enabled, snapshot.Chams.UseTeamColor, snapshot.Chams.Rainbow = false, true, false
+            snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling, snapshot.Movement.InfJump = false, false, false, false
+            snapshot.Extras.Hitbox.Enabled, snapshot.Extras.SpinBot.Enabled = false, false
+        elseif key == "rage" then
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness, snapshot.Aimbot.UseCamera = true, 1.5, true
+            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck, snapshot.Aimbot.WhitelistCheck = false, false, false, false
+            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 360, true, 800
+            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = true, 0.02
+            snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = false, false
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Health, snapshot.ESP.Distance = true, true, true, true, true
+            snapshot.ESP.Tool, snapshot.ESP.Backpack, snapshot.ESP.Tracers, snapshot.ESP.Skeleton, snapshot.ESP.HeadDot, snapshot.ESP.LookDir = true, true, true, true, true, true
+            snapshot.ESP.TeamCheck, snapshot.ESP.UseTeamColor, snapshot.ESP.Rainbow, snapshot.ESP.MaxDist = false, false, false, 10000
+            snapshot.Chams.Enabled, snapshot.Chams.UseTeamColor, snapshot.Chams.Rainbow = true, false, false
+            snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling = false, false, false
+        end
+        return snapshot
+    end
     local function pathFor(name: string): (string?, string)
         name = sanitize(name)
         if name == "" or name:sub(1, 1) == "_" then return nil, "Choose a non-empty profile name that does not start with '_'" end
-        if string.lower(name) == "default" then return nil, "Default is a read-only pseudo-profile" end
+        if builtinKey(name) then return nil, BUILTIN_LABELS[builtinKey(name)] .. " is a built-in preset" end
         return "Configs/" .. name .. ".json", name
     end
     local function hydrate(snapshot: any)
@@ -75,9 +107,15 @@ return function(services: any): any
         return written, message or ("Saved " .. clean)
     end
     function ConfigService:Load(name: string): (boolean, string)
-        if string.lower(sanitize(name)) == "default" then
-            hydrate(state:GetDefaultSettings()); self._activeProfile = "Default"
-            return true, "Loaded fresh defaults"
+        local key = builtinKey(name)
+        if key then
+            local snapshot = buildBuiltin(key)
+            if key ~= "default" then
+                local current = state:GetSettingsSnapshot()
+                snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
+            end
+            hydrate(snapshot); self._activeProfile = BUILTIN_LABELS[key]
+            return true, "Loaded " .. BUILTIN_LABELS[key]
         end
         local path, clean = pathFor(name)
         if not path then return false, clean end
@@ -96,19 +134,20 @@ return function(services: any): any
         return ok, message or ("Deleted " .. clean)
     end
     function ConfigService:ListProfiles(): { string }
-        local names, seen = {}, {}
+        local names, seen = { "Default", "Legit", "Rage" }, { default = true, legit = true, rage = true }
+        local extras = {}
         for _, file in ipairs(environment:ListFiles("Configs")) do
             local name = file:match("([^/]+)%.json$")
-            if name and name:sub(1, 1) ~= "_" and string.lower(name) ~= "default" and not seen[name] then
-                table.insert(names, name); seen[name] = true
+            if name and name:sub(1, 1) ~= "_" and not seen[string.lower(name)] then
+                table.insert(extras, name); seen[string.lower(name)] = true
             end
         end
-        table.sort(names, function(a: string, b: string) return a:lower() < b:lower() end)
-        table.insert(names, 1, "Default")
+        table.sort(extras, function(a: string, b: string) return a:lower() < b:lower() end)
+        for _, name in ipairs(extras) do table.insert(names, name) end
         return names
     end
     function ConfigService:ProfileExists(name: string): boolean
-        if string.lower(sanitize(name)) == "default" then return true end
+        if builtinKey(name) then return true end
         local path = pathFor(name)
         return path ~= nil and environment:ReadFile(path) ~= nil
     end

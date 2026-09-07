@@ -150,6 +150,7 @@ return function(sources: { [string]: string }): any
         expect(changes == 1, "Mutating a returned table must still publish on Set")
         list[2] = "Aliased"
         expect(#state:Get("Settings.Whitelist") == 1, "Store clones values on write")
+        expect(state:Peek("Settings") == state._settings.Settings and state:Peek("Settings") ~= state:Get("Settings"), "Peek is the live table; Get remains a clone")
         local copy = state:GetSettingsSnapshot(); copy.Settings.UIScale = 9
         expect(state:Get("Settings.UIScale") == 1, "Snapshot is isolated")
         state:LoadSettingsSnapshot({ Movement = { FlySpeed = 77 }, Settings = { UIScale = "invalid" } })
@@ -162,6 +163,8 @@ return function(sources: { [string]: string }): any
         expect(state:Get("Aimbot.Enabled") and state:Get("Movement.Fling"), "Hydration preserves enabled settings without an access sweep")
         state:Set("Settings.MenuKeybind", enumTypes.KeyCode.B)
         expect(state:Get("Settings.Binds.Menu").Name == "B", "Menu key aliases remain consistent")
+        state:Set("ESP.DepthMode", "Occluded")
+        expect(state:Get("Chams.DepthMode") == "Occluded", "ESP depth mode stays aliased onto chams")
         local scheduler = loadModule("src/Core/TaskScheduler.luau")(master)
         local frames, after, deltas = 0, 0, {}
         local job = scheduler:RegisterRender("Broken", 0, function() frames += 1; error("deliberate") end)

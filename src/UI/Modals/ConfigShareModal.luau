@@ -19,10 +19,10 @@ return function(services: any): any
         local screen = if game:GetService("Workspace").CurrentCamera then game:GetService("Workspace").CurrentCamera.ViewportSize else Vector2.new(800, 600)
         local window = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.fromOffset(math.min(660, screen.X - 28), math.min(560, screen.Y - 32)), Active = true })
-        theme:BindToken(window, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = window, CornerRadius = UDim.new(0, 12) })
+        theme:BindToken(window, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = window, CornerRadius = UDim.new(0, 6) })
         theme:BindToken(dom:CreateStroke(window, theme:GetToken("Border")), "Color", "Border")
         local title = dom:Create("TextLabel", { Parent = window, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 10), Size = UDim2.new(1, -36, 0, 39),
-            Text = "CONFIG  /  JSON EDITOR", Font = Enum.Font.GothamSemibold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, Active = true })
+            Text = "Config / JSON editor", Font = Enum.Font.GothamMedium, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, Active = true })
         theme:BindToken(title, "TextColor3", "Accent")
         owner:Add(services:Get("UIEngine"):MakeDraggable(window, title))
         local scroll = dom:Create("ScrollingFrame", { Parent = window, BorderSizePixel = 0, Position = UDim2.fromOffset(18, 61), Size = UDim2.new(1, -36, 1, -211),

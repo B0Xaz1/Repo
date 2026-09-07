@@ -59,11 +59,14 @@ return function(services: any): any
         return Vector2.new(clampAxis(delta.X, errorPixels.X), clampAxis(delta.Y, errorPixels.Y))
     end
     local function update(dt: number)
-        local config = state:Get("Aimbot")
-        AimbotService._time += dt
-        if not config.Enabled then
-            drop(); cameraChanges:RestoreProperties(); AimbotService._camera = nil; return
+        if not state:Peek("Aimbot.Enabled") then
+            if AimbotService._target or AimbotService._camera then
+                drop(); cameraChanges:RestoreProperties(); AimbotService._camera = nil
+            end
+            return
         end
+        local config = state:Peek("Aimbot")
+        AimbotService._time += dt
         if input:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then drop(); return end
         local localAssets = tracker:GetLocalAssets()
         if not localAssets or localAssets.Humanoid.Health <= 0 then drop(config.UnlockOnDeath); return end
@@ -161,8 +164,13 @@ return function(services: any): any
         scope:Connect(input.InputEnded, function(event: InputObject)
             if environment:MatchesInput(event, state:Get("Aimbot.Keybind")) then AimbotService._held, AimbotService._blocked = false, false end
         end)
-        scope:Add(state:Observe("Aimbot.Enabled", function(value: boolean) if not value then AimbotService:Unlock(); cameraChanges:RestoreProperties() end end))
-        scope:Add(scheduler:RegisterCamera("Combat.Aimbot", 10, update))
+        local job = scheduler:RegisterCamera("Combat.Aimbot", 10, update)
+        local function syncAimbot(value: boolean)
+            job.Enabled = value == true
+            if not value then AimbotService:Unlock(); cameraChanges:RestoreProperties() end
+        end
+        scope:Add(state:Observe("Aimbot.Enabled", syncAimbot))
+        syncAimbot(state:Peek("Aimbot.Enabled") == true)
     end
     function AimbotService:Destroy() self:Unlock(); scope:Dispose() end
     scope:Add(function() drop() end)

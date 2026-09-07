@@ -1,34 +1,37 @@
 --!nonstrict
 return function(services: any): any
-    local dom, theme, input = services:Get("DOM"), services:Get("ThemeEngine"), game:GetService("UserInputService")
+    local dom, theme, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment")
+    local input = game:GetService("UserInputService")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Color picker capture")
     local ColorPicker = { _active = nil }
-    local function drag(position: Vector3)
+    local function drag(event: InputObject)
         local active = ColorPicker._active
         if not active or active.Handle.Scope:IsDisposed() then return end
-        local handle, field = active.Handle, active.Field
+        local handle, field, position = active.Handle, active.Field, environment:GetPointerLocation(event)
         local x = math.clamp((position.X - field.AbsolutePosition.X) / math.max(field.AbsoluteSize.X, 1), 0, 1)
         local y = math.clamp((position.Y - field.AbsolutePosition.Y) / math.max(field.AbsoluteSize.Y, 1), 0, 1)
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
         handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness))
     end
-    scope:Connect(input.InputChanged, function(event: InputObject)
-        if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event.Position) end
+    scope:ConnectImmediate(input.InputChanged, function(event: InputObject)
+        if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event) end
     end)
     scope:Connect(input.InputEnded, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then ColorPicker._active = nil end
     end)
     function ColorPicker:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
-        local row, text, owner = section:Control(parent, label, 38)
-        text.Size = UDim2.new(1, -131, 0, 38)
-        local hex = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, ClearTextOnFocus = false, Size = UDim2.fromOffset(87, 28), Position = UDim2.new(1, -127, 0, 5),
-            Text = "#FFFFFF", Font = Enum.Font.Code, TextSize = 12 })
+        local row, text, owner = section:Control(parent, label, 28)
+        text.Size = UDim2.new(1, -120, 1, 0)
+        local hex = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, ClearTextOnFocus = false, Size = UDim2.fromOffset(78, 22), Position = UDim2.new(1, -116, 0, 3),
+            Text = "#FFFFFF", Font = Enum.Font.Code, TextSize = 11 })
         theme:BindToken(hex, "BackgroundColor3", "Elem"); theme:BindToken(hex, "TextColor3", "TextDim")
-        dom:Create("UICorner", { Parent = hex, CornerRadius = UDim.new(0, 5) })
-        local swatch = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(31, 24), Position = UDim2.new(1, -31, 0, 7) })
-        dom:Create("UICorner", { Parent = swatch, CornerRadius = UDim.new(0, 5) })
-        local panel = dom:Create("Frame", { Parent = row, BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 42), Size = UDim2.new(1, 0, 0, 124), Visible = false })
+        theme:BindToken(dom:CreateStroke(hex, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = hex, CornerRadius = UDim.new(0, 3) })
+        local swatch = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(28, 22), Position = UDim2.new(1, -28, 0, 3) })
+        theme:BindToken(dom:CreateStroke(swatch, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        dom:Create("UICorner", { Parent = swatch, CornerRadius = UDim.new(0, 3) })
+        local panel = dom:Create("Frame", { Parent = row, BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 124), Visible = false })
         local square = dom:Create("TextButton", { Parent = panel, AutoButtonColor = false, Text = "", BorderSizePixel = 0, Size = UDim2.new(1, -25, 0, 112) })
         local white = dom:Create("Frame", { Parent = square, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) })
         dom:Create("UIGradient", { Parent = white, Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) })
@@ -42,7 +45,7 @@ return function(services: any): any
         dom:Create("UIGradient", { Parent = hue, Rotation = 90, Color = ColorSequence.new(stops) })
         local handle = { Row = row, Label = text, Scope = owner, _hue = 0, _saturation = 1, _brightness = 1,
             Normalize = function(value: any) return if typeof(value) == "Color3" then value else Color3.new(1, 1, 1) end }
-        local function close() panel.Visible = false; row.Size = UDim2.new(1, 0, 0, 38); if ColorPicker._active and ColorPicker._active.Handle == handle then ColorPicker._active = nil end end
+        local function close() panel.Visible = false; row.Size = UDim2.new(1, 0, 0, 28); if ColorPicker._active and ColorPicker._active.Handle == handle then ColorPicker._active = nil end end
         function handle:_Render(value: Color3)
             local h, s, v = value:ToHSV()
             if s > 0 and v > 0 then self._hue = h end
@@ -55,7 +58,7 @@ return function(services: any): any
         owner:Connect(swatch.Activated, function()
             if panel.Visible then close(); return end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
-            panel.Visible, row.Size = true, UDim2.new(1, 0, 0, 169)
+            panel.Visible, row.Size = true, UDim2.new(1, 0, 0, 158)
         end)
         owner:Connect(hex.FocusLost, function()
             local value = hex.Text:gsub("^#", "")
@@ -66,7 +69,7 @@ return function(services: any): any
         end)
         for field, mode in pairs({ [square] = "SV", [hue] = "Hue" }) do owner:Connect(field.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            ColorPicker._active = { Handle = handle, Field = field, Mode = mode }; drag(event.Position)
+            ColorPicker._active = { Handle = handle, Field = field, Mode = mode }; drag(event)
         end) end
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(close)
         return handle

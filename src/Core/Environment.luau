@@ -191,8 +191,22 @@ return function(disposer: any): any
         local ok, inset = pcall(function() return game:GetService("GuiService"):GetGuiInset() end)
         return if ok then inset else Vector2.zero
     end
+    -- WorldToViewportPoint, Drawing, and GetMouseLocation all start at the top-left of the window.
+    -- Subtracting GuiInset here previously raised the aim/FOV point by the topbar and missed the cursor.
     function Environment:GetAimPoint(camera: Camera): Vector2
-        return if self:IsMobile() then camera.ViewportSize / 2 else input:GetMouseLocation() - self:GetGuiInset()
+        if self:IsMobile() then return camera.ViewportSize / 2 end
+        local ok, location = pcall(function() return input:GetMouseLocation() end)
+        if ok and typeof(location) == "Vector2" then return location end
+        return camera.ViewportSize / 2
+    end
+    -- IgnoreGuiInset ScreenGuis report AbsolutePosition in GetMouseLocation space. Touch InputObjects stay in GUI space.
+    function Environment:GetPointerLocation(event: InputObject): Vector2
+        if event.UserInputType == Enum.UserInputType.Touch then
+            return Vector2.new(event.Position.X, event.Position.Y)
+        end
+        local ok, location = pcall(function() return input:GetMouseLocation() end)
+        if ok and typeof(location) == "Vector2" then return location end
+        return Vector2.new(event.Position.X, event.Position.Y) + self:GetGuiInset()
     end
     function Environment:Request(options: any): (any?, string?)
         local ok, result = pcall(function()

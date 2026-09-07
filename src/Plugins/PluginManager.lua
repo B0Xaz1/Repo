@@ -1,2 +1,0 @@
--- src/Plugins/PluginManager.lua
--- Placeholder; implementation will be added separately.

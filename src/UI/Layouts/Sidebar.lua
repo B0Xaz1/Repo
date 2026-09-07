@@ -1,2 +1,0 @@
--- src/UI/Layouts/Sidebar.lua
--- Placeholder; implementation will be added separately.

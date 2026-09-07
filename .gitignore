@@ -1,0 +1,8 @@
+# Executor-owned files may contain device identifiers and license keys.
+B0XazUniversal/
+_device.json
+_key.json
+_autoload.json
+*.log
+.DS_Store
+.arena/

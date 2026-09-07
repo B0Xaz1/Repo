@@ -1,2 +1,0 @@
--- src/UI/UIEngine.lua
--- Placeholder; implementation will be added separately.

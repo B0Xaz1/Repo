@@ -102,10 +102,8 @@ return function(services: any): any
             local sprint = config.SprintEnabled and not input:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and input:IsKeyDown(Enum.KeyCode.LeftShift)
             local speed = if sprint then config.SprintSpeed else config.Speed
             if speed > 0 then characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, 1, 300)) else characterChanges:RestoreProperty(humanoid, "WalkSpeed") end
-            for _, property in ipairs({ "JumpPower", "JumpHeight" }) do
-                local value = config[property]
-                if value > 0 then characterChanges:SetProperty(humanoid, property, math.clamp(value, 0, 300)) else characterChanges:RestoreProperty(humanoid, property) end
-            end
+            if config.JumpPower > 0 then characterChanges:SetProperty(humanoid, "JumpPower", math.clamp(config.JumpPower, 0, 300))
+            else characterChanges:RestoreProperty(humanoid, "JumpPower") end
             if config.CFrameSpeed and not config.FlyEnabled and not LocomotionService._flingTarget then
                 suppress(0.3)
                 -- Bound hitch displacement: resuming a paused client must not jump hundreds of studs in one step.

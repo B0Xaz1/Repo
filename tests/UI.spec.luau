@@ -129,7 +129,7 @@ return function(sources: any, core: any): any
                 boundCount += 1
             end
         end
-        expect(count >= 185 and boundCount >= 115, "Interface constructs the complete control surface, not placeholder tabs")
+        expect(count >= 184 and boundCount >= 114, "Interface constructs the complete control surface, not placeholder tabs")
         ui:Search("flight")
         local moved = 0
         for row, home in pairs(rows) do if row.Parent ~= home.Parent then moved += 1; expect(row.Parent == ui._active.ResultsCol, "All matches move into the active results column") end end

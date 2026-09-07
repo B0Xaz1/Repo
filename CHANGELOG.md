@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.5 — 2026-09-07
+
+- Removed the Jump Height override and its Movement-tab slider. Jump power remains.
+
 ## 2.1.4 — 2026-09-07
 
 - Replaced unsupported Unicode in the live menu (close, chevrons, units, separators, toasts) with ASCII so labels no longer tofu.

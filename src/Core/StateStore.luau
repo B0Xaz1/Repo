@@ -12,7 +12,7 @@ local DEFAULT_SETTINGS: any = {
         FOV = { Size = 120, Show = false, Filled = false, Thickness = 1, Sides = 64, Rainbow = false, Pulse = false },
     },
     Movement = {
-        Speed = 0, JumpPower = 0, JumpHeight = 0, InfJump = false,
+        Speed = 0, JumpPower = 0, InfJump = false,
         FlyEnabled = false, FlySpeed = 50, FlyKeybind = Enum.KeyCode.F,
         MobileFlyUp = false, MobileFlyDown = false, SprintEnabled = false, SprintSpeed = 28,
         CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false,

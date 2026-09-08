@@ -84,6 +84,13 @@ return function(services: any): any
         if not camera then return false end
         if (part.Position - camera.CFrame.Position).Magnitude > math.max(0, config.MaxDistance or 2000) then return false end
         if config.VisCheck and not self:IsVisible(part) then return false end
+        -- Game plugins may layer an extra pass (for example Prison Life role rules) above the
+        -- universal checks through this transient hook; the filter itself stays generic.
+        local extension = state:GetTransient("TargetFilterExtension")
+        if type(extension) == "function" then
+            local ok, allowed = pcall(extension, player)
+            if ok and allowed == false then return false end
+        end
         return true
     end
     function TargetFilter:Initialize() end

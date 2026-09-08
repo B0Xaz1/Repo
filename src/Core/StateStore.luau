@@ -32,7 +32,20 @@ local DEFAULT_SETTINGS: any = {
         SpeedLines = false, AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
     Performance = { FpsCap = 0, NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
         NoPostProcessing = false, NoShadows = false, NoParticles = false },
-    Game = {},
+    -- Game-plugin settings carry explicit defaults so every control has a typed value from
+    -- boot, profiles merge cleanly, and permission cleanup knows which keys are booleans.
+    Game = {
+        -- Weapon mods (legacy targets: fire rate 0.001, range 10000)
+        NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
+        FastFireDelay = 0.001, ForceRangeValue = 10000,
+        -- Doors & world interaction
+        DoorPhase = false, PhaseTransparency = 0.65,
+        -- Weapon macro
+        FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
+        -- Locations
+        FavoriteLocations = {},
+        StopAutomationOnRespawn = true,
+    },
     Settings = {
         UIScale = 1, MenuVisible = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
         ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
@@ -48,6 +61,13 @@ local ALIASES: { [string]: string } = {
     ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
     ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
     ["ESP.DepthMode"] = "Chams.DepthMode", ["Chams.DepthMode"] = "ESP.DepthMode",
+}
+
+-- Tier downgrades may only disable boolean feature flags. Numbers, strings, colors, and
+-- keybinds (delays, ranges, transparency) must keep their values.
+local GAME_BOOLEAN_FLAGS: { string } = {
+    "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
+    "Game.DoorPhase", "Game.FakeMacro",
 }
 
 local function clone(value: any): any
@@ -100,7 +120,7 @@ local function merge(defaults: any, incoming: any): any
 end
 
 return function(eventBus: any, disposer: any): any
-    local StateStore = { _settings = clone(DEFAULT_SETTINGS), _transient = {}, _revision = 0, _hydrating = false }
+    local StateStore = { _settings = clone(DEFAULT_SETTINGS), _transient = {}, _revision = 0, _hydrating = false, _currentTier = 3 }
 
     local function publishChanges(path: string, value: any, old: any)
         if equal(value, old) then return end
@@ -152,6 +172,20 @@ return function(eventBus: any, disposer: any): any
     end
     function StateStore:GetSettingsSnapshot(): any return clone(self._settings) end
     function StateStore:GetDefaultSettings(): any return clone(DEFAULT_SETTINGS) end
+    -- Tier 3 is full access (this build ships with every control available). Lowering the
+    -- tier disables only the boolean Game feature flags; every other value is preserved.
+    function StateStore:GetTier(): number return self._currentTier end
+    function StateStore:SetTier(tier: number)
+        self._currentTier = math.clamp(math.floor(tonumber(tier) or 3), 1, 3)
+        self:EnforcePermissions()
+        eventBus:Publish("TierChanged", self._currentTier)
+    end
+    function StateStore:EnforcePermissions()
+        if self._currentTier >= 3 then return end
+        for _, path in ipairs(GAME_BOOLEAN_FLAGS) do
+            if self:Peek(path) == true then self:Set(path, false) end
+        end
+    end
     function StateStore:LoadSettingsSnapshot(snapshot: any)
         assert(type(snapshot) == "table", "Settings snapshot must be a table")
         local old = self._settings
@@ -168,6 +202,8 @@ return function(eventBus: any, disposer: any): any
         self._settings.Chams.DepthMode = self._settings.ESP.DepthMode
         for branch, value in pairs(self._settings) do publishChanges(branch, value, old[branch]) end
         self._hydrating = false
+        -- A profile load must not resurrect gated features while a reduced tier is active.
+        self:EnforcePermissions()
         eventBus:Publish("SettingsHydrated")
     end
     disposer:Add(function() table.clear(StateStore._transient) end)

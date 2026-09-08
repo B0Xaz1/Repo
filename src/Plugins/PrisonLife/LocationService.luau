@@ -43,7 +43,7 @@ return function(services: any, Prison: any?): any
         local cached = LocationService._resolved[location.Id]
         if cached then return cached end
 
-        local tag = manifest.Doors.TagPrefix .. ":" .. location.Id
+        local tag = manifest.TagPrefix .. ":" .. location.Id
         for _, instance in ipairs(CollectionService:GetTagged(tag)) do
             local frame = cframeFromInstance(instance)
             if frame then

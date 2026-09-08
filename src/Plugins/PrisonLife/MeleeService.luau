@@ -1,7 +1,9 @@
 --!nonstrict
--- Prison Life melee: punch aura and burst punching behind an isolated remote service.
--- The meleeEvent remote name never leaks into the rest of the plugin; every action passes
--- through a rate limiter and the shared role/team/friend/whitelist/force-field/LOS checks.
+-- Prison Life melee behind an isolated remote service. The meleeEvent remote name never
+-- leaks into the rest of the plugin. Legacy behavior is preserved: the aura punches every
+-- valid target in radius each tick (~10/s), and super punch bursts no-argument melee fires
+-- on left click while your fists are out (~6 clicks/s cap). Both pass through the shared
+-- role/team/friend/whitelist/force-field/LOS checks.
 return function(services: any, Prison: any?): any
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local Disposer = services:Get("Disposer")
@@ -18,6 +20,7 @@ return function(services: any, Prison: any?): any
 
     local MeleeService = {
         _lastAction = 0,
+        _lastSuperTime = 0,
         _remote = nil :: any,
         _loop = nil :: thread?,
         _actions = 0,
@@ -55,13 +58,20 @@ return function(services: any, Prison: any?): any
         return true
     end
 
-    function MeleeService:Fire(target: Player): boolean
+    -- Legacy signatures: FireServer(target) for the aura, FireServer() for super punch.
+    function MeleeService:Fire(target: Player?): boolean
         local remote = self:GetRemote()
         if not remote then return false end
-        local ok = pcall(function() (remote :: any):FireServer(target) end)
+        local ok = pcall(function()
+            if target ~= nil then
+                (remote :: any):FireServer(target)
+            else
+                (remote :: any):FireServer()
+            end
+        end)
         if ok then
             self._actions += 1
-            self._lastTarget = target.Name
+            self._lastTarget = if target ~= nil then target.Name else "fists"
         end
         return ok
     end
@@ -109,17 +119,6 @@ return function(services: any, Prison: any?): any
         return candidates
     end
 
-    function MeleeService:PickTarget(candidates: { any }): any?
-        local priority = StateStore:Get("Game.MeleePriority") or "Nearest"
-        table.sort(candidates, function(a: any, b: any)
-            if priority == "Lowest Health" then
-                if a.Health ~= b.Health then return a.Health < b.Health end
-            end
-            return a.Distance < b.Distance
-        end)
-        return candidates[1]
-    end
-
     function MeleeService:Pulse(): boolean
         local ok, reason = self:CanFight()
         if not ok then
@@ -129,12 +128,21 @@ return function(services: any, Prison: any?): any
         if not StateStore:Get("Game.PunchAura") then return false end
         if not self:CanAct() then return true end
         local candidates = self:GetTargets()
-        local target = self:PickTarget(candidates)
-        if not target then return true end
-        local hits = if StateStore:Get("Game.SuperPunch") == true
-            then math.clamp(tonumber(StateStore:Get("Game.SuperPunchHits")) or 10, 1, 25) else 1
-        for _ = 1, hits do
-            if not self:Fire(target.Player) then break end
+        if #candidates == 0 then return true end
+        local priority = StateStore:Get("Game.MeleePriority") or "Everyone"
+        if priority == "Everyone" then
+            -- Legacy behavior: every valid target in radius is punched each tick.
+            for _, candidate in ipairs(candidates) do
+                self:Fire(candidate.Player)
+            end
+        else
+            table.sort(candidates, function(a: any, b: any)
+                if priority == "Lowest Health" and a.Health ~= b.Health then
+                    return a.Health < b.Health
+                end
+                return a.Distance < b.Distance
+            end)
+            self:Fire(candidates[1].Player)
         end
         return true
     end
@@ -171,6 +179,25 @@ return function(services: any, Prison: any?): any
         }
     end
 
+    -- Super punch: left click with fists out bursts no-argument melee fires.
+    local function onInputBegan(input: InputObject, processed: boolean)
+        if processed then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if StateStore:Get("Game.SuperPunch") ~= true then return end
+        if UserInputService:GetFocusedTextBox() ~= nil then return end
+        if not PlayerTracker:IsAlive(LocalPlayer) then return end
+        local now = os.clock()
+        if now - MeleeService._lastSuperTime < manifest.Melee.SuperPunchCooldown then return end
+        local assets = PlayerTracker:GetLocalAssets()
+        if not assets or not assets.Character then return end
+        if assets.Character:FindFirstChildOfClass("Tool") ~= nil then return end -- fists only
+        MeleeService._lastSuperTime = now
+        local hits = math.clamp(tonumber(StateStore:Get("Game.SuperPunchHits")) or 10, 1, 30)
+        for _ = 1, hits do
+            if not MeleeService:Fire(nil) then break end
+        end
+    end
+
     function MeleeService:Initialize()
         self:GetRemote()
         scope:Add(StateStore:Observe("Game.PunchAura", function(enabled: any)
@@ -181,6 +208,7 @@ return function(services: any, Prison: any?): any
             end
             EventBus:Publish("PrisonMeleeChanged", self:GetStatus())
         end))
+        scope:Add(scope:ConnectImmediate(UserInputService.InputBegan, onInputBegan))
         -- Death ends the aura; respawn restarts it only if the toggle is still on.
         scope:Add(PlayerTracker:OnLocalCharacterRespawn(function()
             if StateStore:Get("Game.PunchAura") == true then

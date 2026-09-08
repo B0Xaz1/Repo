@@ -11,6 +11,7 @@ return function(services: any, Prison: any?): any
     local Players = game:GetService("Players")
 
     local Prison = Prison or {}
+    local manifest = Prison.Manifest
     local scope = Disposer:CreateChild("PrisonLife.Macro")
     local LocalPlayer = Players.LocalPlayer
 
@@ -24,11 +25,15 @@ return function(services: any, Prison: any?): any
     }
 
     function MacroService:GetValidWeapons(): { Tool }
+        -- Only real guns are cycled (the legacy rule), detected through the shared
+        -- WeaponMods check: known gun name, GunStates module, or gun attributes.
         local tools = {}
         local function visit(parent: Instance)
             if not parent then return end
             for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("Tool") then table.insert(tools, child) end
+                if child:IsA("Tool") and Prison.WeaponMods and Prison.WeaponMods:IsGunTool(child) then
+                    table.insert(tools, child)
+                end
             end
         end
         visit(LocalPlayer and LocalPlayer:FindFirstChildOfClass("Backpack"))
@@ -76,6 +81,10 @@ return function(services: any, Prison: any?): any
         if self._running then return false, "Macro is already running" end
         local assets = PlayerTracker:GetLocalAssets()
         if not assets or not assets.Humanoid then return false, "Your character is not ready" end
+        -- The legacy rule: cycling needs at least two guns to be worth anything.
+        if #self:GetValidWeapons() < (manifest.Melee.MinGuns or 2) then
+            return false, "Need at least two guns to cycle the macro"
+        end
 
         self._running = true
         self._state = "Running"
@@ -97,8 +106,8 @@ return function(services: any, Prison: any?): any
                 if self._state ~= "Running" then self._state = "Running"; publish() end
 
                 local tools = self:GetValidWeapons()
-                if #tools == 0 then
-                    self:Stop("no weapons")
+                if #tools < (manifest.Melee.MinGuns or 2) then
+                    self:Stop("not enough guns")
                     break
                 end
 

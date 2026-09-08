@@ -1,7 +1,8 @@
 --!nonstrict
 -- Prison Life (by Aesthetical) data manifest.
--- Every runtime service treats this data as fallbacks first: tagged map objects, named map
--- objects, and known folders are preferred so a map update cannot break the plugin.
+-- Coordinates, gun names, and obstacle folders come from the legacy plugin that ran
+-- against the live map. Runtime resolution still prefers tagged map objects, named map
+-- objects, and live folders over these fallbacks so a map update cannot break the plugin.
 return function(_services: any?): any
     local manifest = {
         Name = "Prison Life",
@@ -30,27 +31,40 @@ return function(_services: any?): any
         },
 
         -- Ordered on purpose: buttons, dropdowns, and loadouts keep a stable order.
+        -- IsGun marks real guns (cycled by the macro, tuned by weapon mods); the remaining
+        -- entries are items the game also hands out. The seven guns match the legacy set.
         Weapons = {
             {
-                Id = "M9", Name = "M9", ToolNames = { "M9" }, Category = "Sidearm",
+                Id = "M9", Name = "M9", ToolNames = { "M9" }, Category = "Sidearm", IsGun = true,
                 Spawn = Vector3.new(816.65, 102.50, 2229.37), Pickup = "M9",
             },
             {
-                Id = "Remington870", Name = "Remington 870", ToolNames = { "Remington 870" }, Category = "Shotgun",
+                Id = "Remington870", Name = "Remington 870", ToolNames = { "Remington 870" }, Category = "Shotgun", IsGun = true,
                 Spawn = Vector3.new(820.27, 102.50, 2229.31), Pickup = "Remington 870",
             },
             {
-                Id = "MP5", Name = "MP5", ToolNames = { "MP5" }, Category = "SMG",
-                -- Estimated armory-table position; runtime pickup resolution does not rely on it.
-                Spawn = Vector3.new(824.00, 102.50, 2229.30), Pickup = "MP5",
+                Id = "MP5", Name = "MP5", ToolNames = { "MP5" }, Category = "SMG", IsGun = true,
+                Spawn = Vector3.new(813.72, 102.50, 2229.37), Pickup = "MP5",
             },
             {
-                Id = "AK47", Name = "AK-47", ToolNames = { "AK-47" }, Category = "Rifle",
+                Id = "AK47", Name = "AK-47", ToolNames = { "AK-47" }, Category = "Rifle", IsGun = true,
                 Spawn = Vector3.new(-932.00, 100.74, 2039.50), Pickup = "AK-47",
             },
             {
+                Id = "M4A1", Name = "M4A1", ToolNames = { "M4A1" }, Category = "Rifle", IsGun = true,
+                Pickup = "M4A1",
+            },
+            {
+                Id = "M700", Name = "M700", ToolNames = { "M700" }, Category = "Sniper", IsGun = true,
+                Pickup = "M700",
+            },
+            {
+                Id = "Revolver", Name = "Revolver", ToolNames = { "Revolver" }, Category = "Sidearm", IsGun = true,
+                Pickup = "Revolver",
+            },
+            {
                 Id = "Taser", Name = "Taser", ToolNames = { "Taser" }, Category = "Special",
-                Spawn = Vector3.new(813.00, 102.50, 2229.30), Pickup = "Taser",
+                Spawn = Vector3.new(813.00, 102.50, 2229.30),
             },
             {
                 Id = "Hammer", Name = "Hammer", ToolNames = { "Hammer" }, Category = "Item", Pickup = "Hammer",
@@ -59,15 +73,23 @@ return function(_services: any?): any
                 Id = "Keycard", Name = "Keycard", ToolNames = { "Keycard" }, Category = "Item",
             },
         },
-        -- Gun tools carry a GunStates ModuleScript whose returned table drives client gun behavior.
-        GunStates = { ModuleName = "GunStates", Fields = { "Spread", "FireRate", "AutoFire", "Range" } },
+
+        -- Prison Life guns have carried their stats in two forms across updates: a
+        -- GunStates ModuleScript table (Spread/FireRate/AutoFire/Range) and instance
+        -- attributes (SpreadRadius/FireRate/AutoFire/Range) on the tool or its children.
+        -- Weapon mods honor whichever a tool carries and back both up.
+        GunMods = {
+            ModuleName = "GunStates",
+            ModuleFields = { "Spread", "FireRate", "AutoFire", "Range" },
+            Attributes = { "SpreadRadius", "FireRate", "AutoFire", "Range" },
+        },
         -- Armory pickup flow: workspace.Remote.ItemHandler:InvokeServer(workspace.Prison_ITEMS.giver.<name>.ITEMPICKUP)
         Items = {
             RemoteFolder = "Remote", RemoteName = "ItemHandler",
             GiverRoot = "Prison_ITEMS", GiverFolders = { "giver", "single" }, PickupChild = "ITEMPICKUP",
         },
 
-        -- Ordered locations. CFrame values are fallbacks; resolution prefers
+        -- Ordered locations. CFrame values are legacy fallbacks; resolution prefers
         -- CollectionService tags ("B0XazPrisonLife:<Id>"), then map objects whose name
         -- matches a Keyword, then these coordinates.
         Locations = {
@@ -76,11 +98,11 @@ return function(_services: any?): any
                 Roles = { "Prisoner", "Guard", "Criminal" }, Keywords = { "cells", "cellblock", "jailblock", "jail" },
             },
             {
-                Id = "Cafeteria", Name = "Cafeteria", Category = "Prison", CFrame = CFrame.new(919, 100, 2326),
+                Id = "Cafeteria", Name = "Cafeteria", Category = "Prison", CFrame = CFrame.new(920, 98, 2290),
                 Roles = { "Prisoner", "Guard", "Criminal" }, Keywords = { "cafeteria", "canteen" },
             },
             {
-                Id = "PrisonYard", Name = "Prison Yard", Category = "Prison", CFrame = CFrame.new(736.47, 98, 2517.58),
+                Id = "PrisonYard", Name = "Prison Yard", Category = "Prison", CFrame = CFrame.new(779, 98, 2463),
                 Roles = { "Prisoner", "Guard", "Criminal" }, Keywords = { "yard", "courtyard" },
             },
             {
@@ -89,14 +111,14 @@ return function(_services: any?): any
             },
             {
                 Id = "BreakRoom", Name = "Break Room", Category = "Police", CFrame = CFrame.new(800.09, 99.99, 2266.72),
-                Roles = { "Guard" }, Keywords = { "breakroom", "breakroom", "lounge" },
+                Roles = { "Guard" }, Keywords = { "breakroom", "lounge" },
             },
             {
                 Id = "SurveillanceRoom", Name = "Surveillance Room", Category = "Police", CFrame = CFrame.new(795.25, 99.99, 2327.72),
                 Roles = { "Guard" }, Keywords = { "surveillance", "cameraroom", "securityroom" },
             },
             {
-                Id = "ParkingLot", Name = "Parking Lot", Category = "Police", CFrame = CFrame.new(615, 100, 2515),
+                Id = "ParkingLot", Name = "Parking Lot", Category = "Police", CFrame = CFrame.new(745, 98, 2148),
                 Roles = { "Guard", "Criminal", "Prisoner" }, Keywords = { "parking", "policecars" },
             },
             {
@@ -108,11 +130,11 @@ return function(_services: any?): any
                 Roles = { "Prisoner", "Guard" }, Keywords = { "kitchen" },
             },
             {
-                Id = "Roof", Name = "Roof", Category = "Interior", CFrame = CFrame.new(920, 128, 2400),
+                Id = "Roof", Name = "Roof", Category = "Interior", CFrame = CFrame.new(845, 130, 2235),
                 Roles = { "Guard", "Criminal", "Prisoner" }, Keywords = { "roof" },
             },
             {
-                Id = "Tunnels", Name = "Tunnels", Category = "Escape", CFrame = CFrame.new(890, 98, 2210),
+                Id = "Tunnels", Name = "Tunnels", Category = "Escape", CFrame = CFrame.new(918, 80, 2284),
                 Roles = { "Prisoner", "Criminal" }, Keywords = { "tunnel", "tunnels", "sewer" },
             },
             {
@@ -128,7 +150,7 @@ return function(_services: any?): any
                 Roles = { "Criminal" }, Keywords = { "criminalbase", "crimbase" },
             },
             {
-                Id = "SecretRoom", Name = "Secret Room", Category = "Criminal", CFrame = CFrame.new(-920, 95, 1990),
+                Id = "SecretRoom", Name = "Secret Room", Category = "Interior", CFrame = CFrame.new(674, 98, 2384),
                 Roles = { "Criminal", "Prisoner" }, Keywords = { "secret" },
             },
         },
@@ -154,7 +176,7 @@ return function(_services: any?): any
             { Name = "Prison Escape", Weapons = { "Hammer", "M9" } },
             { Name = "Criminal Base", Weapons = { "AK47" } },
             { Name = "Close Range", Weapons = { "Remington870", "M9" } },
-            { Name = "Long Range", Weapons = { "AK47", "M9" } },
+            { Name = "Long Range", Weapons = { "M700", "M9" } },
             { Name = "Empty / Reset", Weapons = {} },
         },
 
@@ -164,17 +186,24 @@ return function(_services: any?): any
             Automatic = { ForceAuto = true }, LongRange = { ForceRange = true },
         },
 
+        -- Legacy obstacle containers, matched case-insensitively against workspace
+        -- children; the folder decides the class, which drives the include filters.
         Doors = {
-            Folders = { "Doors" },
-            FenceFolder = "Prison_Fences",
-            FenceNames = { "fence" },
-            GateNames = { "Prison_Gate", "gate" },
-            -- Heuristic fallback if the known folders are missing after a map update.
-            NamePatterns = { "door", "gate", "cell" },
-            TagPrefix = "B0XazPrisonLife",
+            ClassByFolder = {
+                doors = "Door", glass = "Glass", celldoors = "Cell",
+                prison_fences = "Fence", prison_gate = "Gate",
+            },
+            -- Heuristic fallback if a map update renames every known container.
+            NamePatterns = { "door", "gate", "cell", "fence", "glass" },
         },
 
-        Melee = { RemoteName = "meleeEvent", DefaultRange = 15, DefaultMaxPerSecond = 10 },
+        Melee = {
+            RemoteName = "meleeEvent",
+            DefaultRange = 15,
+            DefaultMaxPerSecond = 10,
+            SuperPunchCooldown = 0.15, -- ~6 clicks/s, matching the legacy plugin
+            MinGuns = 2,               -- the macro needs at least two guns to cycle
+        },
     }
 
     local function freezeDeep(value: any): any

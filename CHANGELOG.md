@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.0 — 2026-09-08
+
+- Ported the legacy Prison Life plugin's ground truth into the command center. The manifest now carries the legacy coordinates (Cafeteria, Prison Yard, Parking Lot, Roof, Secret Room, Tunnels, and the MP5 spawn), the seven-gun set (adding M4A1, M700, and Revolver), and the obstacle containers `doors`/`glass`/`celldoors`/`prison_fences`/`prison_gate`, matched case-insensitively.
+- Weapon mods now honor both gun-stat mechanisms the game has used: instance attributes (`SpreadRadius`, `FireRate`, `AutoFire`, `Range`) on the tool or its children and the `GunStates` ModuleScript table, each backed up and restored independently. Legacy targets return: fire rate 0.001 and range 10000.
+- Melee matches legacy behavior: the punch aura punches every valid target in radius each tick (~10/s) instead of only the nearest, and super punch fires on left click with fists out, bursting no-argument melee fires (~6 clicks/s cap, 1–30 hits).
+- The weapon macro cycles only real guns (shared detection across the armory, macro, and weapon mods) and requires at least two, matching the legacy rule.
+- Door phase defaults now include every obstacle class (cells, fences, gates, glass), matching the legacy "phase everything" toggle; the per-class filters narrow it.
+- New parts under a known obstacle container are tracked live through `Workspace.DescendantAdded` while phasing or glow is active.
+
 ## 2.2.0 — 2026-09-08
 
 - Added the Prison Life (place 155615604) command center plugin. The Game tab becomes a two-column control center: status, role and target rules, armory and loadouts, weapon profiles, and melee on the left; routes and map locations, doors and world interaction, weapon macro, player watch, and diagnostics with restore on the right.

@@ -1,12 +1,13 @@
 --!nonstrict
--- Prison Life weapon profiles: GunStates module tuning with immediate restore.
--- Disabling any setting restores the captured originals before the enabled set is reapplied,
--- so toggles are fully reversible at any moment (not only on plugin unload).
+-- Prison Life weapon profiles. Prison Life guns have carried their stats in two forms
+-- across updates: instance attributes (SpreadRadius / FireRate / AutoFire / Range) on the
+-- tool or its children, and a GunStates ModuleScript table. Both mechanisms are honored,
+-- captured, and restored. Disabling any setting restores the captured originals before the
+-- enabled set is reapplied, so toggles are fully reversible at any moment.
 return function(services: any, Prison: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
     local EventBus = services:Get("EventBus")
-    local PlayerTracker = services:Get("PlayerTracker")
     local Players = game:GetService("Players")
 
     local Prison = Prison or {}
@@ -14,19 +15,58 @@ return function(services: any, Prison: any?): any
     local scope = Disposer:CreateChild("PrisonLife.WeaponMods")
     local LocalPlayer = Players.LocalPlayer
 
-    local ABSENT = {} -- marker for fields the module did not define before we touched it
+    local ABSENT = {} -- marker for module fields the table did not define before we touched it
 
     local WeaponMods = {
-        _tracked = {},  -- [Tool] = { Module = table, Backup = { [field] = value or ABSENT } }
+        _tracked = {},      -- [Tool] = { AttrTargets = {...}, Module = table?, ModuleBackup = {} }
         _reapplyQueued = false,
     }
 
+    local function isKnownGunName(name: string): boolean
+        for _, weapon in ipairs(manifest.Weapons) do
+            if weapon.IsGun and table.find(weapon.ToolNames, name) then return true end
+        end
+        return false
+    end
+
+    local function hasGunAttributes(instance: Instance): boolean
+        for _, attribute in ipairs(manifest.GunMods.Attributes) do
+            if instance:GetAttribute(attribute) ~= nil then return true end
+        end
+        return false
+    end
+
     local function moduleFor(tool: Tool): any?
-        local stateModule = tool:FindFirstChild(manifest.GunStates.ModuleName)
-        if not stateModule or not stateModule:IsA("ModuleScript") then return nil end
-        local ok, module = pcall(function() return require(stateModule) end)
+        local moduleScript = tool:FindFirstChild(manifest.GunMods.ModuleName, true)
+        if not moduleScript or not moduleScript:IsA("ModuleScript") then return nil end
+        local ok, module = pcall(function() return require(moduleScript) end)
         if not ok or type(module) ~= "table" then return nil end
         return module
+    end
+
+    -- Public: the armory and the macro reuse this so "a gun" means the same thing everywhere.
+    -- A tool counts if it is a known gun name, carries a GunStates module, or exposes gun
+    -- attributes itself or on any descendant.
+    function WeaponMods:IsGunTool(tool: Tool): boolean
+        if not tool:IsA("Tool") then return false end
+        if isKnownGunName(tool.Name) then return true end
+        if tool:FindFirstChild(manifest.GunMods.ModuleName, true) then return true end
+        if hasGunAttributes(tool) then return true end
+        for _, descendant in ipairs(tool:GetDescendants()) do
+            if hasGunAttributes(descendant) then return true end
+        end
+        return false
+    end
+
+    -- Legacy behavior: spread and fire rate can live on the tool itself or on child models
+    -- inside it; every object that carries a gun attribute is its own backup target.
+    local function collectAttrTargets(tool: Tool): { any }
+        local targets = {}
+        if hasGunAttributes(tool) then table.insert(targets, { Object = tool, Backup = {} }) end
+        for _, descendant in ipairs(tool:GetDescendants()) do
+            if hasGunAttributes(descendant) then table.insert(targets, { Object = descendant, Backup = {} }) end
+        end
+        return targets
     end
 
     function WeaponMods:ScanAllWeapons(): number
@@ -35,13 +75,14 @@ return function(services: any, Prison: any?): any
         local function visit(parent: Instance)
             if not parent then return end
             for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("Tool") and child:FindFirstChild(manifest.GunStates.ModuleName) then
+                if child:IsA("Tool") and self:IsGunTool(child) then
                     present[child] = true
                     if not self._tracked[child] then
-                        local module = moduleFor(child)
-                        if module then
-                            self._tracked[child] = { Module = module, Backup = {} }
-                        end
+                        self._tracked[child] = {
+                            AttrTargets = collectAttrTargets(child),
+                            Module = moduleFor(child),
+                            ModuleBackup = {},
+                        }
                     end
                 end
             end
@@ -56,55 +97,65 @@ return function(services: any, Prison: any?): any
         return self:GetScannedCount()
     end
 
-    -- Values are captured before the first modification; ABSENT marks fields we introduced.
-    local function capture(record: any, field: string)
-        if record.Backup[field] ~= nil then return end
-        if record.Module[field] == nil then
-            record.Backup[field] = ABSENT
-        else
-            record.Backup[field] = record.Module[field]
-        end
+    -- Attributes are only written where they already exist (the legacy rule), and the
+    -- original value is captured before the first write.
+    local function applyAttr(target: any, attribute: string, value: any)
+        local object = target.Object
+        if object:GetAttribute(attribute) == nil then return end
+        if target.Backup[attribute] == nil then target.Backup[attribute] = object:GetAttribute(attribute) end
+        object:SetAttribute(attribute, value)
     end
 
     local function restoreRecord(record: any)
-        for field, original in pairs(record.Backup) do
-            if original == ABSENT then
-                record.Module[field] = nil
-            else
-                record.Module[field] = original
+        for _, target in ipairs(record.AttrTargets) do
+            for attribute, original in pairs(target.Backup) do
+                target.Object:SetAttribute(attribute, original)
             end
+            table.clear(target.Backup)
         end
-        table.clear(record.Backup)
+        if record.Module then
+            for field, original in pairs(record.ModuleBackup) do
+                record.Module[field] = if original == ABSENT then nil else original
+            end
+            table.clear(record.ModuleBackup)
+        end
     end
 
+    -- Restores every tracked attribute target and GunStates module to its captured state.
     function WeaponMods:RestoreAll(): number
         for _, record in pairs(self._tracked) do restoreRecord(record) end
         return self:GetScannedCount()
     end
 
     local function applyRecord(record: any)
-        -- No spread
-        if StateStore:Get("Game.NoSpread") == true then
-            capture(record, "Spread")
-            record.Module.Spread = 0
+        local noSpread = StateStore:Get("Game.NoSpread") == true
+        local fastFire = StateStore:Get("Game.FastFire") == true
+        local forceAuto = StateStore:Get("Game.ForceAuto") == true
+        local forceRange = StateStore:Get("Game.ForceRange") == true
+        -- Legacy targets: fire rate 0.001 and range 10000; both stay tunable.
+        local fireRate = math.clamp(tonumber(StateStore:Get("Game.FastFireDelay")) or 0.001, 0.001, 0.5)
+        local range = math.clamp(tonumber(StateStore:Get("Game.ForceRangeValue")) or 10000, 500, 100000)
+
+        for _, target in ipairs(record.AttrTargets) do
+            if noSpread then applyAttr(target, "SpreadRadius", 0) end
+            if fastFire then applyAttr(target, "FireRate", fireRate) end
+            if forceAuto then applyAttr(target, "AutoFire", true) end
+            if forceRange then applyAttr(target, "Range", range) end
         end
-        -- Fast fire rate
-        if StateStore:Get("Game.FastFire") == true then
-            capture(record, "FireRate")
-            local original = if record.Backup.FireRate == ABSENT or record.Backup.FireRate == nil
-                then 0.12 else record.Backup.FireRate
-            local target = tonumber(StateStore:Get("Game.FastFireDelay")) or 0.05
-            record.Module.FireRate = math.clamp(math.min(original, target), 0.001, 2)
-        end
-        -- Force full-auto
-        if StateStore:Get("Game.ForceAuto") == true then
-            capture(record, "AutoFire")
-            record.Module.AutoFire = true
-        end
-        -- Force range
-        if StateStore:Get("Game.ForceRange") == true then
-            capture(record, "Range")
-            record.Module.Range = math.clamp(tonumber(StateStore:Get("Game.ForceRangeValue")) or 2500, 100, 100000)
+
+        local module = record.Module
+        if module then
+            local backup = record.ModuleBackup
+            local function write(field: string, value: any)
+                if backup[field] == nil then
+                    backup[field] = if module[field] == nil then ABSENT else module[field]
+                end
+                module[field] = value
+            end
+            if noSpread then write("Spread", 0) end
+            if fastFire then write("FireRate", fireRate) end
+            if forceAuto then write("AutoFire", true) end
+            if forceRange then write("Range", range) end
         end
     end
 
@@ -148,11 +199,16 @@ return function(services: any, Prison: any?): any
 
     function WeaponMods:GetStats(): any
         local names = {}
-        for tool in pairs(self._tracked) do table.insert(names, tool.Name) end
+        local attrObjects = 0
+        for tool, record in pairs(self._tracked) do
+            table.insert(names, tool.Name)
+            attrObjects += #record.AttrTargets
+        end
         table.sort(names)
         return {
-            Scanned = self:GetScannedCount(),
-            Backups = self:GetScannedCount(), -- every tracked module keeps a backup
+            Scanned = #names,
+            Backups = #names, -- every tracked tool keeps attribute and/or module backups
+            AttrObjects = attrObjects,
             Names = names,
             Profile = StateStore:Get("Game.WeaponProfile"),
         }
@@ -170,7 +226,8 @@ return function(services: any, Prison: any?): any
             if name ~= "Custom" then self:ApplyProfile(name) end
         end))
 
-        -- New guns picked up mid-session inherit the enabled settings immediately.
+        -- New guns picked up mid-session inherit the enabled settings immediately; the
+        -- deferred reapply gives the game a moment to finish wiring the new tool.
         local function watch(parent: Instance)
             if not parent then return end
             scope:Connect(parent.ChildAdded, function() self:QueueReapply() end)

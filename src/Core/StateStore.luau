@@ -35,19 +35,19 @@ local DEFAULT_SETTINGS: any = {
     -- Game-plugin settings carry explicit defaults so every control has a typed value from
     -- boot, profiles merge cleanly, and permission cleanup knows which keys are booleans.
     Game = {
-        -- Weapon profiles
+        -- Weapon profiles (legacy targets: fire rate 0.001, range 10000)
         WeaponProfile = "Default",
         NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
-        FastFireDelay = 0.05, ForceRangeValue = 2500,
-        -- Doors & world interaction
+        FastFireDelay = 0.001, ForceRangeValue = 10000,
+        -- Doors & world interaction (legacy behavior: every obstacle class is included)
         DoorPhase = false, DoorGlow = false, PhaseTransparency = 0.65, GlowColor = Color3.fromRGB(0, 200, 220),
-        DoorIncludeCells = true, DoorIncludeFences = false, DoorIncludeGates = false,
-        DoorIncludeGlass = false, DoorIgnoreDecorative = true,
+        DoorIncludeCells = true, DoorIncludeFences = true, DoorIncludeGates = true,
+        DoorIncludeGlass = true, DoorIgnoreDecorative = true,
         -- Weapon macro
-        FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.06,
+        FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
         -- Melee
         PunchAura = false, PunchAuraRange = 15, SuperPunch = false, SuperPunchHits = 10,
-        MeleeTargetRole = "Any", MeleePriority = "Nearest", MeleeMaxPerSecond = 10,
+        MeleeTargetRole = "Any", MeleePriority = "Everyone", MeleeMaxPerSecond = 10,
         MeleeTeamCheck = true, MeleeFriendCheck = true, MeleeWhitelistCheck = true,
         MeleeForceFieldCheck = true, MeleeLOS = false,
         -- Role & context

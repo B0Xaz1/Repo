@@ -27,8 +27,9 @@ return function(services: any, Prison: any?): any
         return nil
     end
 
+    -- Unknown-but-real guns (future map updates) are detected through the shared check.
     local function isGunTool(tool: Tool): boolean
-        return tool:FindFirstChild(manifest.GunStates.ModuleName) ~= nil
+        return Prison.WeaponMods ~= nil and Prison.WeaponMods:IsGunTool(tool) == true
     end
 
     -- Known manifest weapons first (stable order), then any unknown GunStates tool.

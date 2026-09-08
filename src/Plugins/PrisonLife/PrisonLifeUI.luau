@@ -169,7 +169,7 @@ return function(services: any, Prison: any?): any
         toggle(profileSec, "Fast fire rate", "Game.FastFire", manualSwitch())
         toggle(profileSec, "Force full-auto", "Game.ForceAuto", manualSwitch())
         toggle(profileSec, "Force infinite range", "Game.ForceRange", manualSwitch())
-        slider(profileSec, "Fast fire delay", "Game.FastFireDelay", 0.01, 0.5, 0.01, "s")
+        slider(profileSec, "Fast fire delay", "Game.FastFireDelay", 0.001, 0.5, 0.001, "s")
         slider(profileSec, "Force range value", "Game.ForceRangeValue", 500, 10000, 100, " studs")
         labels.weapons = createInfoLabel(profileSec, "Weapons: ...")
         textbox:CreateButton(profileSec, "Restore weapon values", function()
@@ -189,11 +189,11 @@ return function(services: any, Prison: any?): any
         ------------------------------------------------------------------
         local meleeSec = section:Create(tab.LeftCol, "Melee Controls")
         toggle(meleeSec, "Punch aura", "Game.PunchAura")
-        slider(meleeSec, "Aura radius", "Game.PunchAuraRange", 4, 40, 1, " studs")
+        slider(meleeSec, "Aura radius", "Game.PunchAuraRange", 5, 40, 1, " studs")
         toggle(meleeSec, "Super multi-punch", "Game.SuperPunch")
-        slider(meleeSec, "Hit multiplier", "Game.SuperPunchHits", 2, 25, 1, "x")
+        slider(meleeSec, "Hit multiplier", "Game.SuperPunchHits", 1, 30, 1, "x")
         dropdown(meleeSec, "Melee target role", "Game.MeleeTargetRole", { "Any", "Prisoner", "Guard", "Criminal" })
-        dropdown(meleeSec, "Target priority", "Game.MeleePriority", { "Nearest", "Lowest Health" })
+        dropdown(meleeSec, "Aura targets", "Game.MeleePriority", { "Everyone", "Nearest", "Lowest Health" })
         slider(meleeSec, "Max actions per second", "Game.MeleeMaxPerSecond", 1, 30, 1, "/s")
         toggle(meleeSec, "Team check", "Game.MeleeTeamCheck")
         toggle(meleeSec, "Friend check", "Game.MeleeFriendCheck")
@@ -201,7 +201,7 @@ return function(services: any, Prison: any?): any
         toggle(meleeSec, "Force-field check", "Game.MeleeForceFieldCheck")
         toggle(meleeSec, "Line of sight", "Game.MeleeLOS")
         labels.melee = createInfoLabel(meleeSec, "Melee: ...")
-        section:Info(meleeSec, "The aura stops while dead or typing and resumes automatically. The panic key stops it instantly.")
+        section:Info(meleeSec, "The aura punches every valid target in radius each tick and stops while dead or typing. Super punch fires on left click while your fists are out.")
 
         ------------------------------------------------------------------
         -- 6. Routes and Map Locations (right)
@@ -335,7 +335,7 @@ return function(services: any, Prison: any?): any
             if Prison.WorldPhase then Prison.WorldPhase:RestoreAll() end
             return true, "Door properties restored"
         end)
-        section:Info(doorsSec, "Phasing and glow are independent layers; disabling either restores exactly its own properties. Decorative filtering applies on the next scan.")
+        section:Info(doorsSec, "Phasing and glow are independent layers over the legacy obstacle containers (doors, glass, celldoors, prison_fences, prison_gate); disabling either restores exactly its own properties. Decorative filtering applies on the next scan.")
 
         ------------------------------------------------------------------
         -- 8. Weapon Macro (right)

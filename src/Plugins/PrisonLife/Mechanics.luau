@@ -58,16 +58,17 @@ return function(services: any): any
         self._initialized = true
 
         -- Explicit defaults instead of values created only when a control is touched.
+        -- Values mirror the state schema, which carries the legacy plugin's targets.
         local defaults: any = {
             WeaponProfile = "Default",
             NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
-            FastFireDelay = 0.05, ForceRangeValue = 2500,
+            FastFireDelay = 0.001, ForceRangeValue = 10000,
             DoorPhase = false, DoorGlow = false, PhaseTransparency = 0.65,
-            DoorIncludeCells = true, DoorIncludeFences = false, DoorIncludeGates = false,
-            DoorIncludeGlass = false, DoorIgnoreDecorative = true,
-            FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.06,
+            DoorIncludeCells = true, DoorIncludeFences = true, DoorIncludeGates = true,
+            DoorIncludeGlass = true, DoorIgnoreDecorative = true,
+            FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
             PunchAura = false, PunchAuraRange = 15, SuperPunch = false, SuperPunchHits = 10,
-            MeleeTargetRole = "Any", MeleePriority = "Nearest", MeleeMaxPerSecond = 10,
+            MeleeTargetRole = "Any", MeleePriority = "Everyone", MeleeMaxPerSecond = 10,
             MeleeTeamCheck = true, MeleeFriendCheck = true, MeleeWhitelistCheck = true,
             MeleeForceFieldCheck = true, MeleeLOS = false,
             RoleMode = "Auto", TargetRole = "Any", RoleAware = true, SessionOverlay = true,

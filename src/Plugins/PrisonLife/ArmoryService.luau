@@ -1,6 +1,6 @@
 --!nonstrict
 -- Prison Life armory: weapon inventory across backpack/character, manifest spawn awareness,
--- the game's own ItemHandler pickup flow, and session loadouts.
+-- and the game's own ItemHandler pickup flow.
 return function(services: any, Prison: any?): any
     local EventBus, Disposer = services:Get("EventBus"), services:Get("Disposer")
     local PlayerTracker = services:Get("PlayerTracker")
@@ -15,8 +15,6 @@ return function(services: any, Prison: any?): any
 
     local ArmoryService = {
         _inventory = {},       -- ordered entries: { Weapon, Status, Tool }
-        _loadout = {},         -- ordered weapon ids
-        _previousLoadout = nil,
         _lastScan = 0,
     }
 
@@ -32,7 +30,7 @@ return function(services: any, Prison: any?): any
         return Prison.WeaponMods ~= nil and Prison.WeaponMods:IsGunTool(tool) == true
     end
 
-    -- Known manifest weapons first (stable order), then any unknown GunStates tool.
+    -- Known manifest weapons first (stable order), then any unknown gun tool.
     function ArmoryService:Scan(): { any }
         local backpack = LocalPlayer and LocalPlayer:FindFirstChildOfClass("Backpack")
         local character = LocalPlayer and LocalPlayer.Character
@@ -138,88 +136,6 @@ return function(services: any, Prison: any?): any
             end
         end
         return false, "No pickup point found for " .. weapon.Name
-    end
-
-    -- Loadouts (session state) -------------------------------------------------------
-
-    function ArmoryService:GetLoadoutNames(): { string }
-        local names = {}
-        for _, id in ipairs(self._loadout) do
-            for _, weapon in ipairs(manifest.Weapons) do
-                if weapon.Id == id then table.insert(names, weapon.Name) end
-            end
-        end
-        return names
-    end
-
-    function ArmoryService:AddToLoadout(name: string): (boolean, string)
-        local weapon = self:GetWeaponByName(name)
-        if not weapon then return false, "Unknown weapon" end
-        if table.find(self._loadout, weapon.Id) then return false, weapon.Name .. " is already in the loadout" end
-        table.insert(self._loadout, weapon.Id)
-        return true, weapon.Name .. " added to loadout"
-    end
-
-    function ArmoryService:RemoveFromLoadout(name: string): (boolean, string)
-        local weapon = self:GetWeaponByName(name)
-        if not weapon then return false, "Unknown weapon" end
-        local index = table.find(self._loadout, weapon.Id)
-        if not index then return false, weapon.Name .. " is not in the loadout" end
-        table.remove(self._loadout, index)
-        return true, weapon.Name .. " removed from loadout"
-    end
-
-    function ArmoryService:GetLoadoutPresetNames(): { string }
-        local names = {}
-        for _, preset in ipairs(manifest.Loadouts) do table.insert(names, preset.Name) end
-        for name in pairs(self._customPresets or {}) do table.insert(names, name) end
-        table.sort(names, function(a: string, b: string) return a:lower() < b:lower() end)
-        return names
-    end
-
-    function ArmoryService:ApplyLoadoutPreset(name: string): (boolean, string)
-        for _, preset in ipairs(manifest.Loadouts) do
-            if preset.Name == name then
-                self._previousLoadout = table.clone(self._loadout)
-                self._loadout = table.clone(preset.Weapons)
-                return true, "Loadout preset: " .. preset.Name
-            end
-        end
-        local custom = self._customPresets and self._customPresets[name]
-        if custom then
-            self._previousLoadout = table.clone(self._loadout)
-            self._loadout = table.clone(custom)
-            return true, "Loadout preset: " .. name
-        end
-        return false, "Unknown loadout preset"
-    end
-
-    function ArmoryService:SaveCurrentLoadout(name: string): (boolean, string)
-        local clean = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", ""):sub(1, 32)
-        if clean == "" then return false, "Enter a loadout name" end
-        self._customPresets = self._customPresets or {}
-        self._customPresets[clean] = table.clone(self._loadout)
-        return true, "Saved loadout " .. clean .. " (" .. tostring(#self._loadout) .. " weapons)"
-    end
-
-    function ArmoryService:RestorePreviousLoadout(): (boolean, string)
-        if not self._previousLoadout then return false, "No previous loadout is stored" end
-        self._loadout = self._previousLoadout
-        self._previousLoadout = nil
-        return true, "Previous loadout restored"
-    end
-
-    function ArmoryService:EquipLoadout(): (boolean, string)
-        if #self._loadout == 0 then return false, "The loadout is empty" end
-        local inventory = self:GetInventory()
-        for _, id in ipairs(self._loadout) do
-            for _, entry in ipairs(inventory) do
-                if entry.Weapon.Id == id and entry.Tool then
-                    return self:Equip(entry.Weapon.Name)
-                end
-            end
-        end
-        return false, "None of the loadout weapons are owned; use Go To or Pickup first"
     end
 
     function ArmoryService:Initialize()

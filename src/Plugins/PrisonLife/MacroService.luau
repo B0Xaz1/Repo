@@ -82,7 +82,7 @@ return function(services: any, Prison: any?): any
         local assets = PlayerTracker:GetLocalAssets()
         if not assets or not assets.Humanoid then return false, "Your character is not ready" end
         -- The legacy rule: cycling needs at least two guns to be worth anything.
-        if #self:GetValidWeapons() < (manifest.Melee.MinGuns or 2) then
+        if #self:GetValidWeapons() < (manifest.Macro.MinGuns or 2) then
             return false, "Need at least two guns to cycle the macro"
         end
 
@@ -106,7 +106,7 @@ return function(services: any, Prison: any?): any
                 if self._state ~= "Running" then self._state = "Running"; publish() end
 
                 local tools = self:GetValidWeapons()
-                if #tools < (manifest.Melee.MinGuns or 2) then
+                if #tools < (manifest.Macro.MinGuns or 2) then
                     self:Stop("not enough guns")
                     break
                 end

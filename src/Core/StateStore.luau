@@ -35,31 +35,16 @@ local DEFAULT_SETTINGS: any = {
     -- Game-plugin settings carry explicit defaults so every control has a typed value from
     -- boot, profiles merge cleanly, and permission cleanup knows which keys are booleans.
     Game = {
-        -- Weapon profiles (legacy targets: fire rate 0.001, range 10000)
-        WeaponProfile = "Default",
+        -- Weapon mods (legacy targets: fire rate 0.001, range 10000)
         NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
         FastFireDelay = 0.001, ForceRangeValue = 10000,
-        -- Doors & world interaction (legacy behavior: every obstacle class is included)
-        DoorPhase = false, DoorGlow = false, PhaseTransparency = 0.65, GlowColor = Color3.fromRGB(0, 200, 220),
-        DoorIncludeCells = true, DoorIncludeFences = true, DoorIncludeGates = true,
-        DoorIncludeGlass = true, DoorIgnoreDecorative = true,
+        -- Doors & world interaction
+        DoorPhase = false, PhaseTransparency = 0.65,
         -- Weapon macro
         FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
-        -- Melee
-        PunchAura = false, PunchAuraRange = 15, SuperPunch = false, SuperPunchHits = 10,
-        MeleeTargetRole = "Any", MeleePriority = "Everyone", MeleeMaxPerSecond = 10,
-        MeleeTeamCheck = true, MeleeFriendCheck = true, MeleeWhitelistCheck = true,
-        MeleeForceFieldCheck = true, MeleeLOS = false,
-        -- Role & context
-        RoleMode = "Auto", TargetRole = "Any", RoleAware = true, SessionOverlay = true,
-        IgnoreSameRole = false, IgnoreGuards = false, IgnorePrisoners = false, IgnoreCriminals = false,
-        RoleColoredESP = false, RoleColoredChams = false,
-        -- Routes & locations
-        NearestLocation = "Auto", SelectedRoute = "None", RouteDelay = 1.5,
+        -- Locations
         FavoriteLocations = {},
-        StopAutomationOnDeath = true, StopAutomationOnRespawn = true,
-        -- Player watch & safety
-        WatchAlerts = false, PanicKey = Enum.KeyCode.Unknown,
+        StopAutomationOnRespawn = true,
     },
     Settings = {
         UIScale = 1, MenuVisible = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
@@ -79,12 +64,10 @@ local ALIASES: { [string]: string } = {
 }
 
 -- Tier downgrades may only disable boolean feature flags. Numbers, strings, colors, and
--- keybinds (delays, ranges, transparency, roles, selected routes) must keep their values.
+-- keybinds (delays, ranges, transparency) must keep their values.
 local GAME_BOOLEAN_FLAGS: { string } = {
     "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
-    "Game.DoorPhase", "Game.DoorGlow", "Game.FakeMacro", "Game.PunchAura", "Game.SuperPunch",
-    "Game.RoleAware", "Game.SessionOverlay", "Game.RoleColoredESP", "Game.RoleColoredChams",
-    "Game.WatchAlerts",
+    "Game.DoorPhase", "Game.FakeMacro",
 }
 
 local function clone(value: any): any

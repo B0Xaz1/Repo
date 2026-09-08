@@ -1,9 +1,9 @@
 --!nonstrict
--- Prison Life weapon profiles. Prison Life guns have carried their stats in two forms
--- across updates: instance attributes (SpreadRadius / FireRate / AutoFire / Range) on the
--- tool or its children, and a GunStates ModuleScript table. Both mechanisms are honored,
--- captured, and restored. Disabling any setting restores the captured originals before the
--- enabled set is reapplied, so toggles are fully reversible at any moment.
+-- Prison Life weapon mods. Prison Life guns have carried their stats in two forms across
+-- updates: instance attributes (SpreadRadius / FireRate / AutoFire / Range) on the tool or
+-- its children, and a GunStates ModuleScript table. Both mechanisms are honored, captured,
+-- and restored. Disabling any setting restores the captured originals before the enabled
+-- set is reapplied, so toggles are fully reversible at any moment.
 return function(services: any, Prison: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
@@ -159,7 +159,7 @@ return function(services: any, Prison: any?): any
         end
     end
 
-    -- The spec's core fix: restore-first, then apply only the currently enabled settings.
+    -- The core reversibility rule: restore-first, then apply only the enabled settings.
     function WeaponMods:Reapply()
         self:RestoreAll()
         self:ScanAllWeapons()
@@ -167,7 +167,7 @@ return function(services: any, Prison: any?): any
         EventBus:Publish("PrisonWeaponsChanged", self:GetStats())
     end
 
-    -- Coalesced variant for observers: several flags may flip during a profile change.
+    -- Coalesced variant for observers: several flags may flip at once.
     -- task.defer keeps the reapply in the same resumption instead of a full frame later.
     function WeaponMods:QueueReapply()
         if self._reapplyQueued then return end
@@ -176,19 +176,6 @@ return function(services: any, Prison: any?): any
             WeaponMods._reapplyQueued = false
             if not scope:IsDisposed() then WeaponMods:Reapply() end
         end)
-    end
-
-    function WeaponMods:ApplyProfile(name: string): (boolean, string)
-        local profile = manifest.WeaponProfiles[name]
-        if not profile then
-            if name == "Custom" then return true, "Custom profile keeps your current switches" end
-            return false, "Unknown profile " .. tostring(name)
-        end
-        StateStore:Set("Game.NoSpread", profile.NoSpread == true)
-        StateStore:Set("Game.FastFire", profile.FastFire == true)
-        StateStore:Set("Game.ForceAuto", profile.ForceAuto == true)
-        StateStore:Set("Game.ForceRange", profile.ForceRange == true)
-        return true, "Weapon profile: " .. name
     end
 
     function WeaponMods:GetScannedCount(): number
@@ -210,7 +197,6 @@ return function(services: any, Prison: any?): any
             Backups = #names, -- every tracked tool keeps attribute and/or module backups
             AttrObjects = attrObjects,
             Names = names,
-            Profile = StateStore:Get("Game.WeaponProfile"),
         }
     end
 
@@ -222,9 +208,6 @@ return function(services: any, Prison: any?): any
         for _, path in ipairs(paths) do
             scope:Add(StateStore:Observe(path, function() self:QueueReapply() end))
         end
-        scope:Add(StateStore:Observe("Game.WeaponProfile", function(name: any)
-            if name ~= "Custom" then self:ApplyProfile(name) end
-        end))
 
         -- New guns picked up mid-session inherit the enabled settings immediately; the
         -- deferred reapply gives the game a moment to finish wiring the new tool.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.0 — 2026-09-08
+
+- Slimmed the Prison Life command center to the core toolkit. Removed: loadouts, role and target rules, weapon profiles, door glow and door mode, the status card, melee controls (punch aura and super punch), diagnostics, join/leave notifications, and the route runner.
+- The Game tab is now: Armory and Weapon Mods on the left; Doors and Obstacles (phase + transparency only), Weapon Macro, Map Locations, and Player Watch on the right.
+- Door phasing keeps the legacy include-everything behavior across all five obstacle containers; the per-class include filters, glow layer, and color picker are gone along with their state keys.
+- State schema trimmed to the remaining features; the tier permission list now covers only the six surviving boolean flags. Player watch is role-free: a plain distance-sorted list with spectate, whitelist, and copy actions.
+
 ## 2.3.0 — 2026-09-08
 
 - Ported the legacy Prison Life plugin's ground truth into the command center. The manifest now carries the legacy coordinates (Cafeteria, Prison Yard, Parking Lot, Roof, Secret Room, Tunnels, and the MP5 spawn), the seven-gun set (adding M4A1, M700, and Revolver), and the obstacle containers `doors`/`glass`/`celldoors`/`prison_fences`/`prison_gate`, matched case-insensitively.

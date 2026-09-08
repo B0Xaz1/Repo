@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.3.0` · **Default source ref:** `main`
+**Version:** `2.4.0` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -118,14 +118,14 @@ The suite restores cached client-side properties and disposes the resources it o
 
 `src/Plugins/PluginRegistry.luau` maps place or universe IDs to adapters, with a place ID taking precedence.
 
-`src/Plugins/PrisonLife/` is the Prison Life (by Aesthetical) adapter, registered under place ID `155615604`. It turns the Game tab into a two-column command center:
+`src/Plugins/PrisonLife/` is the Prison Life (by Aesthetical) adapter, registered under place ID `155615604`. It turns the Game tab into a lean two-column control center:
 
-- **Left:** Prison Life status (role, team, alive, health, equipped tool, nearest location, session), role and target rules (manual role override, target-role filtering, role-colored ESP/chams), armory and loadouts (live inventory, spawn awareness, the game's own ITEMPICKUP flow, presets), weapon profiles (GunStates tuning with immediate restore), and melee controls (punch aura, burst punching, rate limiting).
-- **Right:** routes and map locations (tag/name discovery with manifest fallbacks, waypoints, favorites, a route runner), doors and world interaction (independent phase and glow layers over `Doors`/`Prison_Fences`), weapon macro (a stop-conditioned state machine with toggle/hold modes), player watch (role-grouped lists, threats, spectate/whitelist), and diagnostics with a restore-all control.
+- **Left:** Armory (live inventory, spawn awareness, the game's own ITEMPICKUP flow) and weapon mods (direct No Spread / Fast Fire / Full-Auto / Range toggles over both gun-stat mechanisms, with immediate restore).
+- **Right:** doors and obstacles (phase + transparency over the legacy containers `doors`/`glass`/`celldoors`/`prison_fences`/`prison_gate`), weapon macro (guns-only cycling, at least two, toggle/hold modes), map locations (teleports, waypoints, favorites), and player watch (distances, tools, spectate, whitelist).
 
-Every subsystem is a separate service module behind a frozen manifest, mounted through the PluginManager with an isolated disposer, and torn down in reverse order. The manifest carries the legacy plugin's ground-truth data: 12 map coordinates, the seven-gun set (M9, Remington 870, MP5, AK-47, M4A1, M700, Revolver), and the obstacle containers (`doors`, `glass`, `celldoors`, `prison_fences`, `prison_gate`, matched case-insensitively).
+Every subsystem is a separate service module behind a frozen manifest, mounted through the PluginManager with an isolated disposer, and torn down in reverse order. The manifest carries the legacy plugin's ground-truth data: 12 map coordinates, the seven-gun set (M9, Remington 870, MP5, AK-47, M4A1, M700, Revolver), and the obstacle containers matched case-insensitively.
 
-Weapon mods honor both gun-stat mechanisms the game has used — instance attributes (`SpreadRadius`/`FireRate`/`AutoFire`/`Range`) on the tool or its children and the `GunStates` ModuleScript table — restoring whichever a gun carries. The punch aura punches every valid target in radius each tick (legacy behavior, ~10/s) and super punch bursts no-argument melee fires on left click while your fists are out (~6 clicks/s). The macro cycles only real guns and needs at least two. Weapon values, door properties, and automations are reversible at any moment, not only on unload. Locations resolve from CollectionService tags first (`B0XazPrisonLife:<Id>`), then named map objects, then manifest coordinates, so map updates degrade gracefully instead of breaking teleports. A panic key stops the macro, route runner, and melee loop at once.
+Weapon mods honor both gun-stat mechanisms the game has used — instance attributes (`SpreadRadius`/`FireRate`/`AutoFire`/`Range`) on the tool or its children and the `GunStates` ModuleScript table — restoring whichever a gun carries (legacy targets: fire rate 0.001, range 10000). Door phasing and weapon values are reversible at any moment, not only on unload. Locations resolve from CollectionService tags first (`B0XazPrisonLife:<Id>`), then named map objects, then manifest coordinates, so map updates degrade gracefully instead of breaking teleports.
 
 `src/Plugins/ExampleGame/` remains the opt-in test-place adapter pattern. It is not registered for any live experience.
 

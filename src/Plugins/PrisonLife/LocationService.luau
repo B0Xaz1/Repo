@@ -1,6 +1,6 @@
 --!nonstrict
 -- Prison Life locations: tag/name discovery with manifest fallbacks, nearest tracking,
--- waypoints, favorites, and the route runner state machine.
+-- waypoints, and favorites.
 return function(services: any, Prison: any?): any
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local Disposer = services:Get("Disposer")
@@ -18,16 +18,8 @@ return function(services: any, Prison: any?): any
         _resolved = {},      -- [Id] = { CFrame = CFrame, Source = "Tag" | "Name" | "Fallback" }
         _nameIndex = {},     -- [lowered keyword] = Instance
         _waypoints = {},     -- ordered { Name, CFrame }
-        _route = { State = "Idle", Stops = {}, Index = 0, Thread = nil, StopReason = nil },
         _scanCount = 0,
     }
-
-    local function locationById(id: string): any?
-        for _, location in ipairs(manifest.Locations) do
-            if location.Id == id then return location end
-        end
-        return nil
-    end
 
     local function cframeFromInstance(instance: Instance): CFrame?
         if instance:IsA("BasePart") then return instance.CFrame end
@@ -38,7 +30,7 @@ return function(services: any, Prison: any?): any
         return nil
     end
 
-    -- Preferred resolution order: tagged map object, named map object, known folder path, manifest fallback.
+    -- Preferred resolution order: tagged map object, named map object, manifest fallback.
     local function resolve(location: any): any
         local cached = LocationService._resolved[location.Id]
         if cached then return cached end
@@ -230,141 +222,13 @@ return function(services: any, Prison: any?): any
 
     function LocationService:GetFavoriteNames(): { string }
         local names = {}
-        for _, id in ipairs(StateStore:Get("Game.FavoriteLocations") or {}) do
-            local location = locationById(id)
-            if location then table.insert(names, location.Name) end
+        for _, location in ipairs(manifest.Locations) do
+            if self:IsFavorite(location) then table.insert(names, location.Name) end
         end
         return names
-    end
-
-    -- Route runner -----------------------------------------------------------------
-
-    function LocationService:GetRouteNames(): { string }
-        local names = { "None" }
-        for _, route in ipairs(manifest.Routes) do table.insert(names, route.Name) end
-        table.insert(names, "Custom")
-        return names
-    end
-
-    function LocationService:GetRouteStops(name: string): { any }
-        local lowered = tostring(name or ""):lower()
-        for _, route in ipairs(manifest.Routes) do
-            if route.Name:lower() == lowered then
-                local stops = {}
-                for _, id in ipairs(route.Stops) do
-                    local location = locationById(id)
-                    if location then table.insert(stops, location) end
-                end
-                return stops
-            end
-        end
-        return {} -- "None" and "Custom" both resolve to the custom builder content
-    end
-
-    function LocationService:GetCustomRoute(): { any }
-        return self._customRoute or {}
-    end
-
-    function LocationService:AddCustomStop(location: any): (boolean, string)
-        if not location then return false, "Select a location first" end
-        self._customRoute = self._customRoute or {}
-        if #self._customRoute >= 12 then return false, "Custom route holds at most 12 stops" end
-        if table.find(self._customRoute, location.Id) then return false, location.Name .. " is already a stop" end
-        table.insert(self._customRoute, location.Id)
-        EventBus:Publish("PrisonRouteChanged", self:GetRouteStatus())
-        return true, location.Name .. " added to the custom route"
-    end
-
-    function LocationService:ClearCustomRoute(): (boolean, string)
-        self._customRoute = {}
-        EventBus:Publish("PrisonRouteChanged", self:GetRouteStatus())
-        return true, "Custom route cleared"
-    end
-
-    function LocationService:GetRouteStatus(): any
-        local route = self._route
-        local currentStop = nil
-        if route.Index >= 1 and route.Index <= #route.Stops then currentStop = route.Stops[route.Index].Name end
-        return {
-            State = route.State,
-            StopReason = route.StopReason,
-            Index = route.Index,
-            Count = #route.Stops,
-            CurrentStop = currentStop,
-            CustomStops = self._customRoute or {},
-        }
-    end
-
-    function LocationService:StopRoute(reason: string?)
-        local route = self._route
-        if route.State == "Running" or route.State == "Paused" then
-            route.State, route.StopReason = "Cancelled", reason or "stopped"
-        elseif route.State ~= "Completed" then
-            route.State, route.StopReason = "Idle", reason
-        end
-        if route.Thread and route.Thread ~= coroutine.running() and coroutine.status(route.Thread) ~= "dead" then
-            task.cancel(route.Thread)
-        end
-        route.Thread = nil
-        EventBus:Publish("PrisonRouteChanged", self:GetRouteStatus())
-    end
-
-    function LocationService:StartRoute(name: string): (boolean, string)
-        local assets = PlayerTracker:GetLocalAssets()
-        if not assets then return false, "Your character is not ready" end
-        local stops
-        if name == "Custom" then
-            stops = {}
-            for _, id in ipairs(self._customRoute or {}) do
-                local location = locationById(id)
-                if location then table.insert(stops, location) end
-            end
-            if #stops == 0 then return false, "Add stops to the custom route first" end
-        else
-            stops = self:GetRouteStops(name)
-            if #stops == 0 then return false, "Pick a route preset or build a custom route" end
-        end
-
-        self:StopRoute("restarted")
-        local route = self._route
-        route.State, route.StopReason, route.Stops, route.Index = "Running", nil, stops, 0
-
-        route.Thread = scope:Spawn(function()
-            while route.State == "Running" do
-                if route.Index >= #route.Stops then
-                    route.State, route.StopReason = "Completed", nil
-                    break
-                end
-                if not PlayerTracker:IsAlive(Players.LocalPlayer) then
-                    route.State, route.StopReason = "Cancelled", "died"
-                    break
-                end
-                route.Index += 1
-                local location = route.Stops[route.Index]
-                EventBus:Publish("PrisonRouteChanged", LocationService:GetRouteStatus())
-                LocomotionService:Teleport(resolve(location).CFrame)
-                local delayTime = math.clamp(tonumber(StateStore:Get("Game.RouteDelay")) or 1.5, 0.25, 10)
-                local deadline = os.clock() + delayTime
-                while os.clock() < deadline do
-                    if route.State ~= "Running" then break end
-                    if StateStore:Get("Game.StopAutomationOnDeath") and not PlayerTracker:IsAlive(Players.LocalPlayer) then
-                        route.State, route.StopReason = "Cancelled", "died"
-                        break
-                    end
-                    task.wait(0.1)
-                end
-            end
-            if route.Thread and route.Thread ~= coroutine.running() and coroutine.status(route.Thread) ~= "dead" then
-                task.cancel(route.Thread)
-            end
-            route.Thread = nil
-            EventBus:Publish("PrisonRouteChanged", LocationService:GetRouteStatus())
-        end)
-        return true, "Running route with " .. tostring(#stops) .. " stops"
     end
 
     function LocationService:Initialize()
-        self._customRoute = {}
         scope:Spawn(function()
             -- Defer the first map scan: the workspace can still be streaming in.
             task.wait(1)
@@ -372,10 +236,7 @@ return function(services: any, Prison: any?): any
         end)
     end
 
-    function LocationService:Destroy()
-        self:StopRoute("plugin destroyed")
-        scope:Dispose()
-    end
+    function LocationService:Destroy() scope:Dispose() end
 
     return LocationService
 end

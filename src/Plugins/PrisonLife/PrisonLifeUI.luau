@@ -36,8 +36,12 @@ return function(services: any, Prison: any?): any
         }) :: TextLabel
     end
 
+    -- Every TextLabel write cascades up through the AutomaticSize chain (label -> section
+    -- -> column -> page canvas), so writes are change-detected: identical text is skipped.
     local function setLabel(label: TextLabel, text: string)
-        if label.Parent then label.Text = "  " .. text end
+        if not label.Parent then return end
+        local nextText = "  " .. text
+        if label.Text ~= nextText then label.Text = nextText end
     end
 
     local function fmtDistance(distance: number?): string
@@ -225,21 +229,39 @@ return function(services: any, Prison: any?): any
         labels.selected = createInfoLabel(watchSec, "Selected: ...")
 
         ------------------------------------------------------------------
-        -- Low-rate refresh job (4 Hz) for every dynamic label.
+        -- Low-rate refresh job for every dynamic label. Rendering is gated to run only
+        -- while the menu is open AND the Game tab is the active page: each label write
+        -- cascades through the AutomaticSize layout chain, so painting an invisible or
+        -- background tab is pure waste. Returning to the tab forces one immediate paint.
         ------------------------------------------------------------------
+        local REFRESH_INTERVAL = 0.5
         local watchSignature = ""
         local armorySignature = ""
-        local accumulator = 0
+        local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
+        local gameTabActive = false
+        local forceRender = false
+        scope:Add(StateStore:Observe("Settings.MenuVisible", function(value: any)
+            menuVisible = value == true
+            if menuVisible then forceRender = true end
+        end))
+        scope:Add(EventBus:Subscribe("TabSelected", function(name: string)
+            local active = name == "Game"
+            if active and not gameTabActive then forceRender = true end
+            gameTabActive = active
+        end))
 
         local function renderStatus()
             if Prison.Armory then
                 local inventory = Prison.Armory:GetInventory()
+                local localPosition = Prison.Locations and Prison.Locations:GetLocalPosition() or nil
                 local lines = {}
                 for _, entry in ipairs(inventory) do
                     if #lines < 10 then
+                        -- Weapon spawns are plain Vector3 positions; measure them directly
+                        -- instead of routing through the location resolver.
                         local distance = ""
-                        if entry.Weapon.Spawn and Prison.Locations then
-                            distance = "  " .. fmtDistance(Prison.Locations:GetDistance(entry.Weapon))
+                        if entry.Weapon.Spawn and localPosition then
+                            distance = "  " .. fmtDistance((entry.Weapon.Spawn - localPosition).Magnitude)
                         end
                         table.insert(lines, string.format("[%s] %s%s", entry.Weapon.Name, entry.Status, distance))
                     end
@@ -313,20 +335,29 @@ return function(services: any, Prison: any?): any
             end
         end
 
-        local job = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeUI", 45, function(dt: number)
-            accumulator += dt
-            if accumulator < 0.25 then return end
-            accumulator = 0
+        local function paint()
             local ok, err = pcall(renderStatus)
             if not ok then warn("[B0Xaz][PrisonLife:UI] " .. tostring(err)) end
+        end
+        local accumulator = 0
+        local job = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeUI", 45, function(dt: number)
+            if not menuVisible or not gameTabActive then
+                accumulator = 0
+                return
+            end
+            if forceRender then
+                accumulator = REFRESH_INTERVAL
+            else
+                accumulator += dt
+            end
+            if accumulator < REFRESH_INTERVAL then return end
+            accumulator, forceRender = 0, false
+            paint()
         end)
         scope:Add(job)
         scope:Spawn(function()
             task.wait(0.1)
-            if not scope:IsDisposed() then
-                local ok, err = pcall(renderStatus)
-                if not ok then warn("[B0Xaz][PrisonLife:UI] " .. tostring(err)) end
-            end
+            if not scope:IsDisposed() then paint() end
         end)
     end
 

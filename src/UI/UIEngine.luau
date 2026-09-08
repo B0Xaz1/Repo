@@ -12,10 +12,14 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("UIEngine")
     local input, workspace = game:GetService("UserInputService"), game:GetService("Workspace")
     local UIEngine = { _root = nil, _main = nil, _tabs = {}, _tabByName = {}, _active = nil, _controls = {}, _dropdowns = {},
-        _query = "", _searchHeaders = {}, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
+        _query = "", _searchHeaders = {}, _searchActive = false, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
 
     local function viewport(): Vector2 return if workspace.CurrentCamera then workspace.CurrentCamera.ViewportSize else Vector2.new(1280, 720) end
     local function restoreSearch()
+        -- Nothing to restore until a search has actually moved rows; skipping this on
+        -- every keystroke avoids rewriting page visibility on all seven tabs.
+        if not UIEngine._searchActive then return end
+        UIEngine._searchActive = false
         for _, record in pairs(UIEngine._controls) do
             if record.HomeParent then
                 local ok = pcall(function() record.Row.Parent = record.HomeParent; record.Row.LayoutOrder = record.HomeOrder end)
@@ -96,6 +100,7 @@ return function(services: any): any
                     Text = "No matching controls.\nTry a feature, section, or tab name.", TextSize = 12, Font = Enum.Font.Gotham, TextWrapped = true })
                 theme:BindToken(empty, "TextColor3", "TextMuted"); table.insert(self._searchHeaders, empty)
             end
+            self._searchActive = true
             active.Page.CanvasPosition = Vector2.zero
         end)
         if not ok then

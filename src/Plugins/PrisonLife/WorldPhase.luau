@@ -164,9 +164,18 @@ return function(services: any, Prison: any?): any
             scope:Add(StateStore:Observe(path, function() self:ApplyAll() end))
         end
 
-        -- The game's door scripts may flip CanCollide back (doors closing); reassert while active.
-        reassert = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeDoors", 40, function()
-            if StateStore:Peek("Game.DoorPhase") ~= true then return end
+        -- The game's door scripts may flip CanCollide back (doors closing); reassert while
+        -- active. The pass is throttled to 5 Hz so the per-frame cost stays flat no matter
+        -- how many obstacle parts are tracked (the real map carries well over a thousand).
+        local reassertElapsed = 0
+        reassert = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeDoors", 40, function(dt: number)
+            if StateStore:Peek("Game.DoorPhase") ~= true then
+                reassertElapsed = 0
+                return
+            end
+            reassertElapsed += dt
+            if reassertElapsed < 0.2 then return end
+            reassertElapsed = 0
             local transparency = math.clamp(tonumber(StateStore:Peek("Game.PhaseTransparency")) or 0.65, 0.1, 0.95)
             for part in pairs(WorldPhase._parts) do
                 if part.Parent and part.CanCollide then

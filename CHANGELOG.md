@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.4.1 — 2026-09-08
+
+Menu performance pass. The Game tab refresh loop was the primary lag source: it
+re-rendered every dynamic label four times per second whether or not the menu was
+open or the Game tab was even selected, and every `TextLabel` write cascades up
+through the `AutomaticSize` layout chain to the window root. On top of that, the
+armory block was hitting a runtime error each pass (weapon spawns were routed
+through the location resolver, which expects a location `CFrame`), so the render
+aborted with a `warn` every tick — console I/O that executors make expensive.
+
+- **Fixed:** the Game-tab render loop no longer errors on weapon distances —
+  spawn positions are measured directly as `Vector3` (this also means the
+  inventory, weapons, doors, macro, watch and status labels actually render now).
+- **Performance:** Game-tab rendering is gated to run only while the menu is open
+  *and* the Game tab is the active page; returning to the tab forces one
+  immediate paint so nothing feels stale.
+- **Performance:** refresh rate reduced 4 Hz → 2 Hz and every label write is
+  change-detected (identical text is skipped), cutting the AutomaticSize layout
+  cascades to a minimum.
+- **Performance:** the door/obstacle reassert pass while phasing is throttled to
+  ~5 Hz instead of every heartbeat — per-frame cost now stays flat regardless of
+  how many obstacle parts are tracked.
+- **Performance:** the search filter no longer rewrites page visibility across
+  all seven tabs on every keystroke when no search is actually active.
+
 ## 2.4.0 — 2026-09-08
 
 - Slimmed the Prison Life command center to the core toolkit. Removed: loadouts, role and target rules, weapon profiles, door glow and door mode, the status card, melee controls (punch aura and super punch), diagnostics, join/leave notifications, and the route runner.

@@ -8,7 +8,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("PluginManager")
     local registry = load("src/Plugins/PluginRegistry.luau", services)
     local match = registry:Resolve(game.PlaceId, game.GameId)
-    local PluginManager = { _match = match, _active = nil, _activeOwner = nil, _mount = nil, _initialized = false }
+    local PluginManager = { _match = match, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false }
 
     local function clearMount()
         if not PluginManager._mount then return end
@@ -22,11 +22,25 @@ return function(services: any): any
         if not tab then return end
         if services:Has("UIEngine") then services:Get("UIEngine"):ClearSearch() end
         clearMount()
-        if PluginManager._active then PluginManager._active:BuildUI(tab) else
+        if not PluginManager._active then
             local section = load("src/UI/Components/Section.luau", services)
             local panel = section:Create(tab.LeftCol, "Universal mode")
             section:Info(panel, if match then "The matching game plugin is available for this place or universe." else "No plugin is registered for this place or universe. Universal tools remain available.")
+            return
         end
+        -- A plugin UI failure must never take the whole suite down; surface it instead.
+        local ok, err = pcall(function() PluginManager._active:BuildUI(tab) end)
+        if ok then
+            PluginManager._lastError = nil
+            return
+        end
+        PluginManager._lastError = tostring(err)
+        warn("[B0Xaz][PluginManager] UI mount failed: " .. PluginManager._lastError)
+        bus:Publish("PluginError", PluginManager._active.Name, PluginManager._lastError)
+        bus:Publish("Notify", "Plugin UI failed", PluginManager._lastError)
+        local section = load("src/UI/Components/Section.luau", services)
+        local panel = section:Create(tab.LeftCol, "Plugin error")
+        section:Info(panel, PluginManager._active.Name .. " could not build its Game tab: " .. PluginManager._lastError)
     end
     local function deactivate()
         local owner = PluginManager._activeOwner
@@ -52,11 +66,18 @@ return function(services: any): any
             return instance
         end)
         -- The owner exists before the factory runs, so even a half-constructed plugin is reversible.
-        if not ok then deactivate(); bus:Publish("Notify", "Plugin failed", tostring(plugin)) end
+        if not ok then
+            PluginManager._lastError = tostring(plugin)
+            deactivate()
+            bus:Publish("PluginError", if match then match.Name else "Plugin", PluginManager._lastError)
+            bus:Publish("Notify", "Plugin failed", PluginManager._lastError)
+        end
     end
     function PluginManager:IsGameSupported(): boolean return self._match ~= nil end
     function PluginManager:GetActivePluginName(): string return if self._active then self._active.Name else if self._match then self._match.Name else "Universal Mode" end
-    function PluginManager:MountUI(tab: any)
+    -- Diagnostics surfaces the last activation or mount error instead of swallowing it.
+    function PluginManager:GetLastError(): string? return self._lastError end
+    function PluginManager:MountUI(tab: any): (boolean, string?)
         local dom = services:Get("DOM")
         self._mount = table.clone(tab)
         for _, side in ipairs({ "LeftCol", "RightCol" }) do
@@ -65,6 +86,7 @@ return function(services: any): any
             self._mount[side] = column
         end
         refreshMount()
+        return self._lastError == nil, self._lastError
     end
     function PluginManager:Initialize()
         if self._initialized then return end

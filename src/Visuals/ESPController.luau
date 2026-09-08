@@ -108,8 +108,15 @@ return function(services: any): any
     local function rainbowColor(): Color3
         return Color3.fromHSV((os.clock() * 0.15) % 1, 0.75, 1)
     end
-    local function overlayColor(player: Player, config: any, fallback: Color3): Color3
+    local function overlayColor(player: Player, config: any, fallback: Color3, source: string?): Color3
         if config.Rainbow then return rainbowColor() end
+        -- Game plugins (for example Prison Life role colors) can resolve player colors
+        -- through this transient hook; returning nil falls through to the standard logic.
+        local resolver = state:GetTransient("PlayerColorResolver")
+        if type(resolver) == "function" then
+            local ok, color = pcall(resolver, player, source or "ESP")
+            if ok and typeof(color) == "Color3" then return color end
+        end
         if config.UseTeamColor then return filter:GetTeamColor(player) end
         return fallback
     end
@@ -132,7 +139,7 @@ return function(services: any): any
             record.Highlight = highlight
         end
         local object = record.Highlight
-        local fill = overlayColor(record.Player, config, config.FillColor)
+        local fill = overlayColor(record.Player, config, config.FillColor, "Chams")
         if object.Adornee ~= assets.Character then object.Adornee, object.Parent = assets.Character, assets.Character end
         if object.FillColor ~= fill then object.FillColor = fill end
         local outline = if config.Rainbow then fill:Lerp(Color3.new(1, 1, 1), 0.35) else config.OutlineColor
@@ -180,7 +187,7 @@ return function(services: any): any
             local position, size = bounds(camera, assets.Character)
             if not position or not size then hideDrawings(record); continue end
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
-            local color = overlayColor(player, config, config.Color)
+            local color = overlayColor(player, config, config.Color, "ESP")
             local scale = if config.AutoScaling then math.clamp(1.25 - distance / 1500, 0.7, 1.25) else 1
             local textSize, font = math.round(13 * scale), FONTS[config.Font] or 2
             if config.Box then draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = 1, Filled = false }) end

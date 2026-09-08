@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.1.10` · **Default source ref:** `main`
+**Version:** `2.2.0` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -60,7 +60,7 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Visuals | Boxes, names, health, distance, tools/backpacks, tracers, skeletons, head dots/look direction, chams, rainbow/team color, a live ESP preview, optimization, lighting, telemetry, and speed lines. |
 | Movement | Humanoid overrides, sprint/air jump, touch fling, displacement, flight, gravity/FOV, bookmarks, and click/tap teleport. |
 | Players | Live name filter, teleport, spectate, copy name, whitelist, and bounded fling controls. |
-| Game | Place/universe information and an active adapter, or an explicit Universal Mode panel. |
+| Game | Place/universe information plus the active game adapter. In Prison Life (place 155615604) the tab becomes a two-column command center; otherwise an explicit Universal Mode panel. |
 | Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
 | Settings | Profiles, Default/Legit/Rage presets, launch behavior, JSON import/export, scale/hotkeys, full theme palettes, and lifecycle actions. |
 
@@ -116,9 +116,16 @@ The suite restores cached client-side properties and disposes the resources it o
 
 ## Game plugins
 
-`src/Plugins/PluginRegistry.luau` maps place or universe IDs to adapters, with a place ID taking precedence. The registry is intentionally empty until a verified game adapter is registered.
+`src/Plugins/PluginRegistry.luau` maps place or universe IDs to adapters, with a place ID taking precedence.
 
-`src/Plugins/ExampleGame/` is an opt-in test-place adapter. Its frozen manifest describes tagged doors and explicitly named tools, while its mechanics track and restore client-side changes through a child disposer. It is not registered for any live experience.
+`src/Plugins/PrisonLife/` is the Prison Life (by Aesthetical) adapter, registered under place ID `155615604`. It turns the Game tab into a two-column command center:
+
+- **Left:** Prison Life status (role, team, alive, health, equipped tool, nearest location, session), role and target rules (manual role override, target-role filtering, role-colored ESP/chams), armory and loadouts (live inventory, spawn awareness, the game's own ITEMPICKUP flow, presets), weapon profiles (GunStates tuning with immediate restore), and melee controls (punch aura, burst punching, rate limiting).
+- **Right:** routes and map locations (tag/name discovery with manifest fallbacks, waypoints, favorites, a route runner), doors and world interaction (independent phase and glow layers over `Doors`/`Prison_Fences`), weapon macro (a stop-conditioned state machine with toggle/hold modes), player watch (role-grouped lists, threats, spectate/whitelist), and diagnostics with a restore-all control.
+
+Every subsystem is a separate service module behind a frozen manifest, mounted through the PluginManager with an isolated disposer, and torn down in reverse order. Weapon values, door properties, and automations are reversible at any moment, not only on unload. Locations resolve from CollectionService tags first (`B0XazPrisonLife:<Id>`), then named map objects, then manifest coordinates, so map updates degrade gracefully instead of breaking teleports. A panic key stops the macro, route runner, and melee loop at once.
+
+`src/Plugins/ExampleGame/` remains the opt-in test-place adapter pattern. It is not registered for any live experience.
 
 ## Validation
 

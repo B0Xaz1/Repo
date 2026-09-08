@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.0 — 2026-09-08
+
+- Added the Prison Life (place 155615604) command center plugin. The Game tab becomes a two-column control center: status, role and target rules, armory and loadouts, weapon profiles, and melee on the left; routes and map locations, doors and world interaction, weapon macro, player watch, and diagnostics with restore on the right.
+- Role-aware targeting: team-based role detection with manual override, target-role dropdowns, and ignore rules that layer on top of the universal team/friend/whitelist/force-field/LOS checks used by the aimbot, triggerbot, and melee. ESP and chams can color players by role.
+- Weapon profiles tune each gun's `GunStates` module; disabling a switch restores the captured originals immediately (restore-first reapply), and pickup uses the game's own ITEMPICKUP flow.
+- Door phasing and glow are independent layers over `Doors`/`Prison_Fences` with per-class filters (cells, fences, gates, glass, decorative); either layer restores exactly its own properties when disabled.
+- Locations resolve from CollectionService tags first, then named map objects, then manifest coordinates, with waypoints, favorites, and a stop-conditioned route runner. The melee and macro loops stop on death, respawn, focus loss, panic key, and unload.
+- Game plugin settings now carry explicit `Game.*` defaults in the state schema. Tier downgrades disable only the boolean feature flags; numbers, strings, colors, and keybinds keep their values.
+- Plugin activation and UI-mount failures are captured and surfaced (`PluginManager:GetLastError`, a plugin error panel, and the diagnostics card) instead of being swallowed.
+
 ## 2.1.10 — 2026-09-07
 
 - Tightened the live menu toward the Combat-tab screenshot: cyan window frame, denser groupboxes/controls, compact title/tabs, and Combat laid out as Aimbot Controls / Aimbot FOV / Target Settings.

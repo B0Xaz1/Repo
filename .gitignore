@@ -1,5 +1,0 @@
-# Executor-owned runtime files are local session data.
-B0XazUniversal/
-*.log
-.DS_Store
-.arena/

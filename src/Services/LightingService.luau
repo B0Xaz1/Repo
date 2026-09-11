@@ -20,7 +20,7 @@ return function(services: any): any
     local modeChanges, fullbrightChanges, materials = scope:CreateChild("Grade"), scope:CreateChild("Fullbright"), scope:CreateChild("Remaster")
     local lighting, workspace = game:GetService("Lighting"), game:GetService("Workspace")
     local LightingService = { _original = nil, _effectsScope = nil, _effects = {}, _materialCache = {}, _vignette = nil,
-        _clock = 14, _elapsed = 0, _mode = "Off", _initialized = false }
+        _clock = 14, _elapsed = 0, _mode = "Off", _initialized = false, _modeApplied = {}, _fullbrightApplied = {} }
 
     local function snapshot()
         if LightingService._original then return end
@@ -47,10 +47,15 @@ return function(services: any): any
         profile.ClockTime = hour
         return profile
     end
-    local function applyProfile(profile: any, owner: any)
+    local function applyProfile(profile: any, owner: any, applied: any)
         snapshot()
         for _, property in ipairs(PROPERTIES) do
-            if LightingService._original[property] and profile[property] ~= nil then owner:SetProperty(lighting, property, profile[property]) end
+            -- The 5 Hz reassert re-derives identical static profiles; skip no-change writes so the
+            -- engine only sees real deltas (the dynamic clock still updates every tick by design).
+            if LightingService._original[property] and profile[property] ~= nil and applied[property] ~= profile[property] then
+                if owner:SetProperty(lighting, property, profile[property]) then applied[property] = profile[property]
+                else applied[property] = nil end
+            end
         end
     end
     local function ensureEffects()
@@ -67,7 +72,11 @@ return function(services: any): any
         LightingService._effects = { bloom, grade }
     end
     local function clearVignette()
-        if LightingService._vignette then LightingService._vignette:Destroy(); LightingService._vignette = nil end
+        local gui = LightingService._vignette
+        LightingService._vignette = nil
+        -- DestroyInstance also forgets the gui and its children in the master bag; a raw
+        -- Destroy() left a stale entry behind on every create/clear cycle.
+        if gui then pcall(function() dom:DestroyInstance(gui) end) end
     end
     local function ensureVignette()
         if LightingService._vignette then return end
@@ -105,6 +114,7 @@ return function(services: any): any
         modeChanges:RestoreProperties()
         materials:RestoreProperties()
         table.clear(LightingService._materialCache)
+        table.clear(LightingService._modeApplied)
         if LightingService._effectsScope then LightingService._effectsScope:Dispose(); LightingService._effectsScope = nil end
         table.clear(LightingService._effects)
         clearVignette()
@@ -120,10 +130,11 @@ return function(services: any): any
             local profile = table.clone(DAY)
             profile.Ambient, profile.OutdoorAmbient = Color3.fromRGB(210, 210, 210), Color3.fromRGB(210, 210, 210)
             profile.GlobalShadows, profile.ClockTime, profile.FogEnd = false, 14, 100000
-            applyProfile(profile, fullbrightChanges)
+            applyProfile(profile, fullbrightChanges, LightingService._fullbrightApplied)
             return
         end
         fullbrightChanges:RestoreProperties()
+        table.clear(LightingService._fullbrightApplied)
         if config.Mode == "Off" then
             restoreMode(); LightingService._original = nil; return
         end
@@ -132,7 +143,7 @@ return function(services: any): any
         if config.Mode ~= "Dynamic" then profile.ClockTime = config.TimeOfDay end
         profile.Brightness *= math.clamp(config.PresetBrightness, 0.25, 2)
         if state:Get("Performance.NoShadows") then profile.GlobalShadows = false end
-        applyProfile(profile, modeChanges)
+        applyProfile(profile, modeChanges, LightingService._modeApplied)
         ensureEffects()
         for _, effect in ipairs(LightingService._effects) do effect.Enabled = not state:Get("Performance.NoPostProcessing") end
         if config.Vignette then ensureVignette() else clearVignette() end
@@ -163,15 +174,29 @@ return function(services: any): any
         reconcile()
     end
     function LightingService:Restore()
-        restoreMode(); fullbrightChanges:RestoreProperties(); self._original = nil
+        restoreMode(); fullbrightChanges:RestoreProperties()
+        table.clear(self._fullbrightApplied); self._original = nil
     end
     function LightingService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        for _, path in ipairs({ "Lighting.Mode", "Lighting.PresetBrightness", "Lighting.Vignette", "Visuals.Fullbright", "Performance.NoShadows", "Performance.NoPostProcessing" }) do
-            scope:Add(state:Observe(path, function() reconcile(); updateMaterials() end))
+        -- Slider drags (brightness, time of day, transparency-like toggles) fire dozens of
+        -- observer hits; each full pass re-computes profiles and can touch materials, so
+        -- coalesce to at most one pass per resumption window.
+        local function scheduleForward(flag: string, body: () -> ())
+            if LightingService[flag] then return end
+            LightingService[flag] = true
+            task.defer(function()
+                LightingService[flag] = nil
+                if not scope:IsDisposed() then body() end
+            end)
         end
-        scope:Add(state:Observe("Lighting.TimeOfDay", function(value: number) LightingService._clock = value % 24; reconcile() end))
+        local function scheduleReconcile() scheduleForward("_reconcileQ", reconcile) end
+        local function scheduleModeRefresh() scheduleForward("_modeRefreshQ", function() reconcile(); updateMaterials() end) end
+        for _, path in ipairs({ "Lighting.Mode", "Lighting.PresetBrightness", "Lighting.Vignette", "Visuals.Fullbright", "Performance.NoShadows", "Performance.NoPostProcessing" }) do
+            scope:Add(state:Observe(path, scheduleModeRefresh))
+        end
+        scope:Add(state:Observe("Lighting.TimeOfDay", function(value: number) LightingService._clock = value % 24; scheduleReconcile() end))
         scope:Add(state:Observe("Lighting.RemasterMaterials", updateMaterials))
         scope:Add(state:Observe("Performance.LowMaterials", updateMaterials))
         scope:ConnectImmediate(workspace.DescendantAdded, function(object: Instance)

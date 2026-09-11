@@ -132,7 +132,8 @@ return function(services: any, Prison: any?): any
         self:ScanDoors()
 
         -- New parts anywhere under a known container are picked up live while phasing.
-        scope:Add(scope:ConnectImmediate(workspace.DescendantAdded, function(descendant: Instance)
+        -- (ConnectImmediate already registers with the scope; an extra scope:Add would double-track it.)
+        scope:ConnectImmediate(workspace.DescendantAdded, function(descendant: Instance)
             if StateStore:Peek("Game.DoorPhase") ~= true then return end
             if not descendant:IsA("BasePart") then return end
             task.defer(function()
@@ -147,10 +148,10 @@ return function(services: any, Prison: any?): any
                     current = current.Parent
                 end
             end)
-        end))
+        end)
 
         -- A renamed map update may create the containers late.
-        scope:Add(scope:ConnectImmediate(workspace.ChildAdded, function(child: Instance)
+        scope:ConnectImmediate(workspace.ChildAdded, function(child: Instance)
             task.defer(function()
                 if scope:IsDisposed() then return end
                 if isObstacleFolder(child.Name) then
@@ -158,10 +159,21 @@ return function(services: any, Prison: any?): any
                     if not scope:IsDisposed() then WorldPhase:ScanDoors(); WorldPhase:ApplyAll() end
                 end
             end)
-        end))
+        end)
 
+        -- A transparency drag fires dozens of observer hits; coalesce them into a single pass
+        -- at the next resumption so the thousand-part reapply runs once, not once per mouse move.
+        local applyQueued = false
+        local function scheduleApplyAll()
+            if applyQueued then return end
+            applyQueued = true
+            task.defer(function()
+                applyQueued = false
+                if not scope:IsDisposed() then WorldPhase:ApplyAll() end
+            end)
+        end
         for _, path in ipairs({ "Game.DoorPhase", "Game.PhaseTransparency" }) do
-            scope:Add(StateStore:Observe(path, function() self:ApplyAll() end))
+            scope:Add(StateStore:Observe(path, scheduleApplyAll))
         end
 
         -- The game's door scripts may flip CanCollide back (doors closing); reassert while

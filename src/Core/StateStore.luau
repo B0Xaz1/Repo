@@ -143,7 +143,7 @@ return function(eventBus: any, disposer: any): any
     function StateStore:Get(path: string): any return clone(read(self._settings, path)) end
     -- Live table for frame loops. Callers must not mutate it; UI and profiles keep using Get().
     function StateStore:Peek(path: string): any return read(self._settings, path) end
-    function StateStore:Set(path: string, value: any, _bypass: boolean?): (boolean, string?)
+    function StateStore:Set(path: string, value: any): (boolean, string?)
         assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"), "Invalid state path")
         local default = read(DEFAULT_SETTINGS, path)
         if not compatible(value, default) then return false, "Invalid value for " .. path end
@@ -191,9 +191,22 @@ return function(eventBus: any, disposer: any): any
         local old = self._settings
         self._hydrating = true
         self._settings = merge(DEFAULT_SETTINGS, snapshot)
-        -- Keep legacy/current bind fields in lockstep after a profile supplies either representation.
-        self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
-        self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
+        -- Keep legacy/current bind fields in lockstep after a profile supplies either
+        -- representation: mirror only the side the snapshot did NOT carry, so an older
+        -- profile's customised bind is never clobbered by a default.
+        local incomingSettings = if type(snapshot.Settings) == "table" then snapshot.Settings else {}
+        local incomingBinds = if type(incomingSettings.Binds) == "table" then incomingSettings.Binds else {}
+        local incomingMovement = if type(snapshot.Movement) == "table" then snapshot.Movement else {}
+        if incomingMovement.FlyKeybind ~= nil and incomingBinds.Fly == nil then
+            self._settings.Settings.Binds.Fly = self._settings.Movement.FlyKeybind
+        else
+            self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
+        end
+        if incomingSettings.MenuKeybind ~= nil and incomingBinds.Menu == nil then
+            self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
+        else
+            self._settings.Settings.MenuKeybind = self._settings.Settings.Binds.Menu
+        end
         -- Older profiles only stored chams depth; keep ESP drawings on the same mode.
         local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
         local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode

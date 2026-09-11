@@ -13,7 +13,6 @@ return function(services: any): any
         theme:BindToken(stroke, "Color", "Border")
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return value == true end }
         function handle:_Render(value: boolean)
-            text.Text = label
             theme:BindToken(box, "BackgroundColor3", if value then "ToggleOn" else "ToggleOff")
             stroke.Thickness, stroke.Transparency = 1, if value then 1 else 0
         end

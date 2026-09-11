@@ -1,5 +1,5 @@
 --!nonstrict
-export type Job = { Name: string, Priority: number, Enabled: boolean, Strikes: number, Disconnect: (Job) -> () }
+export type Job = { Name: string, Priority: number, Enabled: boolean, Strikes: number, CircuitOpen: boolean, Disconnect: (Job) -> () }
 
 return function(disposer: any): any
     local runService = game:GetService("RunService")
@@ -11,6 +11,11 @@ return function(disposer: any): any
         if scope:IsDisposed() then return end
         -- Registration replaces the array, so a job can disconnect/register without disturbing this iteration.
         for _, job in ipairs(TaskScheduler._pipelines[pipeline]) do
+            -- The breaker only ever clears Enabled; an observer setting it true again is a retry request.
+            if job.CircuitOpen and job.Enabled then
+                job.CircuitOpen, job.Strikes = false, 0
+                warn("[B0Xaz][CIRCUIT CLOSED] '" .. job.Name .. "' was re-enabled; failure count reset")
+            end
             if job.Enabled and job.Connected then
                 local ok, err = pcall(job.Callback, dt)
                 if ok then job.Strikes = 0 else
@@ -18,6 +23,7 @@ return function(disposer: any): any
                     warn(string.format("[B0Xaz][Job:%s/%s] strike %d/5: %s", pipeline, job.Name, job.Strikes, tostring(err)))
                     if job.Strikes == 5 then
                         job.Enabled = false
+                        job.CircuitOpen = true
                         warn("[B0Xaz][CIRCUIT OPEN] Disabled '" .. job.Name .. "' after five consecutive failures")
                     end
                 end
@@ -30,8 +36,21 @@ return function(disposer: any): any
         for index = #jobs, 1, -1 do
             if jobs[index].Name == name then jobs[index]:Disconnect(); table.remove(jobs, index) end
         end
-        local job: any = { Name = name, Priority = priority, Callback = callback, Strikes = 0, Enabled = true, Connected = true }
-        function job:Disconnect() self.Connected = false; self.Enabled = false end
+        local job: any = { Name = name, Priority = priority, Callback = callback, Strikes = 0, Enabled = true, Connected = true, CircuitOpen = false }
+        function job:Disconnect()
+            if self.Connected ~= true then return end
+            self.Connected, self.Enabled = false, false
+            -- Clone-swap removal keeps any in-flight iteration stable; Forget prevents dead entries
+            -- from accumulating in the scope across re-registers and service lifetimes.
+            local current = TaskScheduler._pipelines[pipeline]
+            local at = table.find(current, self)
+            if at then
+                local remaining = table.clone(current)
+                table.remove(remaining, at)
+                TaskScheduler._pipelines[pipeline] = remaining
+            end
+            scope:Forget(self)
+        end
         table.insert(jobs, job)
         table.sort(jobs, function(a: any, b: any)
             if a.Priority == b.Priority then return a.Name < b.Name end

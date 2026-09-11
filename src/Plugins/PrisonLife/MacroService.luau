@@ -18,6 +18,7 @@ return function(services: any, Prison: any?): any
     local MacroService = {
         _running = false,
         _thread = nil :: thread?,
+        _generation = 0,
         _state = "Idle",
         _stopReason = nil :: string?,
         _nextTool = "None",
@@ -91,8 +92,12 @@ return function(services: any, Prison: any?): any
         self._stopReason = nil
         StateStore:Set("Game.FakeMacro", true)
 
+        -- A generation tag stops the previous loop on its own; cancelling a worker would skip its
+        -- disposer self-removal and leak a dead entry for every start/stop cycle.
+        self._generation += 1
+        local generation = self._generation
         self._thread = scope:Spawn(function()
-            while self._running do
+            while self._running and self._generation == generation do
                 if not PlayerTracker:IsAlive(Players.LocalPlayer) then
                     self:Stop("died")
                     break
@@ -125,11 +130,9 @@ return function(services: any, Prison: any?): any
 
     function MacroService:Stop(reason: string?)
         self._running = false
+        self._generation += 1 -- retiring workers see the mismatch and exit naturally
         self._state = if reason then "Cancelled" else "Idle"
         self._stopReason = reason
-        if self._thread and self._thread ~= coroutine.running() and coroutine.status(self._thread) ~= "dead" then
-            task.cancel(self._thread)
-        end
         self._thread = nil
         if StateStore:Peek("Game.FakeMacro") == true then StateStore:Set("Game.FakeMacro", false) end
         publish()
@@ -154,7 +157,7 @@ return function(services: any, Prison: any?): any
         end))
 
         -- Hold mode runs only while the key is down; Toggle mode flips on each press.
-        scope:Add(scope:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)
+        scope:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)
             if processed or UserInputService:GetFocusedTextBox() or StateStore:GetTransient("IsBindingKey") then return end
             if not Environment:MatchesInput(input, StateStore:Get("Game.FakeMacroKey")) then return end
             if StateStore:Get("Game.FakeMacroMode") == "Hold" then
@@ -162,13 +165,13 @@ return function(services: any, Prison: any?): any
             else
                 self:Toggle()
             end
-        end))
-        scope:Add(scope:Connect(UserInputService.InputEnded, function(input: InputObject)
+        end)
+        scope:Connect(UserInputService.InputEnded, function(input: InputObject)
             if not Environment:MatchesInput(input, StateStore:Get("Game.FakeMacroKey")) then return end
             if StateStore:Get("Game.FakeMacroMode") == "Hold" and self._running then
                 self:Stop("key released")
             end
-        end))
+        end)
 
         -- Death always stops the rotation; respawn restarts only when asked to keep automations.
         scope:Add(PlayerTracker:OnLocalCharacterRespawn(function()

@@ -7,6 +7,9 @@ export type Scope = {
     Bind: (Scope, string, any, string?) -> any,
     Unbind: (Scope, string) -> (),
     CreateChild: (Scope, string) -> Scope,
+    ReleaseProperty: (Scope, any, string) -> (),
+    ReleaseObject: (Scope, any) -> (),
+    ReleaseProperties: (Scope) -> (),
     Dispose: (Scope) -> (),
 }
 
@@ -43,10 +46,10 @@ return function(): any
     end
 
     function Disposer.new(name: string?, parent: any?): any
-        local scope = setmetatable({
-            Name = name or "Scope", _disposed = false, _items = {}, _nextId = 0,
-            _keys = {}, _itemSlots = {}, _leases = {}, _parent = parent, _parentSlot = nil,
-        }, methods)
+    local scope = setmetatable({
+        Name = name or "Scope", _disposed = false, _items = {}, _nextId = 0,
+        _keys = {}, _itemSlots = {}, _leases = {}, _parent = parent,
+    }, methods)
         scope._root = if parent then parent._root else scope
         if not parent then scope._journal = {} end
         return scope
@@ -126,7 +129,6 @@ return function(): any
     function methods:CreateChild(name: string): any
         local child = Disposer.new(name, self)
         self:Add(child)
-        child._parentSlot = self._nextId
         return child
     end
 
@@ -228,6 +230,37 @@ return function(): any
 
     function methods:RestoreProperties()
         for object in pairs(table.clone(self._leases)) do self:RestoreObject(object) end
+    end
+
+    -- Lease removal WITHOUT a write. Live transforms (CFrame, velocities) must be released this
+    -- way: restoring their cached original snaps the object back to a stale position or speed.
+    -- If another scope still owns the property, its overlay simply remains in effect.
+    function methods:ReleaseProperty(object: any, property: string)
+        local owned = self._leases[object]
+        local lease = owned and owned[property]
+        if not lease then return end
+        owned[property] = nil
+        if next(owned) == nil then self._leases[object] = nil end
+        local properties = self._root._journal[object]
+        local entry = properties and properties[property]
+        if not entry then return end
+        for index, candidate in ipairs(entry.Owners) do
+            if candidate == lease then table.remove(entry.Owners, index); break end
+        end
+        if #entry.Owners == 0 then
+            properties[property] = nil
+            if next(properties) == nil then self._root._journal[object] = nil end
+        end
+    end
+
+    function methods:ReleaseObject(object: any)
+        local properties = self._leases[object]
+        if not properties then return end
+        for property in pairs(table.clone(properties)) do self:ReleaseProperty(object, property) end
+    end
+
+    function methods:ReleaseProperties()
+        for object in pairs(table.clone(self._leases)) do self:ReleaseObject(object) end
     end
 
     function methods:Dispose()

@@ -29,18 +29,20 @@ return function(disposer: any): any
         if self._scope:IsDisposed() then return end
         local list = self._lists[name]
         if not list then return end
+        -- Synchronous dispatch: every UI interaction and per-frame state write publishes, and
+        -- spending a coroutine spawn per handler per event was the suite's biggest steady-state
+        -- cost. Handlers must therefore never yield (none in this codebase do; engine signals
+        -- keep owned threads via Disposer:Spawn instead).
         local snapshot = {}
         local node = list.Head
         while node do table.insert(snapshot, node); node = node.Next end
         local args = table.pack(...)
-        -- Snapshot first because task.spawn may run a handler immediately and it may disconnect its neighbour.
+        -- Snapshot first because a handler may disconnect itself or its neighbour mid-dispatch.
         for _, handler in ipairs(snapshot) do
-            self._scope:Spawn(function()
-                if handler.Connected then
-                    local ok, err = pcall(handler.Callback, table.unpack(args, 1, args.n))
-                    if not ok then warn("[B0Xaz][Event:" .. name .. "] " .. tostring(err)) end
-                end
-            end)
+            if handler.Connected and handler.Callback then
+                local ok, err = pcall(handler.Callback, table.unpack(args, 1, args.n))
+                if not ok then warn("[B0Xaz][Event:" .. name .. "] " .. tostring(err)) end
+            end
         end
     end
 

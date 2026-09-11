@@ -17,7 +17,7 @@ return function(services: any): any
         if LocomotionService._flingScope then LocomotionService._flingScope:Dispose(); LocomotionService._flingScope = nil end
         LocomotionService._flingTarget = nil
         state:SetTransient("FlingTarget", nil)
-        state:Set("Movement.Fling", false, true)
+        state:Set("Movement.Fling", false)
         suppress(1)
     end
     local function teleportRoot(owner: any, root: BasePart, target: CFrame)
@@ -97,7 +97,10 @@ return function(services: any): any
         if not LocomotionService._flingTarget and not config.CFrameSpeed and config.Speed <= 0 and config.JumpPower <= 0
             and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
             if LocomotionService._applied then
-                characterChanges:RestoreProperties(); positionChanges:RestoreProperties()
+                -- Position changes hold only live transforms (CFrame, velocities): RELEASE their
+                -- leases. Restoring the cached original would rubber-band the player back to the
+                -- spot where the first teleport or CFrame-speed write happened.
+                characterChanges:RestoreProperties(); positionChanges:ReleaseProperties()
                 worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
                 LocomotionService._applied = false
             end
@@ -106,9 +109,9 @@ return function(services: any): any
         LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
-            characterChanges:RestoreProperties(); positionChanges:RestoreProperties(); stopFling()
+            characterChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
-        elseif not assets then characterChanges:RestoreProperties(); positionChanges:RestoreProperties(); stopFling(); LocomotionService._humanoid = nil end
+        elseif not assets then characterChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
         if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
             local sprint = config.SprintEnabled and not input:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and input:IsKeyDown(Enum.KeyCode.LeftShift)

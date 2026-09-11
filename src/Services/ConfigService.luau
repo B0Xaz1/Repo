@@ -5,7 +5,7 @@ return function(services: any): any
     local environment, state = services:Get("Environment"), services:Get("StateStore")
     local bus, scope = services:Get("EventBus"), services:Get("Disposer"):CreateChild("ConfigService")
     local http = game:GetService("HttpService")
-    local ConfigService = { Dirty = false, _isLoading = false, _initialized = false, _activeProfile = "Default" }
+    local ConfigService = { Dirty = false, _isLoading = false, _initialized = false, _activeProfile = "Default", _applyingLaunch = false }
 
     local function serialize(value: any, depth: number?): any
         local level = depth or 0
@@ -115,6 +115,7 @@ return function(services: any): any
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
             end
             hydrate(snapshot); self._activeProfile = BUILTIN_LABELS[key]
+            self:PersistLoadedProfile()
             return true, "Loaded " .. BUILTIN_LABELS[key]
         end
         local path, clean = pathFor(name)
@@ -124,7 +125,16 @@ return function(services: any): any
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, "Invalid profile: " .. tostring(snapshot) end
         hydrate(snapshot); self._activeProfile = clean
+        self:PersistLoadedProfile()
         return true, "Loaded " .. clean
+    end
+    -- Loading a profile is itself a launch choice: persist it to the autosave immediately, or a
+    -- relaunch with an untouched session would silently restore the previous one. The boot-time
+    -- apply is exempt — it resolves its own restore path and writes nothing extra.
+    function ConfigService:PersistLoadedProfile()
+        if self._applyingLaunch then return end
+        self.Dirty = true
+        self:Flush()
     end
     function ConfigService:Delete(name: string): (boolean, string)
         local path, clean = pathFor(name)
@@ -163,6 +173,7 @@ return function(services: any): any
         local ok, snapshot = pcall(decode, json)
         if not ok then return false, "Invalid config JSON: " .. tostring(snapshot) end
         hydrate(snapshot); self._activeProfile = "Imported"
+        self:PersistLoadedProfile()
         return true, "Imported config"
     end
     function ConfigService:ReadRawAutoload(): any?
@@ -190,7 +201,9 @@ return function(services: any): any
             return "disabled"
         end
         if startup ~= "" and self:ProfileExists(startup) then
+            self._applyingLaunch = true
             local loaded = self:Load(startup)
+            self._applyingLaunch = false
             if loaded then
                 -- Profile contents must not unpin the launch selector that selected them.
                 local current = state:GetSettingsSnapshot()
@@ -215,7 +228,7 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         scope:Add(bus:Subscribe("StateChanged", function(_path: string, _new: any, _old: any, metadata: any)
-            -- Events are spawned: the hydration marker travels with the event, not only a short-lived guard.
+            -- The hydration marker rides with the event metadata, not a guard that the hydration callee could clear early.
             if not ConfigService._isLoading and not (metadata and metadata.Hydrating) then ConfigService.Dirty = true end
         end))
         scope:Spawn(function()

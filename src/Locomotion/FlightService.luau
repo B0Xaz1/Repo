@@ -7,9 +7,18 @@ return function(services: any): any
     local FlightService = { _flightScope = nil, _root = nil, _velocity = nil, _gyro = nil, _active = false, _initialized = false }
 
     function FlightService:Stop()
-        local owner = self._flightScope
+        local owner, root = self._flightScope, self._root
         self._flightScope, self._root, self._velocity, self._gyro, self._active = nil, nil, nil, nil, false
-        if owner then owner:Dispose() end
+        if owner then
+            -- Velocities are released, not restored: the pre-flight value is stale by the time
+            -- flight ends, and reapplying it would fling the character in an old direction.
+            -- PlatformStand and AutoRotate remain plain properties and restore normally.
+            if root then
+                owner:ReleaseProperty(root, "AssemblyLinearVelocity")
+                owner:ReleaseProperty(root, "AssemblyAngularVelocity")
+            end
+            owner:Dispose()
+        end
     end
     function FlightService:Start(): (boolean, string)
         if scope:IsDisposed() or not state:Get("Movement.FlyEnabled") then return false, "Flight is disabled" end

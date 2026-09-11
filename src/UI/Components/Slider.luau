@@ -37,11 +37,14 @@ return function(services: any): any
         end }
         function handle:_Render(value: number)
             local alpha = (value - minimum) / (maximum - minimum)
-            fill.Size = UDim2.fromScale(alpha, 1)
+            local nextSize = UDim2.fromScale(alpha, 1)
+            -- Property writes on AutomaticSize chains trigger layout; skip identical repeats.
+            if fill.Size ~= nextSize then fill.Size = nextSize end
             local function fmt(number: number): string
                 return (string.format("%.3f", number):gsub("0+$", ""):gsub("%.$", ""))
             end
-            valueLabel.Text, text.Text = fmt(value) .. "/" .. fmt(maximum) .. (suffix or ""), label
+            local nextText = fmt(value) .. "/" .. fmt(maximum) .. (suffix or "")
+            if valueLabel.Text ~= nextText then valueLabel.Text = nextText end
         end
         section:Bind(handle, defaultOrPath, callback)
         owner:Connect(hit.InputBegan, function(event: InputObject)

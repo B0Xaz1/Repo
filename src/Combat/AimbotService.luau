@@ -61,7 +61,9 @@ return function(services: any): any
     local function update(dt: number)
         if not state:Peek("Aimbot.Enabled") then
             if AimbotService._target or AimbotService._camera then
-                drop(); cameraChanges:RestoreProperties(); AimbotService._camera = nil
+                -- Release, never restore: the camera resumes from the aimed orientation instead of
+                -- jerking back to wherever it pointed when the lock began.
+                drop(); cameraChanges:ReleaseProperties(); AimbotService._camera = nil
             end
             return
         end
@@ -74,7 +76,7 @@ return function(services: any): any
         if not engaged or AimbotService._blocked then drop(); return end
         local camera = workspace.CurrentCamera
         if not camera then drop(); return end
-        if AimbotService._camera ~= camera then cameraChanges:RestoreProperties(); AimbotService._camera = camera end
+        if AimbotService._camera ~= camera then cameraChanges:ReleaseProperties(); AimbotService._camera = camera end
         local point = environment:GetAimPoint(camera)
         local target = AimbotService._target
         local part = target and hitpart(target, config.Hitpart)
@@ -129,7 +131,7 @@ return function(services: any): any
             end
             AimbotService._remainder = Vector2.zero
         else
-            cameraChanges:RestoreProperties()
+            cameraChanges:ReleaseProperties()
             local remaining = screen - point
             local delta = correction(remaining, alpha, dt, config)
             local remainder = AimbotService._remainder
@@ -167,7 +169,7 @@ return function(services: any): any
         local job = scheduler:RegisterCamera("Combat.Aimbot", 10, update)
         local function syncAimbot(value: boolean)
             job.Enabled = value == true
-            if not value then AimbotService:Unlock(); cameraChanges:RestoreProperties() end
+            if not value then AimbotService:Unlock(); cameraChanges:ReleaseProperties() end
         end
         scope:Add(state:Observe("Aimbot.Enabled", syncAimbot))
         syncAimbot(state:Peek("Aimbot.Enabled") == true)

@@ -31,10 +31,9 @@ return function(disposer: any?): any
             if self._destroyed then return end
             local instance = self._instances[name]
             if type(instance) == "table" and type(instance.Initialize) == "function" and not self._initialized[name] then
-                print("[B0Xaz][Trace] step start Initialize " .. name)
+                -- No boot tracing here: executor consoles serialise prints, and InitializeAll runs once anyway.
                 instance:Initialize()
                 self._initialized[name] = true
-                print("[B0Xaz][Trace] step end Initialize " .. name)
             end
         end
     end

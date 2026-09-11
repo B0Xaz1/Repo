@@ -1,5 +1,5 @@
 --!nonstrict
-local VERSION: string = "2.4.1"
+local VERSION: string = "2.4.3"
 -- Split the CDN error sentinel so this entry point cannot reject its own source during relaunch.
 local NOT_FOUND_BODY: string = "404" .. ": Not Found"
 local DEFAULT_REF: string = "main"
@@ -91,7 +91,9 @@ if previous then
 end
 globals.B0XazActiveToken = sessionId
 
-local function trace(message: string) print("[B0Xaz][Trace] " .. message) end
+-- Executor consoles serialise every print; boot traces stay behind an explicit diagnostic flag.
+local DEBUG_BOOT: boolean = false
+local function trace(message: string) if DEBUG_BOOT then print("[B0Xaz][Trace] " .. message) end end
 local function assertAlive()
     assert(globals.B0XazActiveToken == sessionId, "Session cancelled")
 end

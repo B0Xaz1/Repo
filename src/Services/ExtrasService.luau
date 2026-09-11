@@ -25,8 +25,18 @@ return function(services: any): any
         guardChanges:RestoreProperties()
     end
     local function stopSpin()
-        if ExtrasService._spinScope then ExtrasService._spinScope:Dispose() end
+        local owner, root = ExtrasService._spinScope, ExtrasService._spinRoot
         ExtrasService._spinScope, ExtrasService._spinRoot = nil, nil
+        if owner then
+            -- The spun CFrame and zeroed angular velocity are live transform state; releasing the
+            -- leases leaves the character where it is rather than snapping to the pre-spin pose.
+            -- AutoRotate remains a plain property and restores normally.
+            if root then
+                owner:ReleaseProperty(root, "CFrame")
+                owner:ReleaseProperty(root, "AssemblyAngularVelocity")
+            end
+            owner:Dispose()
+        end
     end
     local function updateHitboxes()
         local config = state:Peek("Extras.Hitbox")

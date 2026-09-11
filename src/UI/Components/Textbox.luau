@@ -14,7 +14,7 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(box, 0, 8)
         local handle = { Row = row, Label = labelObject, Box = box, Scope = owner, Normalize = function(value: any) return tostring(value or "") end }
         function handle:_Render(value: string)
-            box.Text, labelObject.Text = value, label
+            if box.Text ~= value then box.Text = value end
         end
         section:Bind(handle, path or text or "", callback, path == nil)
         owner:Connect(box.FocusLost, function() if not handle:Set(box.Text) then box.Text = handle:Get() end end)

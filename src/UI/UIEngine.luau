@@ -12,7 +12,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("UIEngine")
     local input, workspace = game:GetService("UserInputService"), game:GetService("Workspace")
     local UIEngine = { _root = nil, _main = nil, _tabs = {}, _tabByName = {}, _active = nil, _controls = {}, _dropdowns = {},
-        _query = "", _searchHeaders = {}, _searchActive = false, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
+        _query = "", _searchHeaders = {}, _searchActive = false, _searchSeq = 0, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
 
     local function viewport(): Vector2 return if workspace.CurrentCamera then workspace.CurrentCamera.ViewportSize else Vector2.new(1280, 720) end
     local function restoreSearch()
@@ -234,7 +234,16 @@ return function(services: any): any
         theme:BindToken(search, "BackgroundColor3", "Elem"); theme:BindToken(search, "TextColor3", "Text"); theme:BindToken(search, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(search, 0, 8)
-        scope:Connect(search:GetPropertyChangedSignal("Text"), function() UIEngine:Search(search.Text) end)
+        -- Coalesce rapid keystrokes: one full search (control reparenting across all tabs) at
+        -- most per debounce window instead of one per typed character.
+        scope:Connect(search:GetPropertyChangedSignal("Text"), function()
+            UIEngine._searchSeq += 1
+            local sequence, query = UIEngine._searchSeq, search.Text
+            task.delay(0.12, function()
+                if scope:IsDisposed() or sequence ~= UIEngine._searchSeq then return end
+                UIEngine:Search(query)
+            end)
+        end)
         self:MakeDraggable(main, titleBar)
         local strip = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 34), Size = UDim2.new(1, -16, 0, 24),
             ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X })
@@ -263,11 +272,21 @@ return function(services: any): any
                 ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index }
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab
             scope:Connect(button.Activated, function() UIEngine:SelectTab(tab.Name) end)
-            print("[B0Xaz][Trace] step start tab " .. entry.Name)
             local factory = load(entry.Path)
             local ok, result = pcall(factory, services, tab)
-            if not ok then error("Init Error in '" .. entry.Path .. "': " .. tostring(result)) end
-            print("[B0Xaz][Trace] step end tab " .. entry.Name)
+            if not ok then
+                -- One broken tab must never take the suite down: surface it inside its own page.
+                warn("[B0Xaz][UIEngine] Tab '" .. entry.Name .. "' failed: " .. tostring(result))
+                bus:Publish("Notify", "Tab failed", entry.Name .. ": " .. tostring(result), 6)
+                local sectionOk, sectionComponent = pcall(load, "src/UI/Components/Section.luau", services)
+                if sectionOk and type(sectionComponent) == "table" then
+                    local built, buildError = pcall(function()
+                        local panel = sectionComponent:Create(left, "Tab failed to load")
+                        sectionComponent:Info(panel, tostring(result))
+                    end)
+                    if not built then warn("[B0Xaz][UIEngine] Fallback section failed: " .. tostring(buildError)) end
+                end
+            end
         end
         local footer = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, Position = UDim2.new(0, 18, 1, -18), Size = UDim2.new(1, -96, 0, 14),
             Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
@@ -290,7 +309,16 @@ return function(services: any): any
         scope:Add(state:Observe("Settings.UIScale", resize))
         local function bindViewport()
             scope:Unbind("Viewport")
-            if workspace.CurrentCamera then scope:Bind("Viewport", scope:Connect(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), resize)) end
+            if workspace.CurrentCamera then
+                -- Register the connection only through the keyed slot; wrapping a scope:Connect here
+                -- double-registered it and leaked a stale entry on every camera swap.
+                local connection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+                    if scope:IsDisposed() then return end
+                    local ok, err = pcall(resize)
+                    if not ok then warn("[B0Xaz][Resize] " .. tostring(err)) end
+                end)
+                scope:Bind("Viewport", connection)
+            end
             resize()
         end
         scope:Connect(workspace:GetPropertyChangedSignal("CurrentCamera"), bindViewport); bindViewport()

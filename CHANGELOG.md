@@ -1,5 +1,62 @@
 # Changelog
 
+## 2.4.3 — 2026-09-11
+
+Menu responsiveness pass.
+
+- **Performance (major):** the event bus now dispatches synchronously. Every toggle, slider tick,
+  and per-frame state write publishes — previously each publish spawned one coroutine *per handler,
+  per event* (plus two disposer registrations), so dragging a slider at 100+ events/sec produced a
+  continuous coroutine/disposer churn. Handlers all run inline now (they never yielded anyway).
+- **Performance:** dropdown option buttons are built lazily on first open instead of eagerly at menu
+  construction, removing several hundred instances (plus strokes, hovers, and connections) from
+  menu-open cost across the ~40 dropdowns in the suite.
+- **Performance:** UI text/layout writes are change-detected (slider fill/value, toggle box,
+  keybind button, dropdown button, textbox) — every `Text`/`Size` write on an `AutomaticSize`
+  ancestor chain forces a full layout recompute, so identical writes are now skipped.
+- **Performance:** the menu search box is debounced to one full cross-tab search per window instead
+  of one reparenting pass per typed character.
+- **Performance:** the lighting engine's 5 Hz reassert now skips property writes whose values did
+  not change (a static preset was re-writing all 12 Lighting properties 5× per second, and slider
+  drags re-ran materials scans per mouse move; observers are coalesced to one pass per resumption).
+- **Performance:** same coalescing for the Prison Life door reapply — the phase-transparency slider
+  applied ~1,000 parts per mouse move, now at most once per resumption window.
+- **Hygiene:** boot tracing is gated behind an explicit flag (executor consoles serialise prints,
+  and the module loader traced every fetch/compile), and per-tab boot prints were removed.
+
+## 2.4.2 — 2026-09-11
+
+Correctness pass from a full code review.
+
+- **Fixed (major):** live transforms (CFrame, assembly velocities) were journaled like plain
+  properties and *restored* on feature shutdown, rubber-banding the player. Disabling CFrame
+  speed snapped you back to where you enabled it; any later override flush yanked you to a
+  pre-teleport spot; stopping flight restored a long-stale fall speed; stopping spinbot and
+  releasing an aim lock snapped the pose/camera backwards. The disposer gains
+  `ReleaseProperty`/`ReleaseObject`/`ReleaseProperties` (drop a lease with no write) and every
+  transform writer now releases on stop. Plain properties (`WalkSpeed`, `JumpPower`, gravity,
+  FOV, `PlatformStand`, `AutoRotate`, door/weapon values, …) still restore exactly as before;
+  the fling cycle keeps its intentional snap-back through its own scope.
+- **Fixed:** loading an older profile no longer clobbers a customised legacy fly/menu keybind
+  with the current default — the legacy↔current lockstep now mirrors only the representation
+  the profile did not actually store; when a profile stores both representations, the current
+  `Settings.Binds` entry wins and the legacy field follows it (applied symmetrically to the
+  fly bind and the menu bind).
+- **Fixed:** a runtime error in any single tab no longer fails the whole boot; the tab page now
+  shows an inline "failed to load" section and the rest of the suite starts normally.
+- **Fixed:** loading or importing a profile persists it to `_autoload.json` immediately, so a
+  relaunch restores what you actually loaded instead of the previous autosaved session.
+- **Fixed:** the scheduler circuit breaker no longer disables a job until restart — re-enabling
+  the owning feature closes the circuit and resets the strike count.
+- **Fixed:** refreshing a dropdown with unchanged options no longer closes an open menu
+  (player/roster/bookmark refreshes were collapsing live dropdowns).
+- **Hygiene:** stopped accumulating dead disposer entries — replaced scheduler jobs now remove
+  themselves from both the pipeline and the scope; the macro stops via a generation tag instead
+  of cancelling its worker; the viewport resize connection no longer double-registers on camera
+  swaps; the Prison Life phase/macro signal connections no longer double-register; the vignette
+  screen gui is now also forgotten from the master bag when cleared. Removed the dead
+  `_parentSlot` field and the unused `_bypass` parameter on `StateStore:Set`.
+
 ## 2.4.1 — 2026-09-08
 
 Menu performance pass. The Game tab refresh loop was the primary lag source: it

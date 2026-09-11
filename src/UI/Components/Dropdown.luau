@@ -21,32 +21,53 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 3) })
         dom:CreatePadding(menu, 4)
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-        local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false }
+        local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil,
+            -- Option buttons are built lazily on first open: eager construction across ~40 dropdowns
+            -- cost several hundred instances (plus strokes, hovers, and connections) of menu-open work.
+            _built = false, _dirty = true }
         handle.Normalize = function(value: any): any return if table.find(handle._options, value) then value else handle._options[1] end
         local function close() handle._open = false; menu.Visible = false; row.Size = UDim2.new(1, 0, 0, 38) end
-        function handle:_Render(value: any)
-            text.Text = label
-            button.Text = tostring(value or "No options")
-        end
-        function handle:Refresh(nextOptions: { any }, preserveSelection: boolean?)
-            close()
-            self._options = table.clone(nextOptions)
+        local function buildOptions()
+            handle._built, handle._dirty = true, false
             owner:Unbind("Options")
             for _, child in ipairs(menu:GetChildren()) do if child:IsA("GuiObject") then dom:DestroyInstance(child) end end
             local optionScope = owner:CreateChild("Options")
             owner:Bind("Options", optionScope)
-            for index, option in ipairs(self._options) do
+            for index, option in ipairs(handle._options) do
                 local choice = dom:Create("TextButton", { Parent = menu, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = index,
                     Text = tostring(option), TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
                 section:StyleButton(choice, optionScope)
                 optionScope:Connect(choice.Activated, function() if handle:Set(option) then close() end end)
             end
-            menu.Size = UDim2.new(1, 0, 0, math.min(7, #self._options) * 26 + 8)
-            local selection = if preserveSelection then self:Get() else nil
-            local nextValue = self.Normalize(selection)
+        end
+        local function reconcileSelection(preserveSelection: boolean?)
+            local selection = if preserveSelection then handle:Get() else nil
+            local nextValue = handle.Normalize(selection)
             if nextValue ~= nil then
-                if self.Path then self:Set(nextValue) else self:Set(nextValue, true) end
-            else self:Set(nil, true) end
+                if handle.Path then handle:Set(nextValue) else handle:Set(nextValue, true) end
+            else handle:Set(nil, true) end
+        end
+        local function sizeFor(count: number): number return math.min(7, count) * 26 + 8 end
+        function handle:_Render(value: any)
+            local nextText = tostring(value or "No options")
+            if button.Text ~= nextText then button.Text = nextText end
+        end
+        function handle:Refresh(nextOptions: { any }, preserveSelection: boolean?)
+            local parts = table.create(#nextOptions)
+            for index, option in ipairs(nextOptions) do parts[index] = tostring(option) end
+            local signature = table.concat(parts, "\0")
+            if signature == self._signature then
+                -- The visible list did not actually change: keep an open menu open and only
+                -- reconcile the current selection against the options.
+                reconcileSelection(preserveSelection)
+                return
+            end
+            self._signature = signature
+            close()
+            self._options = table.clone(nextOptions)
+            menu.Size = UDim2.new(1, 0, 0, sizeFor(#self._options))
+            if self._built then buildOptions() else self._dirty = true end
+            reconcileSelection(preserveSelection)
         end
         section:Bind(handle, defaultOrPath, callback)
         handle:Refresh(options, true)
@@ -55,6 +76,7 @@ return function(services: any): any
         end)) end
         owner:Connect(button.Activated, function()
             if handle._open then close(); return end
+            if not handle._built or handle._dirty then buildOptions() end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
             handle._open, menu.Visible = true, true
             row.Size = UDim2.new(1, 0, 0, 40 + menu.Size.Y.Offset + 4)

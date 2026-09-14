@@ -24,5 +24,17 @@ return function(_services: any?): any
         local registration = REGISTRY[placeId] or REGISTRY[universeId]
         return if registration then table.clone(registration) else nil
     end
+    -- Lists every registered adapter for manual selection; each clone carries the id it
+    -- resolved under so the picker can display and re-select stably.
+    function PluginRegistry:GetRegistrations(): { Registration }
+        local list = {}
+        for id, registration in pairs(REGISTRY) do
+            local entry = table.clone(registration)
+            entry.Id = id
+            table.insert(list, entry)
+        end
+        table.sort(list, function(a: any, b: any) return a.Name < b.Name end)
+        return list
+    end
     return PluginRegistry
 end

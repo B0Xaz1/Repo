@@ -12,7 +12,7 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild("PrisonLife.WeaponMods")
+    local scope = Disposer:CreateChild(manifest.Name .. ".WeaponMods")
     local LocalPlayer = Players.LocalPlayer
 
     local ABSENT = {} -- marker for module fields the table did not define before we touched it

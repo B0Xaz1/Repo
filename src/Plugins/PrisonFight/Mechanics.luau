@@ -1,10 +1,11 @@
 --!nonstrict
--- Prison Life plugin orchestrator. Every subsystem lives in its own service module; this
--- file only wires them together, starts them, builds the Game tab, and tears everything
--- down in reverse order.
+-- Prison Fight plugin orchestrator. The game is a Prison Life fan fork on the same map and
+-- models, so the plugin reuses the manifest-driven Prison Life services directly: every
+-- subsystem reads its data from the Prison table's manifest, keeping construction order
+-- irrelevant and behavior identical in shape to the Prison Life command center.
 --
--- Service layout:
---   Manifest           frozen game data (weapons, locations, obstacle folders)
+-- Service layout (modules shared from the Prison Life adapter):
+--   Manifest           frozen game data (weapons, locations, obstacle folders) - this plugin
 --   LocationService    tag+name discovery, waypoints, favorites, teleports
 --   ArmoryService      inventory and the game's pickup flow
 --   WeaponMods         gun stat tuning (attributes + GunStates) with immediate restore
@@ -15,7 +16,7 @@ return function(services: any): any
     local load = services:Get("Require")
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
 
-    local manifest = load("src/Plugins/PrisonLife/Manifest.luau", services)
+    local manifest = load("src/Plugins/PrisonFight/Manifest.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Plugin " .. manifest.Name)
 
     -- Shared registry handed to every service factory. Cross-service references resolve

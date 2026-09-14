@@ -17,7 +17,7 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = services:Get("Disposer"):CreateChild("PrisonLife.UI")
+    local scope = services:Get("Disposer"):CreateChild(manifest.Name .. ".UI")
 
     local UI = {}
 
@@ -283,10 +283,10 @@ return function(services: any, Prison: any?): any
 
         local function paint()
             local ok, err = pcall(renderStatus)
-            if not ok then warn("[B0Xaz][PrisonLife:UI] " .. tostring(err)) end
+            if not ok then warn("[B0Xaz][" .. manifest.Name .. ":UI] " .. tostring(err)) end
         end
         local accumulator = 0
-        local job = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeUI", 45, function(dt: number)
+        local job = TaskScheduler:RegisterHeartbeat("Game." .. manifest.Name:gsub("%s+", "") .. "UI", 45, function(dt: number)
             if not menuVisible or not gameTabActive then
                 accumulator = 0
                 return

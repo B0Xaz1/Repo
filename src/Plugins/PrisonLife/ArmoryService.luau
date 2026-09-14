@@ -10,7 +10,7 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild("PrisonLife.Armory")
+    local scope = Disposer:CreateChild(manifest.Name .. ".Armory")
     local LocalPlayer = Players.LocalPlayer
 
     local ArmoryService = {

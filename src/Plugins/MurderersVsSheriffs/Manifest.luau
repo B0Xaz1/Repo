@@ -1,0 +1,62 @@
+--!nonstrict
+-- Murderers VS Sheriffs DUELS data manifest. Duel rounds are tracked through the Match
+-- player attribute plus team membership, so every downstream service keys off those two
+-- signals exactly like the reference combat script. Remote paths and action timings are
+-- frozen here so the drivers stay in one readable place.
+return function(_services: any?): any
+    local manifest = {
+        Name = "Murderers VS Sheriffs DUELS",
+        PlaceIds = { 12355337193 },
+        UniverseIds = {},
+        TagPrefix = "B0XazMvSDuels",
+
+        -- Enemy scope: both players must share the same Match attribute value and sit on
+        -- different (non-nil) teams. Nil attributes or teams mean spectators or lobby.
+        Match = { Attribute = "Match" },
+
+        -- Aim part preference inside an enemy character; the root is HumanoidRootPart with
+        -- the aim part as fallback, matching the reference script's resolution order.
+        AimParts = { "Head", "UpperTorso", "HumanoidRootPart" },
+
+        -- Knife detection: KnifeTool tag, "Stab" in ActivatedAnimation, or "Knife" in
+        -- PulloutAnimation. Fire: remotes.Stab:FireServer(aimPart) after teleporting behind
+        -- the target and waiting a heartbeat.
+        Knife = {
+            Remote = { "Remotes", "Stab" },
+            Tag = "KnifeTool",
+            ActivatedField = "ActivatedAnimation", ActivatedNeedle = "Stab",
+            PulloutField = "PulloutAnimation", PulloutNeedle = "Knife",
+            BackOffset = 2.25, UpOffset = 0.4, Settle = 0.025,
+            DefaultCooldown = 0.45, MinCooldown = 0.05,
+        },
+
+        -- Revolver detection: GunTool tag or "Shoot" in ActivatedAnimation. Fire:
+        -- remotes.ShootGun:FireServer(origin, hitPosition, aimPart, hitPosition) where
+        -- origin is the top of our head. The tool's Cooldown attribute gates re-fire.
+        Gun = {
+            Remote = { "Remotes", "ShootGun" },
+            Tag = "GunTool",
+            ActivatedField = "ActivatedAnimation", ActivatedNeedle = "Shoot",
+            CooldownAttribute = "Cooldown",
+            BackOffset = 4, UpOffset = 0.4, Settle = 0.025,
+            DefaultCooldown = 2.55, MinCooldown = 0.05,
+        },
+
+        -- ESP overlay pacing and palette mirror the reference script (gamesense accent).
+        Esp = {
+            MaxVisuals = 16, Interval = 0.033, GuiName = "B0XazMvSEsp",
+            Accent = Color3.fromRGB(50, 119, 186),
+            Outline = Color3.fromRGB(20, 20, 20),
+            Text = Color3.fromRGB(239, 239, 239),
+        },
+    }
+
+    local function freezeDeep(value: any): any
+        if type(value) == "table" then
+            for _, child in pairs(value) do freezeDeep(child) end
+            table.freeze(value)
+        end
+        return value
+    end
+    return freezeDeep(manifest)
+end

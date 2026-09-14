@@ -1,17 +1,15 @@
 --!nonstrict
 -- Prison Fight plugin orchestrator. The game is a Prison Life fan fork on the same map and
--- models, so the plugin reuses the manifest-driven Prison Life services directly: every
--- subsystem reads its data from the Prison table's manifest, keeping construction order
--- irrelevant and behavior identical in shape to the Prison Life command center.
+-- models; this adapter intentionally exposes only two Prison Life subsystems: door phasing
+-- (WorldPhase) and the weapon switch macro (MacroService). WeaponMods stays loaded solely
+-- for its IsGunTool detection, which the macro relies on.
 --
 -- Service layout (modules shared from the Prison Life adapter):
---   Manifest           frozen game data (weapons, locations, obstacle folders) - this plugin
---   LocationService    tag+name discovery, waypoints, favorites, teleports
---   ArmoryService      inventory and the game's pickup flow
---   WeaponMods         gun stat tuning (attributes + GunStates) with immediate restore
---   WorldPhase         obstacle phasing (doors, glass, cells, fences, gates)
---   MacroService       gun switch macro state machine
---   PrisonLifeUI       the Game tab sections
+--   Manifest        frozen game data (guns for detection, obstacle containers) - this plugin
+--   WorldPhase      obstacle phasing (doors, glass, cells, fences, gates)
+--   WeaponMods      gun detection only; no tuning controls are mounted here
+--   MacroService    gun switch macro state machine
+--   PrisonFightUI   the Game tab sections
 return function(services: any): any
     local load = services:Get("Require")
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
@@ -26,12 +24,10 @@ return function(services: any): any
         return load("src/Plugins/PrisonLife/" .. name .. ".luau", services, Prison)
     end
 
-    Prison.Locations = use("LocationService")
-    Prison.Armory = use("ArmoryService")
-    Prison.WeaponMods = use("WeaponMods")
     Prison.WorldPhase = use("WorldPhase")
+    Prison.WeaponMods = use("WeaponMods")
     Prison.Macro = use("MacroService")
-    Prison.UI = use("PrisonLifeUI")
+    Prison.UI = load("src/Plugins/PrisonFight/PrisonFightUI.luau", services, Prison)
 
     -- Services stays public so tooling can introspect the live registry.
     local Plugin = { Name = manifest.Name, Services = Prison, _initialized = false }
@@ -40,26 +36,21 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
 
-        -- Explicit defaults instead of values created only when a control is touched.
+        -- Only what this adapter drives: phasing and the macro.
         local defaults: any = {
-            NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
-            FastFireDelay = 0.001, ForceRangeValue = 10000,
             DoorPhase = false, PhaseTransparency = 0.65,
             FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
-            FavoriteLocations = {},
             StopAutomationOnRespawn = true,
         }
         for path, value in pairs(defaults) do
             if StateStore:Get("Game." .. path) == nil then StateStore:Set("Game." .. path, value) end
         end
 
-        Prison.Locations:Initialize()
-        Prison.Armory:Initialize()
         Prison.WorldPhase:Initialize()
         Prison.WeaponMods:Initialize()
         Prison.Macro:Initialize()
 
-        EventBus:Publish("Notify", manifest.Name, "Command center ready. Armory, doors, macro, and teleports are live.")
+        EventBus:Publish("Notify", manifest.Name, "Command center ready. Door phasing and the weapon macro are live.")
     end
 
     function Plugin:BuildUI(tab: any)
@@ -71,8 +62,6 @@ return function(services: any): any
         Prison.Macro:Stop("plugin destroyed")
         Prison.WorldPhase:Destroy()
         Prison.WeaponMods:Destroy()
-        Prison.Armory:Destroy()
-        Prison.Locations:Destroy()
         Prison.UI:Destroy()
         scope:Dispose()
     end

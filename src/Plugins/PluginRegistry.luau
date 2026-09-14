@@ -9,11 +9,11 @@ local REGISTRY: { [number]: Registration } = {
         Description = "Prison Life command center: roles, armory, routes, doors, macros, and diagnostics",
     },
     -- Prison Fight is a Prison Life fan fork on the same map and models; its adapter
-    -- reuses the manifest-driven Prison Life services with its own data manifest.
+    -- deliberately exposes only door phasing and the weapon switch macro from that stack.
     [135787580685512] = {
         Name = "Prison Fight",
         PluginModule = "src/Plugins/PrisonFight/Mechanics.luau",
-        Description = "Prison Fight gunfight adapter: givers, doors, macro, and teleports on the shared prison map",
+        Description = "Prison Fight adapter: door phasing and the weapon switch macro on the shared prison map",
     },
     -- Add one place OR universe entry here after verifying its manifest in your own test place:
     -- [123456789] = { Name = "Example Game", PluginModule = "src/Plugins/ExampleGame/Mechanics.luau", Description = "Opt-in test-place mechanics" },

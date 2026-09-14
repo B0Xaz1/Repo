@@ -50,11 +50,14 @@ return function(services: any, Duel: any?): any
         return nil
     end
 
-    local function hasKnife(): boolean
+    local function getKnife(): Tool?
         return iterateTools(function(tool: Instance)
             return toolMatches(tool, knifeConfig.Tag, knifeConfig.ActivatedField, knifeConfig.ActivatedNeedle)
                 or string.find(tostring(tool:GetAttribute(knifeConfig.PulloutField) or ""), knifeConfig.PulloutNeedle, 1, true) ~= nil
-        end) ~= nil
+        end)
+    end
+    local function hasKnife(): boolean
+        return getKnife() ~= nil
     end
     local function getGun(): Tool?
         return iterateTools(function(tool: Instance)
@@ -62,8 +65,9 @@ return function(services: any, Duel: any?): any
         end)
     end
 
-    -- Engage pattern: blink behind the target along its look vector, fire, restore. The
-    -- pcall keeps any remote failure contained, and the CFrame restore is raw (no tween).
+    -- Engage pattern: blink behind the target along its look vector, simulate the click,
+    -- fire, restore. The pcall keeps any remote failure contained, and the CFrame restore
+    -- is raw (no tween).
     local function knifeHit(target: any)
         Attack._knifeBusy = true
         local mine = LocalPlayer.Character
@@ -72,6 +76,13 @@ return function(services: any, Duel: any?): any
             local original = myRoot.CFrame
             pcall(function()
                 myRoot.CFrame = CFrame.lookAt(target.Root.Position - target.Root.CFrame.LookVector * knifeConfig.BackOffset + Vector3.new(0, knifeConfig.UpOffset, 0), target.Root.Position)
+                -- Simulated click: Tool:Activate() raises the knife's Activated signal the
+                -- same way a real click does, but the player's actual mouse is untouched
+                -- (no VirtualInputManager, no focus steal, no cursor side effects).
+                if knifeConfig.SimulateClick then
+                    local knife = getKnife()
+                    if knife then pcall(function() knife:Activate() end) end
+                end
                 RunService.Heartbeat:Wait()
                 Attack._knifeRemote:FireServer(target.Part)
                 task.wait(knifeConfig.Settle)

@@ -19,8 +19,9 @@ return function(_services: any?): any
         AimParts = { "Head", "UpperTorso", "HumanoidRootPart" },
 
         -- Knife detection: KnifeTool tag, "Stab" in ActivatedAnimation, or "Knife" in
-        -- PulloutAnimation. Fire: remotes.Stab:FireServer(aimPart) after teleporting behind
-        -- the target and waiting a heartbeat.
+        -- PulloutAnimation. Engage: teleport behind the target, simulate a client-side
+        -- click with Tool:Activate() (pure script-level; no synthetic mouse input), wait a
+        -- heartbeat, then fire remotes.Stab:FireServer(aimPart).
         Knife = {
             Remote = { "Remotes", "Stab" },
             Tag = "KnifeTool",
@@ -28,6 +29,7 @@ return function(_services: any?): any
             PulloutField = "PulloutAnimation", PulloutNeedle = "Knife",
             BackOffset = 2.25, UpOffset = 0.4, Settle = 0.025,
             DefaultCooldown = 0.45, MinCooldown = 0.05,
+            SimulateClick = true,
         },
 
         -- Revolver detection: GunTool tag or "Shoot" in ActivatedAnimation. Fire:

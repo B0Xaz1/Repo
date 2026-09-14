@@ -59,7 +59,7 @@ return function(services: any, Duel: any?): any
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, fires the game's own remote, and restores your position. Only players with the same Match attribute on the enemy team are targets.")
+        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. Only players with the same Match attribute on the enemy team are targets.")
 
         ------------------------------------------------------------------
         -- 2. Player ESP (right)

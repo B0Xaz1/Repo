@@ -10,7 +10,6 @@
 --   WeaponMods         gun stat tuning (attributes + GunStates) with immediate restore
 --   WorldPhase         obstacle phasing (doors, glass, cells, fences, gates)
 --   MacroService       gun switch macro state machine
---   PlayerWatchService player list with distances, spectate, whitelist
 --   PrisonLifeUI       the Game tab sections
 return function(services: any): any
     local load = services:Get("Require")
@@ -31,7 +30,6 @@ return function(services: any): any
     Prison.WeaponMods = use("WeaponMods")
     Prison.WorldPhase = use("WorldPhase")
     Prison.Macro = use("MacroService")
-    Prison.PlayerWatch = use("PlayerWatchService")
     Prison.UI = use("PrisonLifeUI")
 
     -- Services stays public so tooling can introspect the live registry.

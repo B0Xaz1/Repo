@@ -3,6 +3,7 @@ local BIND_TARGETS = {
     { Key = "Fly", Label = "Flight", Path = "Movement.FlyEnabled" },
     { Key = "Fullbright", Label = "Fullbright", Path = "Visuals.Fullbright" },
     { Key = "ESP", Label = "ESP", Path = "ESP.Enabled" }, { Key = "Chams", Label = "Chams", Path = "Chams.Enabled" },
+    { Key = "Hitboxes", Label = "Hitboxes", Path = "Extras.Hitbox.Enabled" },
     { Key = "Aimbot", Label = "Aimbot", Path = "Aimbot.Enabled" },
     { Key = "SpeedLines", Label = "Speed lines", Path = "Extras.SpeedLines" },
     { Key = "Menu", Label = "Menu", Path = "Settings.MenuVisible" },

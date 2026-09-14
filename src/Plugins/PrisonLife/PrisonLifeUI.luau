@@ -1,7 +1,7 @@
 --!nonstrict
 -- Prison Life Game tab: a lean control center.
--- Left: Armory / Weapon mods.
--- Right: Doors & obstacles / Weapon macro / Map locations / Player watch.
+-- Left: Armory (MP5 / Remington 870 / AK-47 buttons) / Weapon mods.
+-- Right: Doors & obstacles / Weapon macro / Map locations.
 return function(services: any, Prison: any?): any
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
@@ -14,7 +14,6 @@ return function(services: any, Prison: any?): any
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local ThemeEngine, DOM = services:Get("ThemeEngine"), services:Get("DOM")
     local TaskScheduler = services:Get("TaskScheduler")
-    local PlayerTracker = services:Get("PlayerTracker")
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
@@ -54,28 +53,35 @@ return function(services: any, Prison: any?): any
         local labels = {}
 
         ------------------------------------------------------------------
-        -- 1. Armory (left)
+        -- 1. Armory (left): three giver buttons, one per ranged guest gun.
+        -- Pickup is requested through the game's own ITEMPICKUP flow first; if the
+        -- invoke comes back rejected the player is teleported to the giver spawn and
+        -- the same request is repeated once at ground level.
         ------------------------------------------------------------------
         local armorySec = section:Create(tab.LeftCol, "Armory")
         labels.armory = createInfoLabel(armorySec, "Inventory: ...")
         labels.armory.TextWrapped = true
-        local weaponNames = {}
-        for _, weapon in ipairs(manifest.Weapons) do table.insert(weaponNames, weapon.Name) end
-        local weaponPicker = dropdown(armorySec, "Weapon", nil, weaponNames)
-        textbox:CreateButton(armorySec, "Go to weapon", function()
-            return Prison.Armory and Prison.Armory:GoToWeapon(weaponPicker:Get() or "")
+        local function obtainWeapon(name: string): (boolean, string)
+            if not Prison.Armory then return false, "Armory unavailable" end
+            local ok, message = Prison.Armory:Pickup(name)
+            if ok then return true, message end
+            local traveled, travelMessage = Prison.Armory:GoToWeapon(name)
+            if not traveled then return false, travelMessage end
+            return Prison.Armory:Pickup(name)
+        end
+        textbox:CreateButton(armorySec, "Get MP5", function()
+            return obtainWeapon("MP5")
         end)
-        textbox:CreateButton(armorySec, "Equip if owned", function()
-            return Prison.Armory and Prison.Armory:Equip(weaponPicker:Get() or "")
+        textbox:CreateButton(armorySec, "Get Remington 870", function()
+            return obtainWeapon("Remington 870")
         end)
-        textbox:CreateButton(armorySec, "Request pickup (ItemHandler)", function()
-            return Prison.Armory and Prison.Armory:Pickup(weaponPicker:Get() or "")
+        textbox:CreateButton(armorySec, "Get AK-47", function()
+            return obtainWeapon("AK-47")
         end)
-        textbox:CreateButton(armorySec, "Refresh weapon scan", function()
-            if Prison.Armory then Prison.Armory:Scan() return true, "Weapon scan refreshed" end
-            return false, "Armory unavailable"
+        textbox:CreateButton(armorySec, "Arm all three", function()
+            return Prison.Armory and Prison.Armory:ArmAll()
         end)
-        section:Info(armorySec, "Pickup uses the game's own ITEMPICKUP flow. Spawn coordinates are fallbacks; the armory scan reads your live backpack and character.")
+        section:Info(armorySec, "Request runs through the game's own ITEMPICKUP flow; a rejected invoke falls back to the spawn teleport plus a second request. Granted guns land in the backpack.")
 
         ------------------------------------------------------------------
         -- 2. Weapon Mods (left)
@@ -199,43 +205,12 @@ return function(services: any, Prison: any?): any
         section:Info(routesSec, "Locations resolve from tagged map objects first, then named map objects, then manifest coordinates. Waypoints are session-only.")
 
         ------------------------------------------------------------------
-        -- 6. Player Watch (right)
-        ------------------------------------------------------------------
-        local watchSec = section:Create(tab.RightCol, "Player Watch")
-        labels.players = createInfoLabel(watchSec, "Players: ...")
-        labels.players.TextWrapped = true
-        local watchPicker = dropdown(watchSec, "Watched player", nil, {})
-        textbox:CreateButton(watchSec, "Spectate player", function()
-            if not Prison.PlayerWatch then return false, "Player watch unavailable" end
-            local player = Prison.PlayerWatch:ResolveWatchName(watchPicker:Get() or "")
-            if not player then return false, "Select a player who is still in the server" end
-            Prison.PlayerWatch:SetSelectedByName(player.Name)
-            return PlayerTracker:StartSpectate(player)
-        end)
-        textbox:CreateButton(watchSec, "Stop spectating", function()
-            PlayerTracker:StopSpectate()
-            return true, "Camera subject restored"
-        end)
-        textbox:CreateButton(watchSec, "Whitelist player", function()
-            if not Prison.PlayerWatch then return false, "Player watch unavailable" end
-            local player = Prison.PlayerWatch:ResolveWatchName(watchPicker:Get() or "")
-            return PlayerTracker:AddWhitelist(player)
-        end)
-        textbox:CreateButton(watchSec, "Copy username", function()
-            if not Prison.PlayerWatch then return false, "Player watch unavailable" end
-            local player = Prison.PlayerWatch:ResolveWatchName(watchPicker:Get() or "")
-            return PlayerTracker:CopyName(player)
-        end)
-        labels.selected = createInfoLabel(watchSec, "Selected: ...")
-
-        ------------------------------------------------------------------
         -- Low-rate refresh job for every dynamic label. Rendering is gated to run only
         -- while the menu is open AND the Game tab is the active page: each label write
         -- cascades through the AutomaticSize layout chain, so painting an invisible or
         -- background tab is pure waste. Returning to the tab forces one immediate paint.
         ------------------------------------------------------------------
         local REFRESH_INTERVAL = 0.5
-        local watchSignature = ""
         local armorySignature = ""
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
         local gameTabActive = false
@@ -303,35 +278,6 @@ return function(services: any, Prison: any?): any
                 end
                 local favorites = Prison.Locations:GetFavoriteNames()
                 setLabel(labels.favorites, "Favorites: " .. (if #favorites > 0 then table.concat(favorites, ", ") else "none"))
-            end
-
-            if Prison.PlayerWatch then
-                local entries = Prison.PlayerWatch:GetEntries()
-                local lines = {}
-                for index, entry in ipairs(entries) do
-                    if index <= 8 then
-                        table.insert(lines, string.format("%s  %s  %s", entry.Player.Name, fmtDistance(entry.Distance), entry.Tool))
-                    end
-                end
-                if #entries > 8 then table.insert(lines, "+" .. tostring(#entries - 8) .. " more") end
-                labels.players.Text = "  " .. (if #lines > 0 then table.concat(lines, "\n  ") else "No other players")
-                labels.players.Size = UDim2.new(1, -8, 0, 16 * math.max(1, #lines))
-
-                local summary = Prison.PlayerWatch:GetSelectedSummary()
-                if summary then
-                    setLabel(labels.selected, "Selected: " .. summary.Player.Name
-                        .. "  " .. fmtDistance(summary.Distance)
-                        .. "  Tool: " .. summary.Tool)
-                else
-                    setLabel(labels.selected, "Selected: -")
-                end
-
-                local names = Prison.PlayerWatch:GetWatchNames()
-                local signature = table.concat(names, "|")
-                if signature ~= watchSignature then
-                    watchSignature = signature
-                    watchPicker:Refresh(names, true)
-                end
             end
         end
 

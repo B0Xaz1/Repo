@@ -7,6 +7,7 @@
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
+    local EventBus = services:Get("EventBus")
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -157,40 +158,56 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Check if any other player is occupying a position within leeway
-    function AutoQueue:IsPositionOccupied(pos: Vector3, leeway: number?): boolean
-        local threshold = leeway or LEEWAY
+    -- Mode capacity limits
+    local MODE_CAPACITY: { [string]: number } = {
+        ["1v1"] = 1,
+        ["2v2"] = 2,
+        ["3v3"] = 3,
+        ["4v4"] = 4,
+    }
+
+    -- Count how many other players are currently occupying a pad position
+    -- Uses a cylinder/spherical check around pos with radius of 6 studs
+    function AutoQueue:CountOccupants(pos: Vector3, radius: number?): number
+        local checkRadius = radius or 6.0
+        local count = 0
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer then
                 local char = player.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                if root then
-                    local dist = (root.Position - pos).Magnitude
-                    if dist <= threshold then
-                        return true
-                    end
-                    local horizDist = Vector2.new(root.Position.X - pos.X, root.Position.Z - pos.Z).Magnitude
-                    local vertDist = math.abs(root.Position.Y - pos.Y)
-                    if horizDist <= threshold and vertDist <= 4.0 then
-                        return true
+                local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
+                if root and root:IsA("BasePart") then
+                    local pPos = root.Position
+                    local horizDist = Vector2.new(pPos.X - pos.X, pPos.Z - pos.Z).Magnitude
+                    local vertDist = math.abs(pPos.Y - pos.Y)
+                    if horizDist <= checkRadius and vertDist <= 8.0 then
+                        count += 1
                     end
                 end
             end
         end
-        return false
+        return count
     end
 
-    -- Determine target position based on chosen mode and occupancy
-    function AutoQueue:GetBestPosition(mode: string): (Vector3, number)
+    -- Determine target position based on chosen mode and strand capacity
+    -- Returns (targetPosition, strandIndex, isFull)
+    function AutoQueue:GetBestPosition(mode: string): (Vector3?, number?, boolean)
         local pair = QUEUE_POSITIONS[mode] or QUEUE_POSITIONS["1v1"]
         local pos1, pos2 = pair[1], pair[2]
+        local maxPerStrand = MODE_CAPACITY[mode] or 1
 
-        -- If pos1 is occupied by another player within leeway, use pos2
-        if self:IsPositionOccupied(pos1, LEEWAY) then
-            return pos2, 2
-        else
-            return pos1, 1
+        local count1 = self:CountOccupants(pos1, 6.0)
+        if count1 < maxPerStrand then
+            return pos1, 1, false
         end
+
+        -- Strand 1 is full, check strand 2
+        local count2 = self:CountOccupants(pos2, 6.0)
+        if count2 < maxPerStrand then
+            return pos2, 2, false
+        end
+
+        -- Both strands are full (reached or exceeded mode capacity)
+        return nil, nil, true
     end
 
     -- Teleport player to the destination (same logic that executes on "Queue now")
@@ -201,11 +218,28 @@ return function(services: any, Duel: any?): any
             return false, "No HumanoidRootPart found"
         end
 
-        local targetPos, strandIndex = self:GetBestPosition(mode)
+        local targetPos, strandIndex, isFull = self:GetBestPosition(mode)
+
+        if isFull or not targetPos or not strandIndex then
+            local maxPerStrand = MODE_CAPACITY[mode] or 1
+            local fullMsg = "No available " .. mode .. " left"
+            self._lastStatusMessage = fullMsg
+            if EventBus then
+                EventBus:Publish("Notify", "Auto Queue", fullMsg, 4)
+            end
+            return false, fullMsg
+        end
+
+        if strandIndex == 2 then
+            if EventBus then
+                EventBus:Publish("Notify", "Auto Queue", "Stand 1 is full going to next one", 3)
+            end
+        end
+
         local currentDist = (root.Position - targetPos).Magnitude
 
-        -- If already at this strand position within leeway, we are holding it
-        if currentDist <= LEEWAY then
+        -- If already at this strand position, we are holding it
+        if currentDist <= 3.5 then
             self._lastStatusMessage = "Holding " .. mode .. " strand #" .. strandIndex
             return true, self._lastStatusMessage
         end
@@ -220,7 +254,7 @@ return function(services: any, Duel: any?): any
             root.AssemblyAngularVelocity = Vector3.zero
         end)
 
-        self._lastStatusMessage = "Moved to " .. mode .. " strand #" .. strandIndex .. (strandIndex == 2 and " (strand 1 occupied)" or "")
+        self._lastStatusMessage = "Moved to " .. mode .. " strand #" .. strandIndex .. (strandIndex == 2 and " (strand 1 full)" or "")
         return true, self._lastStatusMessage
     end
 
@@ -331,14 +365,22 @@ return function(services: any, Duel: any?): any
         -- Every step: if the player is touching Pier, trigger the exact queue logic
         if AutoQueue:IsTouchingPier() then
             local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
-            local bestPos, strandIdx = AutoQueue:GetBestPosition(mode)
+            local bestPos, strandIdx, isFull = AutoQueue:GetBestPosition(mode)
+
+            if isFull or not bestPos then
+                if now - AutoQueue._lastAttempt >= 1.5 then
+                    AutoQueue._lastAttempt = now
+                    AutoQueue:TriggerQueue()
+                end
+                return
+            end
 
             local char = LocalPlayer and LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
 
             -- If touching Pier and not yet on the best position, trigger Queue Now logic
-            if distToTarget > LEEWAY then
+            if distToTarget > 3.5 then
                 if now - AutoQueue._lastAttempt >= 0.3 then
                     AutoQueue._lastAttempt = now
                     AutoQueue._state = "Queued"

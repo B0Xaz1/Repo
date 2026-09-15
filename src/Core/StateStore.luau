@@ -42,6 +42,10 @@ local DEFAULT_SETTINGS: any = {
         DoorPhase = false, PhaseTransparency = 0.65,
         -- Weapon macro
         FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
+        -- MVS Duels
+        MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
+        MvSRevolver = false, MvSGunCooldown = 2.55,
+        MvSAutoQueue = false, MvSQueueMode = "1v1", MvSQueueDelay = 3.0,
         -- Locations
         FavoriteLocations = {},
         StopAutomationOnRespawn = true,
@@ -68,6 +72,7 @@ local ALIASES: { [string]: string } = {
 local GAME_BOOLEAN_FLAGS: { string } = {
     "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
     "Game.DoorPhase", "Game.FakeMacro",
+    "Game.MvSEsp", "Game.MvSKnife", "Game.MvSRevolver", "Game.MvSAutoQueue",
 }
 
 local function clone(value: any): any

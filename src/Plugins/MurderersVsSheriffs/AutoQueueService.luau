@@ -131,17 +131,17 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Check if player is currently in an active duel match
+    -- Check if player is currently in an active duel match.
+    -- In lobby, players often have Match = nil, "0", "Lobby", or have no non-nil opposing team.
     function AutoQueue:IsInMatch(): boolean
         if not LocalPlayer then return false end
-        local matchVal = LocalPlayer:GetAttribute(matchAttribute)
-        if matchVal ~= nil and tostring(matchVal) ~= "" and tostring(matchVal) ~= "0" and tostring(matchVal) ~= "Lobby" then
-            return true
-        end
+        -- If player is on or near the pier, they are definitively in the lobby, never in a match.
+        if self:IsOnPier() then return false end
 
-        if Duel.Targets and Duel.Targets.GetOpponents then
-            local opponents = Duel.Targets:GetOpponents()
-            if opponents and #opponents > 0 then
+        local matchVal = LocalPlayer:GetAttribute(matchAttribute)
+        if matchVal ~= nil and tostring(matchVal) ~= "" and tostring(matchVal) ~= "0" and tostring(matchVal):lower() ~= "lobby" then
+            -- Verify team status: spectators or lobby players are not fighting
+            if LocalPlayer.Team ~= nil and tostring(LocalPlayer.Team.Name):lower() ~= "spectator" and tostring(LocalPlayer.Team.Name):lower() ~= "lobby" then
                 return true
             end
         end

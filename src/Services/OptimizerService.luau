@@ -86,8 +86,8 @@ return function(services: any): any
     end
 
     function OptimizerService:FlushMemory(): (boolean, string)
-        pcall(function() collectgarbage("collect") end)
-        return ok, if ok then "Garbage collection requested" else "This client restricts forced collection; Lua will collect automatically"
+        local collected = pcall(function() collectgarbage("collect") end)
+        return collected, if collected then "Garbage collection requested" else "This client restricts forced collection; Lua will collect automatically"
     end
 
     function OptimizerService:Initialize()

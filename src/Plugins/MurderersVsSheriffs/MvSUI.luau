@@ -8,6 +8,7 @@ return function(services: any, Duel: any?): any
     local toggle = load("src/UI/Components/Toggle.luau", services)
     local slider = load("src/UI/Components/Slider.luau", services)
     local textbox = load("src/UI/Components/Textbox.luau", services)
+    local dropdown = load("src/UI/Components/Dropdown.luau", services)
 
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local ThemeEngine, DOM = services:Get("ThemeEngine"), services:Get("DOM")
@@ -70,6 +71,24 @@ return function(services: any, Duel: any?): any
         section:Info(espSec, "2D boxes, health bars, and names for match-scoped enemies, refreshed at ~30 fps with a hard cap of sixteen on-screen targets.")
 
         ------------------------------------------------------------------
+        -- 3. Auto Queue (right)
+        ------------------------------------------------------------------
+        local queueModes = (manifest.Queue and manifest.Queue.Modes) or { "1v1", "2v2", "3v3", "4v4" }
+        local queueSec = section:Create(tab.RightCol, "Auto Queue")
+        toggle(queueSec, "Auto queue", "Game.MvSAutoQueue")
+        dropdown:Create(queueSec, "Queue mode", "Game.MvSQueueMode", queueModes)
+        slider(queueSec, "Queue retry delay", "Game.MvSQueueDelay", 1.0, 10.0, 0.5, "s")
+        labels.queue = createInfoLabel(queueSec, "AutoQueue: off")
+        textbox:CreateButton(queueSec, "Queue now", function()
+            if Duel.AutoQueue then
+                local success, msg = Duel.AutoQueue:TriggerQueue()
+                return success, msg
+            end
+            return false, "AutoQueue not loaded"
+        end)
+        section:Info(queueSec, "Automates queue entry and re-queuing between matches. Automatically pauses while you are in an active duel and queues back up upon returning to the lobby.")
+
+        ------------------------------------------------------------------
         -- Low-rate refresh job, gated to run only while the menu is open and the Game tab
         -- is active: label writes cascade through the AutomaticSize layout chain.
         ------------------------------------------------------------------
@@ -96,6 +115,10 @@ return function(services: any, Duel: any?): any
                 local status = Duel.Attack:GetStatus()
                 setLabel(labels.combat, "Drivers: knife " .. status.Knife .. ", revolver " .. status.Gun
                     .. "  Enemies in match: " .. tostring(status.Enemies))
+            end
+            if Duel.AutoQueue then
+                local qStatus = Duel.AutoQueue:GetStatus()
+                setLabel(labels.queue, "AutoQueue: " .. qStatus.State .. " (" .. qStatus.Mode .. ") - " .. qStatus.Message)
             end
         end
 

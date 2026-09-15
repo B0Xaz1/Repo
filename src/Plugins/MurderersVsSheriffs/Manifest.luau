@@ -51,6 +51,15 @@ return function(_services: any?): any
             Outline = Color3.fromRGB(20, 20, 20),
             Text = Color3.fromRGB(239, 239, 239),
         },
+
+        -- Auto-queue settings and remote discovery targets
+        Queue = {
+            DefaultMode = "1v1",
+            Modes = { "1v1", "2v2", "3v3", "4v4" },
+            DefaultDelay = 3.0,
+            MinDelay = 0.5,
+            RemoteNames = { "Queue", "QueueRemote", "JoinQueue", "EnterQueue", "Matchmaking", "Queue1v1", "QueueDuel" },
+        },
     }
 
     local function freezeDeep(value: any): any

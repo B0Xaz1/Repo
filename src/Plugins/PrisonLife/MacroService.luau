@@ -57,8 +57,8 @@ return function(services: any, Prison: any?): any
         local index = if equipped then table.find(tools, equipped) or 0 else 0
         local nextTool = tools[(index % #tools) + 1]
         if nextTool and nextTool ~= equipped then
-            pcall(function() assets.Humanoid:EquipTool(nextTool) end)
-            if not ok then return nil end
+            local equippedNext = pcall(function() assets.Humanoid:EquipTool(nextTool) end)
+            if not equippedNext then return nil end
         end
         self._nextTool = nextTool and nextTool.Name or "None"
         self._cycles += 1

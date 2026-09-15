@@ -1,9 +1,8 @@
 --!nonstrict
 -- AutoQueueService: automated queue entry and match detection for Murderers VS Sheriffs DUELS.
--- When the player is on any part in Workspace.Lobby.Environment.Pier (or in the lobby),
--- it teleports them to their selected duel strand position (1v1, 2v2, 3v3, 4v4).
--- It checks if any other player is occupying Position 1 (within a 1 stud leeway) and if so,
--- moves to Position 2 (the second strand). It also handles remote and pad triggers as fallback.
+-- Triggers whenever the player touches ANY part/meshpart in Workspace.Lobby.Environment.Pier.
+-- It checks if Position 1 of the chosen mode (1v1, 2v2, 3v3, 4v4) is occupied by any player
+-- within a 1 stud leeway. If occupied, it sends the player to Position 2 (the second strand).
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
@@ -21,13 +20,14 @@ return function(services: any, Duel: any?): any
 
     local AutoQueue = {
         _running = false,
-        _state = "Idle", -- "Idle" | "Queued" | "InMatch" | "Searching"
+        _state = "Idle", -- "Idle" | "Active" | "Queued" | "InMatch"
         _lastAttempt = 0,
         _lastMatchValue = nil :: any,
         _selectedMode = "1v1",
         _queueAttempts = 0,
         _matchesCount = 0,
         _lastStatusMessage = "Ready",
+        _charScope = nil :: any,
     }
 
     -- Exact mode strand positions with +2 studs Y elevation
@@ -88,42 +88,67 @@ return function(services: any, Duel: any?): any
         return node
     end
 
-    -- Check if player is on any part inside Workspace.Lobby.Environment.Pier
-    function AutoQueue:IsOnPier(): boolean
+    -- Fast check to see if a part is inside Workspace.Lobby.Environment.Pier
+    local function isPierPart(part: Instance?): boolean
+        if not part then return false end
+        local pier = getPierFolder()
+        if pier and part:IsDescendantOf(pier) then
+            return true
+        end
+        return false
+    end
+
+    -- Check if player is on or physically touching any part inside Workspace.Lobby.Environment.Pier
+    function AutoQueue:IsTouchingPier(): boolean
         local char = LocalPlayer and LocalPlayer.Character
         if not char then return false end
         local root = char:FindFirstChild("HumanoidRootPart")
         local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not root or not humanoid then return false end
+        if not root then return false end
 
         local pier = getPierFolder()
+        if not pier then return false end
 
-        -- 1. Check FloorMaterial / FloorPart if available
-        local floorPart = humanoid.FloorPart
-        if floorPart and pier and floorPart:IsDescendantOf(pier) then
+        -- 1. Check humanoid FloorPart
+        if humanoid and humanoid.FloorPart and humanoid.FloorPart:IsDescendantOf(pier) then
             return true
         end
 
-        -- 2. Raycast downwards from HumanoidRootPart to see if touching any part inside Pier
-        local origin = root.Position
-        local direction = Vector3.new(0, -10, 0)
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Exclude
-        params.FilterDescendantsInstances = { char }
-        local hit = workspace:Raycast(origin, direction, params)
-        if hit and hit.Instance and pier and hit.Instance:IsDescendantOf(pier) then
-            return true
-        end
+        -- 2. Check GetPartsInPart on character limbs/feet/root
+        pcall(function()
+            local overlap = OverlapParams.new()
+            overlap.FilterType = Enum.RaycastFilterType.Include
+            overlap.FilterDescendantsInstances = { pier }
 
-        -- 3. Proximity / bounding check to Pier parts
-        if pier then
-            for _, child in ipairs(pier:GetDescendants()) do
-                if child:IsA("BasePart") then
-                    local diff = (child.Position - root.Position)
-                    local halfSize = child.Size * 0.5 + Vector3.new(4, 8, 4)
-                    if math.abs(diff.X) <= halfSize.X and math.abs(diff.Y) <= halfSize.Y and math.abs(diff.Z) <= halfSize.Z then
+            for _, partName in ipairs({ "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso", "LeftLeg", "RightLeg" }) do
+                local bodyPart = char:FindFirstChild(partName)
+                if bodyPart and bodyPart:IsA("BasePart") then
+                    local touching = workspace:GetPartsInPart(bodyPart, overlap)
+                    if touching and #touching > 0 then
                         return true
                     end
+                end
+            end
+        end)
+
+        -- 3. Raycast downwards directly beneath the character
+        local origin = root.Position
+        local direction = Vector3.new(0, -6, 0)
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Include
+        params.FilterDescendantsInstances = { pier }
+        local hit = workspace:Raycast(origin, direction, params)
+        if hit and hit.Instance then
+            return true
+        end
+
+        -- 4. Bounding box check against Pier parts
+        for _, child in ipairs(pier:GetDescendants()) do
+            if child:IsA("BasePart") then
+                local diff = (child.Position - root.Position)
+                local halfSize = child.Size * 0.5 + Vector3.new(2, 4, 2)
+                if math.abs(diff.X) <= halfSize.X and math.abs(diff.Y) <= halfSize.Y and math.abs(diff.Z) <= halfSize.Z then
+                    return true
                 end
             end
         end
@@ -131,16 +156,18 @@ return function(services: any, Duel: any?): any
         return false
     end
 
+    -- Backward compatibility alias
+    function AutoQueue:IsOnPier(): boolean
+        return self:IsTouchingPier()
+    end
+
     -- Check if player is currently in an active duel match.
-    -- In lobby, players often have Match = nil, "0", "Lobby", or have no non-nil opposing team.
     function AutoQueue:IsInMatch(): boolean
         if not LocalPlayer then return false end
-        -- If player is on or near the pier, they are definitively in the lobby, never in a match.
-        if self:IsOnPier() then return false end
+        if self:IsTouchingPier() then return false end
 
         local matchVal = LocalPlayer:GetAttribute(matchAttribute)
         if matchVal ~= nil and tostring(matchVal) ~= "" and tostring(matchVal) ~= "0" and tostring(matchVal):lower() ~= "lobby" then
-            -- Verify team status: spectators or lobby players are not fighting
             if LocalPlayer.Team ~= nil and tostring(LocalPlayer.Team.Name):lower() ~= "spectator" and tostring(LocalPlayer.Team.Name):lower() ~= "lobby" then
                 return true
             end
@@ -157,12 +184,10 @@ return function(services: any, Duel: any?): any
                 local char = player.Character
                 local root = char and char:FindFirstChild("HumanoidRootPart")
                 if root then
-                    -- 3D Euclidean distance
                     local dist = (root.Position - pos).Magnitude
                     if dist <= threshold then
                         return true
                     end
-                    -- Horizontal distance with vertical cylinder tolerance
                     local horizDist = Vector2.new(root.Position.X - pos.X, root.Position.Z - pos.Z).Magnitude
                     local vertDist = math.abs(root.Position.Y - pos.Y)
                     if horizDist <= threshold and vertDist <= 4.0 then
@@ -187,7 +212,7 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Move/Teleport player reliably to the destination
+    -- Teleport player to the destination
     function AutoQueue:TeleportToQueue(mode: string): (boolean, string)
         local char = LocalPlayer and LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -198,13 +223,12 @@ return function(services: any, Duel: any?): any
         local targetPos, strandIndex = self:GetBestPosition(mode)
         local currentDist = (root.Position - targetPos).Magnitude
 
-        -- If we are already right there, consider it queued
+        -- If already at this strand position within leeway, we are holding it
         if currentDist <= LEEWAY then
             self._lastStatusMessage = "Holding " .. mode .. " strand #" .. strandIndex
             return true, self._lastStatusMessage
         end
 
-        -- Multiple teleport approaches for robust executor compatibility
         pcall(function()
             if char.PivotTo then
                 char:PivotTo(CFrame.new(targetPos))
@@ -245,7 +269,6 @@ return function(services: any, Duel: any?): any
         local mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or "1v1")
         self._selectedMode = mode
 
-        -- Primary mechanism: send player to the specified duel strand position
         local success, msg = self:TeleportToQueue(mode)
         if success then
             task.spawn(tryQueueRemote, mode)
@@ -254,6 +277,35 @@ return function(services: any, Duel: any?): any
 
         self._lastStatusMessage = msg
         return false, msg
+    end
+
+    -- Hook Touched events on character parts to instantly react when touching Pier
+    function AutoQueue:BindCharacterTouches(char: Model)
+        if self._charScope then
+            self._charScope:Dispose()
+        end
+        self._charScope = scope:CreateChild("CharTouches")
+
+        for _, part in ipairs(char:GetChildren()) do
+            if part:IsA("BasePart") then
+                self._charScope:Add(part.Touched:Connect(function(hit: Instance)
+                    if StateStore:Get("Game.MvSAutoQueue") ~= true then return end
+                    if self:IsInMatch() then return end
+
+                    if isPierPart(hit) then
+                        local now = os.clock()
+                        if now - self._lastAttempt >= 0.5 then
+                            self._lastAttempt = now
+                            self._state = "Queued"
+                            self._queueAttempts += 1
+                            task.spawn(function()
+                                self:TriggerQueue()
+                            end)
+                        end
+                    end
+                end))
+            end
+        end
     end
 
     local function step(now: number)
@@ -284,38 +336,28 @@ return function(services: any, Duel: any?): any
             AutoQueue._state = "Active"
         end
 
-        local onPier = AutoQueue:IsOnPier()
-        local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
-        local bestPos, strandIdx = AutoQueue:GetBestPosition(mode)
+        -- Check if player is touching or on any part in Workspace.Lobby.Environment.Pier
+        local isTouching = AutoQueue:IsTouchingPier()
+        if isTouching then
+            local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
+            local bestPos, strandIdx = AutoQueue:GetBestPosition(mode)
 
-        local char = LocalPlayer and LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
+            local char = LocalPlayer and LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
 
-        -- If player is on Pier and not on target position, move immediately!
-        if onPier and distToTarget > LEEWAY then
-            if now - AutoQueue._lastAttempt >= 0.5 then
-                AutoQueue._lastAttempt = now
-                AutoQueue._state = "Queued"
-                AutoQueue._queueAttempts += 1
-                task.spawn(function()
-                    AutoQueue:TriggerQueue()
-                end)
+            -- If touching Pier and not yet on the strand (or strand changed), teleport immediately!
+            if distToTarget > LEEWAY then
+                if now - AutoQueue._lastAttempt >= 0.3 then
+                    AutoQueue._lastAttempt = now
+                    AutoQueue._state = "Queued"
+                    AutoQueue._queueAttempts += 1
+                    task.spawn(function()
+                        AutoQueue:TriggerQueue()
+                    end)
+                end
+                return
             end
-            return
-        end
-
-        -- Periodic lobby queue check
-        local delay = tonumber(StateStore:Get("Game.MvSQueueDelay")) or 3.0
-        if delay < 0.5 then delay = 0.5 end
-
-        if now - AutoQueue._lastAttempt >= delay then
-            AutoQueue._lastAttempt = now
-            AutoQueue._state = "Queued"
-            AutoQueue._queueAttempts += 1
-            task.spawn(function()
-                AutoQueue:TriggerQueue()
-            end)
         end
     end
 
@@ -334,8 +376,12 @@ return function(services: any, Duel: any?): any
             end
         end))
 
-        -- Reset queue timer on respawn
-        scope:Add(LocalPlayer.CharacterAdded:Connect(function()
+        if LocalPlayer.Character then
+            self:BindCharacterTouches(LocalPlayer.Character)
+        end
+
+        scope:Add(LocalPlayer.CharacterAdded:Connect(function(char)
+            self:BindCharacterTouches(char)
             if not AutoQueue:IsInMatch() then
                 AutoQueue._lastAttempt = os.clock()
             end
@@ -351,11 +397,15 @@ return function(services: any, Duel: any?): any
             Attempts = self._queueAttempts,
             Matches = self._matchesCount,
             Message = self._lastStatusMessage,
-            OnPier = self:IsOnPier(),
+            OnPier = self:IsTouchingPier(),
         }
     end
 
     function AutoQueue:Destroy()
+        if self._charScope then
+            self._charScope:Dispose()
+            self._charScope = nil
+        end
         scope:Dispose()
     end
 

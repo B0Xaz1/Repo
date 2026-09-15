@@ -1,15 +1,15 @@
 --!nonstrict
 -- AutoQueueService: automated queue entry and match detection for Murderers VS Sheriffs DUELS.
--- Runs an auto-requeue loop when enabled, entering queues via remote triggers, UI buttons,
--- or physical lobby pads. It monitors match state, respawns, and round transitions,
--- pausing during active duels and re-queueing once the player returns to the lobby or ends a match.
+-- When the player is on any part in Workspace.Lobby.Environment.Pier (or in the lobby),
+-- it teleports them to their selected duel strand position (1v1, 2v2, 3v3, 4v4).
+-- It checks if any other player is occupying Position 1 (within a 1 stud leeway) and if so,
+-- moves to Position 2 (the second strand). It also handles remote and pad triggers as fallback.
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local TeleportService = game:GetService("TeleportService")
     local LocalPlayer = Players.LocalPlayer
 
     local Duel = Duel or {}
@@ -30,15 +30,83 @@ return function(services: any, Duel: any?): any
         _lastStatusMessage = "Ready",
     }
 
-    -- Common mode name aliases
-    local MODE_MAP = {
-        ["1v1"] = { "1v1", "Solo", "1vs1", "Duel" },
-        ["2v2"] = { "2v2", "Duo", "2vs2" },
-        ["3v3"] = { "3v3", "Trio", "3vs3" },
-        ["4v4"] = { "4v4", "Squad", "4vs4" },
+    -- Exact mode strand positions provided
+    local QUEUE_POSITIONS: { [string]: { Vector3 } } = queueConfig.Positions or {
+        ["1v1"] = {
+            Vector3.new(56.9468994140625, -95.15959167480469, -203.5184783935547),
+            Vector3.new(27.4266357421875, -95.15959167480469, -203.4810028076172),
+        },
+        ["2v2"] = {
+            Vector3.new(56.784793853759766, -95.17820739746094, -189.26991271972656),
+            Vector3.new(27.93301010131836, -95.17820739746094, -189.24061584472656),
+        },
+        ["3v3"] = {
+            Vector3.new(56.6617431640625, -95.03361511230469, -173.23150634765625),
+            Vector3.new(28.4437255859375, -95.03361511230469, -173.20989990234375),
+        },
+        ["4v4"] = {
+            Vector3.new(56.58056640625, -94.84336853027344, -155.25958251953125),
+            Vector3.new(28.959228515625, -94.84336853027344, -155.24517822265625),
+        },
     }
 
-    -- Check if player is currently inside an active duel
+    local LEEWAY: number = queueConfig.Leeway or 1.0
+
+    -- Resolves Workspace.Lobby.Environment.Pier
+    local function getPierFolder(): Instance?
+        local pierPath = queueConfig.PierPath or { "Lobby", "Environment", "Pier" }
+        local node: any = workspace
+        for _, name in ipairs(pierPath) do
+            node = node and node:FindFirstChild(name)
+        end
+        return node
+    end
+
+    -- Check if player is on any part inside Workspace.Lobby.Environment.Pier
+    function AutoQueue:IsOnPier(): boolean
+        local char = LocalPlayer and LocalPlayer.Character
+        if not char then return false end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not root or not humanoid then return false end
+
+        local pier = getPierFolder()
+
+        -- 1. Check FloorMaterial / FloorPart if available
+        local floorPart = humanoid.FloorPart
+        if floorPart and pier and floorPart:IsDescendantOf(pier) then
+            return true
+        end
+
+        -- 2. Raycast downwards from HumanoidRootPart to see if touching any part inside Pier
+        local origin = root.Position
+        local direction = Vector3.new(0, -6, 0)
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = { char }
+        local hit = workspace:Raycast(origin, direction, params)
+        if hit and hit.Instance and pier and hit.Instance:IsDescendantOf(pier) then
+            return true
+        end
+
+        -- 3. Proximity / bounding check to Pier parts
+        if pier then
+            for _, child in ipairs(pier:GetDescendants()) do
+                if child:IsA("BasePart") then
+                    local diff = (child.Position - root.Position)
+                    -- Check if within part bounding box with 3 stud margin
+                    local halfSize = child.Size * 0.5 + Vector3.new(3, 4, 3)
+                    if math.abs(diff.X) <= halfSize.X and math.abs(diff.Y) <= halfSize.Y and math.abs(diff.Z) <= halfSize.Z then
+                        return true
+                    end
+                end
+            end
+        end
+
+        return false
+    end
+
+    -- Check if player is currently in an active duel match
     function AutoQueue:IsInMatch(): boolean
         if not LocalPlayer then return false end
         local matchVal = LocalPlayer:GetAttribute(matchAttribute)
@@ -46,7 +114,6 @@ return function(services: any, Duel: any?): any
             return true
         end
 
-        -- Secondary check: if we have opponents with the same match attribute and opposing teams
         if Duel.Targets and Duel.Targets.GetOpponents then
             local opponents = Duel.Targets:GetOpponents()
             if opponents and #opponents > 0 then
@@ -57,176 +124,106 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Attempt to find a remote function/event related to queueing
-    local function findQueueRemote(): any
+    -- Check if any other player is occupying a position within leeway
+    function AutoQueue:IsPositionOccupied(pos: Vector3, leeway: number?): boolean
+        local threshold = leeway or LEEWAY
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local dist = (root.Position - pos).Magnitude
+                    if dist <= threshold then
+                        return true
+                    end
+                    -- Also check flat horizontal distance
+                    local horizDist = Vector2.new(root.Position.X - pos.X, root.Position.Z - pos.Z).Magnitude
+                    local vertDist = math.abs(root.Position.Y - pos.Y)
+                    if horizDist <= threshold and vertDist <= 3.0 then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    -- Determine target position based on chosen mode and occupancy
+    function AutoQueue:GetBestPosition(mode: string): (Vector3, number)
+        local pair = QUEUE_POSITIONS[mode] or QUEUE_POSITIONS["1v1"]
+        local pos1, pos2 = pair[1], pair[2]
+
+        -- If pos1 is occupied by another player within leeway, use pos2
+        if self:IsPositionOccupied(pos1, LEEWAY) then
+            return pos2, 2
+        else
+            return pos1, 1
+        end
+    end
+
+    -- Teleport player to the destination
+    function AutoQueue:TeleportToQueue(mode: string): (boolean, string)
+        local char = LocalPlayer and LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then
+            return false, "No HumanoidRootPart found"
+        end
+
+        local targetPos, strandIndex = self:GetBestPosition(mode)
+        local currentDist = (root.Position - targetPos).Magnitude
+
+        -- If we are already right there, consider it queued
+        if currentDist <= LEEWAY then
+            self._lastStatusMessage = "Holding " .. mode .. " strand #" .. strandIndex
+            return true, self._lastStatusMessage
+        end
+
+        pcall(function()
+            root.CFrame = CFrame.new(targetPos)
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end)
+
+        self._lastStatusMessage = "Moved to " .. mode .. " strand #" .. strandIndex .. (strandIndex == 2 and " (strand 1 occupied)" or "")
+        return true, self._lastStatusMessage
+    end
+
+    -- Fallback remote queue trigger if remote exists
+    local function tryQueueRemote(mode: string): boolean
         local remoteNames = queueConfig.RemoteNames or {
             "Queue", "QueueRemote", "JoinQueue", "EnterQueue", "Matchmaking", "Queue1v1", "QueueDuel"
         }
-
-        local function checkContainer(parent: Instance?): any
-            if not parent then return nil end
-            for _, name in ipairs(remoteNames) do
-                local child = parent:FindFirstChild(name)
-                if child and (child:IsA("RemoteEvent") or child:IsA("RemoteFunction")) then
-                    return child
-                end
-            end
-            for _, child in ipairs(parent:GetChildren()) do
-                if child:IsA("Folder") or child:IsA("Configuration") then
-                    for _, name in ipairs(remoteNames) do
-                        local match = child:FindFirstChild(name)
-                        if match and (match:IsA("RemoteEvent") or match:IsA("RemoteFunction")) then
-                            return match
-                        end
+        for _, name in ipairs(remoteNames) do
+            local rem = ReplicatedStorage:FindFirstChild(name) or (ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild(name))
+            if rem then
+                local ok = pcall(function()
+                    if rem:IsA("RemoteFunction") then
+                        rem:InvokeServer(mode)
+                    else
+                        rem:FireServer(mode)
                     end
-                end
-            end
-            return nil
-        end
-
-        return checkContainer(ReplicatedStorage) or checkContainer(ReplicatedStorage:FindFirstChild("Remotes"))
-    end
-
-    -- Click a GUI button in PlayerGui (simulating UI queue join)
-    local function tryTriggerGuiQueue(mode: string): boolean
-        local playerGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        if not playerGui then return false end
-
-        local targetKeywords = MODE_MAP[mode] or { mode }
-        local foundButton: GuiButton? = nil
-
-        local function scanGui(parent: Instance)
-            if foundButton then return end
-            for _, child in ipairs(parent:GetDescendants()) do
-                if child:IsA("GuiButton") and child.Visible then
-                    local btnText = ""
-                    if child:IsA("TextButton") then
-                        btnText = child.Text:lower()
-                    end
-                    local btnName = child.Name:lower()
-
-                    for _, kw in ipairs(targetKeywords) do
-                        local lkw = kw:lower()
-                        if string.find(btnText, lkw, 1, true) or string.find(btnName, lkw, 1, true) then
-                            foundButton = child
-                            return
-                        end
-                    end
-                end
+                end)
+                if ok then return true end
             end
         end
-
-        pcall(scanGui, playerGui)
-
-        if foundButton then
-            pcall(function()
-                if (foundButton :: any).FireServer then
-                    (foundButton :: any):FireServer()
-                elseif (foundButton :: any).Activated then
-                    -- Trigger event signals if supported
-                    for _, conn in ipairs(getconnections(foundButton.Activated) or {}) do
-                        conn:Fire()
-                    end
-                end
-            end)
-            return true
-        end
-
         return false
     end
 
-    -- Trigger queue pad touch in workspace (physical lobby queue pad)
-    local function tryTriggerPadQueue(mode: string): boolean
-        local char = LocalPlayer and LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return false end
-
-        local targetKeywords = MODE_MAP[mode] or { mode }
-        local padFolderNames = { "Pads", "QueuePads", "Queues", "Lobby", "DuelPads", "Portals" }
-
-        local function checkPad(part: Instance): boolean
-            if not part:IsA("BasePart") then return end
-            local name = part.Name:lower()
-            for _, kw in ipairs(targetKeywords) do
-                if string.find(name, kw:lower(), 1, true) then
-                    return true
-                end
-            end
-            return false
-        end
-
-        local function searchIn(parent: Instance?): BasePart?
-            if not parent then return nil end
-            for _, desc in ipairs(parent:GetDescendants()) do
-                if desc:IsA("BasePart") and checkPad(desc) then
-                    return desc
-                end
-            end
-            return nil
-        end
-
-        local targetPad: BasePart? = nil
-        for _, fName in ipairs(padFolderNames) do
-            local folder = workspace:FindFirstChild(fName)
-            targetPad = searchIn(folder)
-            if targetPad then break end
-        end
-        if not targetPad then
-            targetPad = searchIn(workspace)
-        end
-
-        if targetPad then
-            pcall(function()
-                if firetouchinterest then
-                    firetouchinterest(root, targetPad, 0)
-                    task.wait(0.05)
-                    firetouchinterest(root, targetPad, 1)
-                else
-                    -- Move slightly to pad position as fallback
-                    root.CFrame = targetPad.CFrame + Vector3.new(0, 3, 0)
-                end
-            end)
-            return true
-        end
-
-        return false
-    end
-
-    -- Main attempt to enter queue
+    -- Trigger queue action: Pier location positioning takes precedence, followed by fallback triggers
     function AutoQueue:TriggerQueue(): (boolean, string)
         local mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or "1v1")
         self._selectedMode = mode
 
-        -- 1. Try Remote call
-        local remote = findQueueRemote()
-        if remote then
-            local success, err = pcall(function()
-                if remote:IsA("RemoteFunction") then
-                    remote:InvokeServer(mode)
-                else
-                    remote:FireServer(mode)
-                end
-            end)
-            if success then
-                self._lastStatusMessage = "Invoked queue remote (" .. mode .. ")"
-                return true, self._lastStatusMessage
-            end
+        -- Primary mechanism: send player to the specified duel strand position
+        local success, msg = self:TeleportToQueue(mode)
+        if success then
+            -- Also ping any remote if present in background
+            task.spawn(tryQueueRemote, mode)
+            return true, msg
         end
 
-        -- 2. Try GUI buttons
-        if tryTriggerGuiQueue(mode) then
-            self._lastStatusMessage = "Triggered UI button (" .. mode .. ")"
-            return true, self._lastStatusMessage
-        end
-
-        -- 3. Try Pad touch
-        if tryTriggerPadQueue(mode) then
-            self._lastStatusMessage = "Stepped on queue pad (" .. mode .. ")"
-            return true, self._lastStatusMessage
-        end
-
-        self._lastStatusMessage = "Waiting for lobby / queue trigger"
-        return false, self._lastStatusMessage
+        self._lastStatusMessage = msg
+        return false, msg
     end
 
     local function step(now: number)
@@ -238,7 +235,7 @@ return function(services: any, Duel: any?): any
 
         local inMatch = AutoQueue:IsInMatch()
 
-        -- Match state transition detection
+        -- Match state change detection
         local currentMatchVal = LocalPlayer and LocalPlayer:GetAttribute(matchAttribute)
         if AutoQueue._lastMatchValue ~= currentMatchVal then
             if inMatch and not AutoQueue._lastMatchValue then
@@ -252,11 +249,23 @@ return function(services: any, Duel: any?): any
             return
         end
 
-        -- We are in the lobby or waiting for a match
+        -- Check Pier presence: trigger when on Pier parts, or continuously while auto-queue is enabled in lobby
+        local onPier = AutoQueue:IsOnPier()
+        local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
+        local bestPos, strandIdx = AutoQueue:GetBestPosition(mode)
+
+        local char = LocalPlayer and LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
+
+        -- If on Pier and not yet standing on the chosen strand, or periodic interval elapsed
         local delay = tonumber(StateStore:Get("Game.MvSQueueDelay")) or 3.0
         if delay < 0.5 then delay = 0.5 end
 
-        if now - AutoQueue._lastAttempt >= delay then
+        local needsMove = onPier and distToTarget > LEEWAY
+        local timeElapsed = (now - AutoQueue._lastAttempt) >= delay
+
+        if needsMove or timeElapsed then
             AutoQueue._lastAttempt = now
             AutoQueue._state = "Queued"
             AutoQueue._queueAttempts += 1
@@ -281,10 +290,10 @@ return function(services: any, Duel: any?): any
             end
         end))
 
-        -- Reset queue attempt timer when respawning in lobby
+        -- Reset queue timer on respawn
         scope:Add(LocalPlayer.CharacterAdded:Connect(function()
             if not AutoQueue:IsInMatch() then
-                AutoQueue._lastAttempt = os.clock() -- give a grace window on spawn
+                AutoQueue._lastAttempt = os.clock()
             end
         end))
     end
@@ -298,6 +307,7 @@ return function(services: any, Duel: any?): any
             Attempts = self._queueAttempts,
             Matches = self._matchesCount,
             Message = self._lastStatusMessage,
+            OnPier = self:IsOnPier(),
         }
     end
 

@@ -63,7 +63,7 @@ local function fetchSource(): string?
     error(tostring(lastError))
 end
 
-pcall(function()
+local booted, bootError = pcall(function()
     if not waitForReadiness() then return end
     local source = fetchSource()
     if not source or isCancelled() then return end
@@ -73,5 +73,6 @@ pcall(function()
     local ran, runError = pcall(chunk)
     assert(ran, runError)
 end)
+if not booted then warn(`[B0Xaz] Loader failed: {tostring(bootError)}`) end
 -- Ticket identity keeps a slow, cancelled download from clearing a newer loader's lock.
 if globals.B0XazLoaderBusy == ticket then globals.B0XazLoaderBusy = nil end

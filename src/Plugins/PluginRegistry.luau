@@ -22,6 +22,11 @@ local REGISTRY: { [number]: Registration } = {
         PluginModule = "src/Plugins/MurderersVsSheriffs/Mechanics.luau",
         Description = "Match-scoped enemy ESP plus knife killer and fast aim revolver drivers",
     },
+    [4348829796] = {
+        Name = "Murderers VS Sheriffs DUELS",
+        PluginModule = "src/Plugins/MurderersVsSheriffs/Mechanics.luau",
+        Description = "Match-scoped enemy ESP plus knife killer and fast aim revolver drivers",
+    },
     -- Add one place OR universe entry here after verifying its manifest in your own test place:
     -- [123456789] = { Name = "Example Game", PluginModule = "src/Plugins/ExampleGame/Mechanics.luau", Description = "Opt-in test-place mechanics" },
 }

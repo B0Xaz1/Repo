@@ -28,6 +28,7 @@ return function(services: any): any
     Duel.Targets = use("TargetService")
     Duel.Esp = use("EspService")
     Duel.Attack = use("AttackService")
+    Duel.AutoQueue = use("AutoQueueService")
     Duel.UI = load("src/Plugins/MurderersVsSheriffs/MvSUI.luau", services, Duel)
 
     -- Services stays public so tooling can introspect the live registry.
@@ -41,7 +42,14 @@ return function(services: any): any
         local defaults: any = {
             MvSEsp = false,
             MvSKnife = false, MvSKnifeCooldown = manifest.Knife.DefaultCooldown,
+            MvSKnifeThrowSpeed = 0,
+            MvSKnifeSpamThrow = false,
             MvSRevolver = false, MvSGunCooldown = manifest.Gun.DefaultCooldown,
+            MvSGunAttributeCooldown = 0.0,
+            MvSGunSpamShoot = false,
+            MvSAutoEquip = false,
+            MvSAutoQueue = false, MvSQueueMode = manifest.Queue and manifest.Queue.DefaultMode or "1v1",
+            MvSQueueDelay = manifest.Queue and manifest.Queue.DefaultDelay or 3.0,
         }
         for path, value in pairs(defaults) do
             if StateStore:Get("Game." .. path) == nil then StateStore:Set("Game." .. path, value) end
@@ -49,8 +57,9 @@ return function(services: any): any
 
         Duel.Esp:Initialize()
         Duel.Attack:Initialize()
+        Duel.AutoQueue:Initialize()
 
-        EventBus:Publish("Notify", manifest.Name, "Command center ready. ESP and combat drivers are off until you enable them.")
+        EventBus:Publish("Notify", manifest.Name, "Command center ready. ESP, combat drivers, and auto-queue are ready.")
     end
 
     function Plugin:BuildUI(tab: any)
@@ -59,6 +68,7 @@ return function(services: any): any
 
     function Plugin:Destroy()
         -- Reverse of Initialize; every service restores everything it owns.
+        Duel.AutoQueue:Destroy()
         Duel.Attack:Destroy()
         Duel.Esp:Destroy()
         Duel.UI:Destroy()

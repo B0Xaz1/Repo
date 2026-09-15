@@ -8,6 +8,7 @@ return function(services: any, Duel: any?): any
     local toggle = load("src/UI/Components/Toggle.luau", services)
     local slider = load("src/UI/Components/Slider.luau", services)
     local textbox = load("src/UI/Components/Textbox.luau", services)
+    local dropdown = load("src/UI/Components/Dropdown.luau", services)
 
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local ThemeEngine, DOM = services:Get("ThemeEngine"), services:Get("DOM")
@@ -50,16 +51,23 @@ return function(services: any, Duel: any?): any
         local combatSec = section:Create(tab.LeftCol, "Combat")
         toggle(combatSec, "Knife killer", "Game.MvSKnife")
         slider(combatSec, "Knife reengage delay", "Game.MvSKnifeCooldown", 0.15, 1.5, 0.05, "s")
+        slider(combatSec, "Knife ThrowSpeed attribute", "Game.MvSKnifeThrowSpeed", 0, 1000, 25, "")
+        toggle(combatSec, "Knife spam throw (E)", "Game.MvSKnifeSpamThrow")
         toggle(combatSec, "Fast aim revolver", "Game.MvSRevolver")
         slider(combatSec, "Revolver reengage delay", "Game.MvSGunCooldown", 0.5, 5, 0.05, "s")
+        slider(combatSec, "Gun Cooldown attribute", "Game.MvSGunAttributeCooldown", 0.0, 3.0, 0.05, "s")
+        toggle(combatSec, "Gun spam shoot (auto-click)", "Game.MvSGunSpamShoot")
+        toggle(combatSec, "Auto equip active weapon", "Game.MvSAutoEquip")
         labels.combat = createInfoLabel(combatSec, "Drivers: ...")
         textbox:CreateButton(combatSec, "Stop combat drivers", function()
             StateStore:Set("Game.MvSKnife", false)
             StateStore:Set("Game.MvSRevolver", false)
+            StateStore:Set("Game.MvSKnifeSpamThrow", false)
+            StateStore:Set("Game.MvSGunSpamShoot", false)
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. Only players with the same Match attribute on the enemy team are targets.")
+        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' equips the matching tool (if both are active, it prioritizes the unequipped one or Knife). 'Gun spam shoot' auto-clicks at your configured gun cooldown, and 'Knife spam throw' spams E to throw knives.")
 
         ------------------------------------------------------------------
         -- 2. Player ESP (right)
@@ -70,13 +78,31 @@ return function(services: any, Duel: any?): any
         section:Info(espSec, "2D boxes, health bars, and names for match-scoped enemies, refreshed at ~30 fps with a hard cap of sixteen on-screen targets.")
 
         ------------------------------------------------------------------
+        -- 3. Auto Queue (right)
+        ------------------------------------------------------------------
+        local queueModes = (manifest.Queue and manifest.Queue.Modes) or { "1v1", "2v2", "3v3", "4v4" }
+        local queueSec = section:Create(tab.RightCol, "Auto Queue")
+        toggle(queueSec, "Auto queue", "Game.MvSAutoQueue")
+        dropdown:Create(queueSec, "Queue mode", "Game.MvSQueueMode", queueModes)
+        slider(queueSec, "Queue retry delay", "Game.MvSQueueDelay", 1.0, 10.0, 0.5, "s")
+        labels.queue = createInfoLabel(queueSec, "AutoQueue: off")
+        textbox:CreateButton(queueSec, "Queue now", function()
+            if Duel.AutoQueue then
+                local success, msg = Duel.AutoQueue:TriggerQueue()
+                return success, msg
+            end
+            return false, "AutoQueue not loaded"
+        end)
+        section:Info(queueSec, "Automates queue entry and re-queuing between matches. Automatically pauses while you are in an active duel and queues back up upon returning to the lobby.")
+
+        ------------------------------------------------------------------
         -- Low-rate refresh job, gated to run only while the menu is open and the Game tab
         -- is active: label writes cascade through the AutomaticSize layout chain.
         ------------------------------------------------------------------
         local REFRESH_INTERVAL = 0.5
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
-        local gameTabActive = false
-        local forceRender = false
+        local gameTabActive = true -- Initialized to true so status renders immediately even before tab switching
+        local forceRender = true
         scope:Add(StateStore:Observe("Settings.MenuVisible", function(value: any)
             menuVisible = value == true
             if menuVisible then forceRender = true end
@@ -85,6 +111,14 @@ return function(services: any, Duel: any?): any
             local active = name == "Game"
             if active and not gameTabActive then forceRender = true end
             gameTabActive = active
+        end))
+
+        -- Also immediately re-render when AutoQueue state changes in StateStore
+        scope:Add(StateStore:Observe("Game.MvSAutoQueue", function()
+            forceRender = true
+        end))
+        scope:Add(StateStore:Observe("Game.MvSQueueMode", function()
+            forceRender = true
         end))
 
         local function renderStatus()
@@ -96,6 +130,11 @@ return function(services: any, Duel: any?): any
                 local status = Duel.Attack:GetStatus()
                 setLabel(labels.combat, "Drivers: knife " .. status.Knife .. ", revolver " .. status.Gun
                     .. "  Enemies in match: " .. tostring(status.Enemies))
+            end
+            if Duel.AutoQueue then
+                local qStatus = Duel.AutoQueue:GetStatus()
+                local autoLabel = if qStatus.Enabled then qStatus.State else "Off"
+                setLabel(labels.queue, "AutoQueue: " .. autoLabel .. " (" .. qStatus.Mode .. ") - " .. qStatus.Message)
             end
         end
 

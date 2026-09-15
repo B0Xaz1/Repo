@@ -62,41 +62,16 @@ return function(services: any, Duel: any?): any
                 local pier = env:FindFirstChild("Pier") or env:FindFirstChild("pier")
                 if pier then return pier end
             end
-            for _, desc in ipairs(lobby:GetDescendants()) do
-                if desc.Name:lower() == "pier" then
-                    return desc
-                end
-            end
         end
-
-        for _, desc in ipairs(workspace:GetChildren()) do
-            if desc.Name:lower() == "lobby" then
-                for _, sub in ipairs(desc:GetDescendants()) do
-                    if sub.Name:lower() == "pier" then
-                        return sub
-                    end
-                end
-            end
-        end
-
         return nil
     end
 
-    -- Fast check to see if an instance belongs to Workspace.Lobby.Environment.Pier
+    -- Strictly checks if an instance is inside Workspace.Lobby.Environment.Pier
     local function isPierPart(part: Instance?): boolean
         if not part then return false end
         local pier = getPierFolder()
         if pier and part:IsDescendantOf(pier) then
             return true
-        end
-
-        -- Path ancestry fallback
-        local p: Instance? = part
-        while p and p ~= workspace do
-            if p.Name:lower() == "pier" then
-                return true
-            end
-            p = p.Parent
         end
         return false
     end
@@ -109,54 +84,58 @@ return function(services: any, Duel: any?): any
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not root then return false end
 
-        -- 1. Check FloorPart from humanoid safely (FloorPart is not supported or accessible on some humanoid/rig types)
+        -- If player is already within 5 studs of any queue pad, they are on the pad waiting/leaving, not on the pier
+        for _, positions in pairs(QUEUE_POSITIONS) do
+            for _, padPos in ipairs(positions) do
+                if (root.Position - padPos).Magnitude <= 5 then
+                    return false
+                end
+            end
+        end
+
+        local pier = getPierFolder()
+        if not pier then return false end
+
+        -- 1. Check FloorPart from humanoid safely
         local floorPart: Instance? = nil
         pcall(function()
             floorPart = humanoid.FloorPart
         end)
-        if floorPart and isPierPart(floorPart) then
+        if floorPart and floorPart:IsDescendantOf(pier) then
             return true
         end
 
-        local pier = getPierFolder()
+        -- 2. Raycast downwards directly beneath the character checking for Pier descendants
+        local origin = root.Position
+        local direction = Vector3.new(0, -6, 0)
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Include
+        params.FilterDescendantsInstances = { pier }
+        local hit = workspace:Raycast(origin, direction, params)
+        if hit and hit.Instance and hit.Instance:IsDescendantOf(pier) then
+            return true
+        end
 
-        -- 2. Spatial query using GetPartsInPart
-        if pier then
-            pcall(function()
-                local overlap = OverlapParams.new()
-                overlap.FilterType = Enum.RaycastFilterType.Include
-                overlap.FilterDescendantsInstances = { pier }
+        -- 3. Spatial query using GetPartsInPart targeting strictly pier parts
+        local isTouching = false
+        pcall(function()
+            local overlap = OverlapParams.new()
+            overlap.FilterType = Enum.RaycastFilterType.Include
+            overlap.FilterDescendantsInstances = { pier }
 
-                for _, partName in ipairs({ "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso" }) do
-                    local bodyPart = char:FindFirstChild(partName)
-                    if bodyPart and bodyPart:IsA("BasePart") then
-                        local touching = workspace:GetPartsInPart(bodyPart, overlap)
-                        if touching and #touching > 0 then
-                            return true
-                        end
+            for _, partName in ipairs({ "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso" }) do
+                local bodyPart = char:FindFirstChild(partName)
+                if bodyPart and bodyPart:IsA("BasePart") then
+                    local touching = workspace:GetPartsInPart(bodyPart, overlap)
+                    if touching and #touching > 0 then
+                        isTouching = true
+                        return
                     end
                 end
-            end)
-        end
+            end
+        end)
 
-        -- 3. Raycast downwards directly beneath the character
-        local origin = root.Position
-        local direction = Vector3.new(0, -8, 0)
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Exclude
-        params.FilterDescendantsInstances = { char }
-        local hit = workspace:Raycast(origin, direction, params)
-        if hit and hit.Instance and isPierPart(hit.Instance) then
-            return true
-        end
-
-        -- 4. Bounding volume check of the pier area (coordinates around X: 20-65, Y: -100 to -80, Z: -220 to -140)
-        local pos = root.Position
-        if (pos.X >= 15 and pos.X <= 70) and (pos.Y >= -105 and pos.Y <= -75) and (pos.Z >= -230 and pos.Z <= -135) then
-            return true
-        end
-
-        return false
+        return isTouching
     end
 
     function AutoQueue:IsOnPier(): boolean

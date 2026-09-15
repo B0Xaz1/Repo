@@ -1,33 +1,37 @@
---!nonstrict
--- Prison Life doors & world: discovers obstacle parts from the map's known container
--- folders (doors, glass, celldoors, prison_fences, prison_gate — matched case-insensitively
--- against workspace children) and phases their collision with a transparency preview.
--- Everything inside a known container is phaseable, matching the legacy toggle.
+--!strict
+local Workspace = game:GetService("Workspace")
+
+local CONFIG = table.freeze({
+    REASSERT_INTERVAL = 0.2,
+    CONTAINER_SETTLE_DELAY = 0.5,
+    TRANSPARENCY_MIN = 0.1,
+    TRANSPARENCY_MAX = 0.95,
+    TRANSPARENCY_EPSILON = 0.01,
+    DEFAULT_TRANSPARENCY = 0.65,
+})
+
 return function(services: any, Prison: any?): any
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local Disposer = services:Get("Disposer")
     local TaskScheduler = services:Get("TaskScheduler")
-    local workspace = game:GetService("Workspace")
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild(manifest.Name .. ".WorldPhase")
+    local scope = Disposer:CreateChild(`{manifest.Name}.WorldPhase`)
     local changes = scope:CreateChild("PrisonLife.WorldPhase.Changes")
     local reassert = nil :: any
 
     local WorldPhase = {
-        _parts = {},          -- [BasePart] = true
-        _containers = {},     -- matched workspace container names
+        _parts = {},
+        _containers = {},
         _containerCount = 0,
         _lastScan = 0,
     }
 
-    -- Legacy truth: these folders hold every phaseable obstacle.
     local function isObstacleFolder(name: any): boolean
         return table.find(manifest.Doors.Folders, tostring(name):lower()) ~= nil
     end
 
-    -- Decorative parts (never collidable, mostly invisible) are skipped on scan.
     local function isDecorative(part: BasePart): boolean
         return part.CanCollide == false and part.Transparency >= 0.5
     end
@@ -59,17 +63,16 @@ return function(services: any, Prison: any?): any
         self._containerCount = 0
         self._containers = {}
 
-        -- Legacy containers first: doors, glass, celldoors, prison_fences, prison_gate.
-        for _, child in ipairs(workspace:GetChildren()) do
+        for _, child in ipairs(Workspace:GetChildren()) do
             if isObstacleFolder(child.Name) then
                 table.insert(self._containers, child.Name)
                 trackContainer(child)
                 self._containerCount += 1
             end
         end
-        -- Heuristic fallback for map updates that rename every known container.
+
         if self._containerCount == 0 then
-            for _, child in ipairs(workspace:GetChildren()) do
+            for _, child in ipairs(Workspace:GetChildren()) do
                 if (child:IsA("Model") or child:IsA("Folder")) and matchesAnyPattern(child.Name) then
                     table.insert(self._containers, child.Name)
                     trackContainer(child)
@@ -90,7 +93,7 @@ return function(services: any, Prison: any?): any
         if StateStore:Get("Game.DoorPhase") == true then
             changes:SetProperty(part, "CanCollide", false)
             changes:SetProperty(part, "Transparency", math.clamp(
-                tonumber(StateStore:Get("Game.PhaseTransparency")) or 0.65, 0.1, 0.95))
+                tonumber(StateStore:Get("Game.PhaseTransparency")) or CONFIG.DEFAULT_TRANSPARENCY, CONFIG.TRANSPARENCY_MIN, CONFIG.TRANSPARENCY_MAX))
         else
             changes:RestoreProperty(part, "CanCollide")
             changes:RestoreProperty(part, "Transparency")
@@ -131,15 +134,13 @@ return function(services: any, Prison: any?): any
     function WorldPhase:Initialize()
         self:ScanDoors()
 
-        -- New parts anywhere under a known container are picked up live while phasing.
-        -- (ConnectImmediate already registers with the scope; an extra scope:Add would double-track it.)
-        scope:ConnectImmediate(workspace.DescendantAdded, function(descendant: Instance)
+        scope:ConnectImmediate(Workspace.DescendantAdded, function(descendant: Instance)
             if StateStore:Peek("Game.DoorPhase") ~= true then return end
             if not descendant:IsA("BasePart") then return end
             task.defer(function()
                 if scope:IsDisposed() or WorldPhase._parts[descendant] then return end
                 local current = descendant.Parent
-                while current and current ~= workspace do
+                while current and current ~= Workspace do
                     if isObstacleFolder(current.Name) then
                         trackPart(descendant)
                         EventBus:Publish("PrisonDoorsChanged", WorldPhase:GetCounts())
@@ -150,19 +151,16 @@ return function(services: any, Prison: any?): any
             end)
         end)
 
-        -- A renamed map update may create the containers late.
-        scope:ConnectImmediate(workspace.ChildAdded, function(child: Instance)
+        scope:ConnectImmediate(Workspace.ChildAdded, function(child: Instance)
             task.defer(function()
                 if scope:IsDisposed() then return end
                 if isObstacleFolder(child.Name) then
-                    task.wait(0.5)
+                    task.wait(CONFIG.CONTAINER_SETTLE_DELAY)
                     if not scope:IsDisposed() then WorldPhase:ScanDoors(); WorldPhase:ApplyAll() end
                 end
             end)
         end)
 
-        -- A transparency drag fires dozens of observer hits; coalesce them into a single pass
-        -- at the next resumption so the thousand-part reapply runs once, not once per mouse move.
         local applyQueued = false
         local function scheduleApplyAll()
             if applyQueued then return end
@@ -176,9 +174,6 @@ return function(services: any, Prison: any?): any
             scope:Add(StateStore:Observe(path, scheduleApplyAll))
         end
 
-        -- The game's door scripts may flip CanCollide back (doors closing); reassert while
-        -- active. The pass is throttled to 5 Hz so the per-frame cost stays flat no matter
-        -- how many obstacle parts are tracked (the real map carries well over a thousand).
         local reassertElapsed = 0
         reassert = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeDoors", 40, function(dt: number)
             if StateStore:Peek("Game.DoorPhase") ~= true then
@@ -186,13 +181,13 @@ return function(services: any, Prison: any?): any
                 return
             end
             reassertElapsed += dt
-            if reassertElapsed < 0.2 then return end
+            if reassertElapsed < CONFIG.REASSERT_INTERVAL then return end
             reassertElapsed = 0
-            local transparency = math.clamp(tonumber(StateStore:Peek("Game.PhaseTransparency")) or 0.65, 0.1, 0.95)
+            local transparency = math.clamp(tonumber(StateStore:Peek("Game.PhaseTransparency")) or CONFIG.DEFAULT_TRANSPARENCY, CONFIG.TRANSPARENCY_MIN, CONFIG.TRANSPARENCY_MAX)
             for part in pairs(WorldPhase._parts) do
                 if part.Parent and part.CanCollide then
                     changes:SetProperty(part, "CanCollide", false)
-                    if math.abs(part.Transparency - transparency) > 0.01 then
+                    if math.abs(part.Transparency - transparency) > CONFIG.TRANSPARENCY_EPSILON then
                         changes:SetProperty(part, "Transparency", transparency)
                     end
                 end

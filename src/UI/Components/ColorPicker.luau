@@ -1,7 +1,17 @@
---!nonstrict
+--!strict
+local UIS = game:GetService("UserInputService")
+
+local CONFIG = table.freeze({
+    DEFAULT_HEX = "#FFFFFF",
+    ROW_HEIGHT = 28,
+    PANEL_HEIGHT = 124,
+    FIELD_HEIGHT = 112,
+    OPEN_ROW_HEIGHT = 158,
+    HUE_STOPS = 6,
+})
+
 return function(services: any): any
     local dom, theme, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment")
-    local input = game:GetService("UserInputService")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Color picker capture")
     local ColorPicker = { _active = nil }
@@ -14,38 +24,38 @@ return function(services: any): any
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
         handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness))
     end
-    scope:ConnectImmediate(input.InputChanged, function(event: InputObject)
+    scope:ConnectImmediate(UIS.InputChanged, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event) end
     end)
-    scope:Connect(input.InputEnded, function(event: InputObject)
+    scope:Connect(UIS.InputEnded, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then ColorPicker._active = nil end
     end)
     function ColorPicker:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
-        local row, text, owner = section:Control(parent, label, 28)
+        local row, text, owner = section:Control(parent, label, CONFIG.ROW_HEIGHT)
         text.Size = UDim2.new(1, -120, 1, 0)
         local hex = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, ClearTextOnFocus = false, Size = UDim2.fromOffset(78, 22), Position = UDim2.new(1, -116, 0, 3),
-            Text = "#FFFFFF", Font = Enum.Font.Code, TextSize = 11 })
+            Text = CONFIG.DEFAULT_HEX, Font = Enum.Font.Code, TextSize = 11 })
         theme:BindToken(hex, "BackgroundColor3", "Elem"); theme:BindToken(hex, "TextColor3", "TextDim")
         theme:BindToken(dom:CreateStroke(hex, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = hex, CornerRadius = UDim.new(0, 3) })
         local swatch = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, AutoButtonColor = false, Text = "", Size = UDim2.fromOffset(28, 22), Position = UDim2.new(1, -28, 0, 3) })
         theme:BindToken(dom:CreateStroke(swatch, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = swatch, CornerRadius = UDim.new(0, 3) })
-        local panel = dom:Create("Frame", { Parent = row, BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 124), Visible = false })
-        local square = dom:Create("TextButton", { Parent = panel, AutoButtonColor = false, Text = "", BorderSizePixel = 0, Size = UDim2.new(1, -25, 0, 112) })
+        local panel = dom:Create("Frame", { Parent = row, BackgroundTransparency = 1, Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, CONFIG.PANEL_HEIGHT), Visible = false })
+        local square = dom:Create("TextButton", { Parent = panel, AutoButtonColor = false, Text = "", BorderSizePixel = 0, Size = UDim2.new(1, -25, 0, CONFIG.FIELD_HEIGHT) })
         local white = dom:Create("Frame", { Parent = square, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1) })
         dom:Create("UIGradient", { Parent = white, Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) })
         local black = dom:Create("Frame", { Parent = square, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0) })
         dom:Create("UIGradient", { Parent = black, Rotation = 90, Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) }) })
         local marker = dom:Create("Frame", { Parent = square, Size = UDim2.fromOffset(6, 6), AnchorPoint = Vector2.new(0.5, 0.5), BorderSizePixel = 0, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 5 })
         dom:Create("UICorner", { Parent = marker, CornerRadius = UDim.new(1, 0) }); dom:CreateStroke(marker, Color3.new(0, 0, 0))
-        local hue = dom:Create("TextButton", { Parent = panel, Text = "", AutoButtonColor = false, BorderSizePixel = 0, Position = UDim2.new(1, -16, 0, 0), Size = UDim2.fromOffset(16, 112), BackgroundColor3 = Color3.new(1, 1, 1) })
+        local hue = dom:Create("TextButton", { Parent = panel, Text = "", AutoButtonColor = false, BorderSizePixel = 0, Position = UDim2.new(1, -16, 0, 0), Size = UDim2.fromOffset(16, CONFIG.FIELD_HEIGHT), BackgroundColor3 = Color3.new(1, 1, 1) })
         local stops = {}
-        for index = 0, 6 do table.insert(stops, ColorSequenceKeypoint.new(index / 6, Color3.fromHSV(index / 6, 1, 1))) end
+        for index = 0, CONFIG.HUE_STOPS do table.insert(stops, ColorSequenceKeypoint.new(index / CONFIG.HUE_STOPS, Color3.fromHSV(index / CONFIG.HUE_STOPS, 1, 1))) end
         dom:Create("UIGradient", { Parent = hue, Rotation = 90, Color = ColorSequence.new(stops) })
         local handle = { Row = row, Label = text, Scope = owner, _hue = 0, _saturation = 1, _brightness = 1,
             Normalize = function(value: any) return if typeof(value) == "Color3" then value else Color3.new(1, 1, 1) end }
-        local function close() panel.Visible = false; row.Size = UDim2.new(1, 0, 0, 28); if ColorPicker._active and ColorPicker._active.Handle == handle then ColorPicker._active = nil end end
+        local function close() panel.Visible = false; row.Size = UDim2.new(1, 0, 0, CONFIG.ROW_HEIGHT); if ColorPicker._active and ColorPicker._active.Handle == handle then ColorPicker._active = nil end end
         function handle:_Render(value: Color3)
             local h, s, v = value:ToHSV()
             if s > 0 and v > 0 then self._hue = h end
@@ -58,7 +68,7 @@ return function(services: any): any
         owner:Connect(swatch.Activated, function()
             if panel.Visible then close(); return end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
-            panel.Visible, row.Size = true, UDim2.new(1, 0, 0, 158)
+            panel.Visible, row.Size = true, UDim2.new(1, 0, 0, CONFIG.OPEN_ROW_HEIGHT)
         end)
         owner:Connect(hex.FocusLost, function()
             local value = hex.Text:gsub("^#", "")

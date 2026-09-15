@@ -1,22 +1,30 @@
---!nonstrict
--- MVS DUELS combat drivers: the knife killer and fast aim revolver ported from the
--- reference thread. Each driver teleports behind the nearest eligible enemy, waits a
--- heartbeat, fires its remote with the reference argument layout, then restores the
--- original CFrame. Per-target re-engage clocks are adjustable from the Game tab.
+--!strict
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CONFIG = table.freeze({
+    EQUIP_SWAP_INTERVAL = 0.15,
+    MIN_SHOT_INTERVAL = 0.03,
+    KNIFE_SPAM_INTERVAL = 0.05,
+    SPAM_KEY_RELEASE_DELAY = 0.02,
+    SPAM_THROW_KEY = Enum.KeyCode.E,
+})
+
+local VirtualInputManager: any = nil
+pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
+
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
     local Environment = services:Get("Environment")
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local CollectionService = game:GetService("CollectionService")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local LocalPlayer = Players.LocalPlayer
 
     local Duel = Duel or {}
     local manifest = Duel.Manifest
     local knifeConfig, gunConfig = manifest.Knife, manifest.Gun
-    local scope = Disposer:CreateChild(manifest.Name .. ".Attack")
+    local scope = Disposer:CreateChild(`{manifest.Name}.Attack`)
 
     local Attack = {
         _knifeRemote = nil, _gunRemote = nil,
@@ -37,8 +45,6 @@ return function(services: any, Duel: any?): any
         return node
     end
 
-    -- Tool detection mirrors the reference checks: CollectionService tag first, then the
-    -- animation attribute substrings as a heuristic fallback.
     local function toolMatches(tool: Instance, tag: string, field: string, needle: string): boolean
         local tagged = false
         pcall(function() tagged = CollectionService:HasTag(tool, tag) end)
@@ -70,9 +76,6 @@ return function(services: any, Duel: any?): any
         end)
     end
 
-    -- Engage pattern: blink behind the target along its look vector, simulate the click,
-    -- fire, restore. The pcall keeps any remote failure contained, and the CFrame restore
-    -- is raw (no tween).
     local function knifeHit(target: any)
         Attack._knifeBusy = true
         local mine = LocalPlayer.Character
@@ -81,9 +84,7 @@ return function(services: any, Duel: any?): any
             local original = myRoot.CFrame
             pcall(function()
                 myRoot.CFrame = CFrame.lookAt(target.Root.Position - target.Root.CFrame.LookVector * knifeConfig.BackOffset + Vector3.new(0, knifeConfig.UpOffset, 0), target.Root.Position)
-                -- Simulated click: Tool:Activate() raises the knife's Activated signal the
-                -- same way a real click does, but the player's actual mouse is untouched
-                -- (no VirtualInputManager, no focus steal, no cursor side effects).
+
                 if knifeConfig.SimulateClick then
                     local knife = getKnife()
                     if knife then pcall(function() knife:Activate() end) end
@@ -123,11 +124,9 @@ return function(services: any, Duel: any?): any
         return math.max(value, minimum)
     end
 
-    -- Equips the matching tool (KnifeTool or GunTool) based on which combat toggle is enabled.
-    -- If both are enabled, it prioritizes keeping an active weapon equipped, or whichever is unequipped.
     local function processAutoEquip(now: number)
         if StateStore:Get("Game.MvSAutoEquip") ~= true then return end
-        if now - Attack._lastEquipSwap < 0.15 then return end
+        if now - Attack._lastEquipSwap < CONFIG.EQUIP_SWAP_INTERVAL then return end
 
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -158,13 +157,12 @@ return function(services: any, Duel: any?): any
         local knifeTool = findToolInContainers(knifeConfig.Tag, knifeConfig.ActivatedField, knifeConfig.ActivatedNeedle)
         local gunTool = findToolInContainers(gunConfig.Tag, gunConfig.ActivatedField, gunConfig.ActivatedNeedle)
 
-        -- If both Knife and Revolver are active:
         if useKnife and useGun then
-            -- If either tool is already equipped and held, do not oscillate back and forth
+
             if isToolEquipped(knifeTool) or isToolEquipped(gunTool) then
                 return
             end
-            -- If neither is currently equipped in hand, equip Gun if available, else Knife
+
             local target = gunTool or knifeTool
             if target and target.Parent ~= char then
                 Attack._lastEquipSwap = now
@@ -173,7 +171,6 @@ return function(services: any, Duel: any?): any
             return
         end
 
-        -- If only Knife is active
         if useKnife then
             if knifeTool and knifeTool.Parent ~= char then
                 Attack._lastEquipSwap = now
@@ -182,7 +179,6 @@ return function(services: any, Duel: any?): any
             return
         end
 
-        -- If only Gun is active
         if useGun then
             if gunTool and gunTool.Parent ~= char then
                 Attack._lastEquipSwap = now
@@ -191,7 +187,6 @@ return function(services: any, Duel: any?): any
             return
         end
 
-        -- Fallback if user just toggled Auto Equip with neither specific combat toggle on
         if not isToolEquipped(knifeTool) and not isToolEquipped(gunTool) then
             local target = knifeTool or gunTool
             if target and target.Parent ~= char then
@@ -201,7 +196,6 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Updates the Knife's "ThrowSpeed" attribute according to Game.MvSKnifeThrowSpeed setting
     local function syncKnifeThrowSpeed(knife: Tool?)
         if not knife then return end
         local targetVal = tonumber(StateStore:Get("Game.MvSKnifeThrowSpeed"))
@@ -214,7 +208,6 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Updates the Gun's "Cooldown" attribute according to Game.MvSGunAttributeCooldown setting
     local function syncGunAttributeCooldown(gun: Tool?)
         if not gun then return end
         local targetVal = tonumber(StateStore:Get("Game.MvSGunAttributeCooldown"))
@@ -227,14 +220,13 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Gun spam shoot: left mouse rapid click at the gun's configured cooldown
     local function processGunSpamShoot(now: number, gun: Tool?)
         if StateStore:Get("Game.MvSGunSpamShoot") ~= true then return end
         if not gun or gun.Parent ~= LocalPlayer.Character then return end
 
         local customCd = tonumber(StateStore:Get("Game.MvSGunAttributeCooldown")) or 0
         local gunAttrCd = tonumber(gun:GetAttribute(gunConfig.CooldownAttribute)) or gunConfig.DefaultCooldown
-        local shotInterval = math.max(0.03, math.min(customCd > 0 and customCd or gunAttrCd, currentCooldown("Game.MvSGunCooldown", gunConfig.DefaultCooldown, gunConfig.MinCooldown)))
+        local shotInterval = math.max(CONFIG.MIN_SHOT_INTERVAL, math.min(customCd > 0 and customCd or gunAttrCd, currentCooldown("Game.MvSGunCooldown", gunConfig.DefaultCooldown, gunConfig.MinCooldown)))
 
         if now - Attack._lastSpamShot < shotInterval then return end
         Attack._lastSpamShot = now
@@ -247,25 +239,23 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Knife spam throw: spams "E" key to throw knife repeatedly
     local function processKnifeSpamThrow(now: number, knife: Tool?)
         if StateStore:Get("Game.MvSKnifeSpamThrow") ~= true then return end
         if not knife or knife.Parent ~= LocalPlayer.Character then return end
 
-        if now - Attack._lastSpamThrow < 0.05 then return end
+        if now - Attack._lastSpamThrow < CONFIG.KNIFE_SPAM_INTERVAL then return end
         Attack._lastSpamThrow = now
 
-        pcall(function()
-            local vim = game:GetService("VirtualInputManager")
-            if vim then
-                vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                task.delay(0.02, function()
+        if VirtualInputManager then
+            pcall(function()
+                VirtualInputManager:SendKeyEvent(true, CONFIG.SPAM_THROW_KEY, false, game)
+                task.delay(CONFIG.SPAM_KEY_RELEASE_DELAY, function()
                     pcall(function()
-                        vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                        VirtualInputManager:SendKeyEvent(false, CONFIG.SPAM_THROW_KEY, false, game)
                     end)
                 end)
-            end
-        end)
+            end)
+        end
     end
 
     local function tick(now: number)
@@ -303,7 +293,7 @@ return function(services: any, Duel: any?): any
             for _, target in ipairs(targets) do
                 if not Attack._gunLast[target.Character] or now - Attack._gunLast[target.Character] > cooldown then
                     Attack._gunLast[target.Character] = now
-                    -- The tool's own cooldown caps the global re-fire gate, never below the floor.
+
                     Attack._gunNextShot = now + math.max(tonumber(gun:GetAttribute(gunConfig.CooldownAttribute)) or gunConfig.DefaultCooldown, gunConfig.MinCooldown)
                     task.spawn(gunHit, target)
                     break
@@ -319,15 +309,11 @@ return function(services: any, Duel: any?): any
     function Attack:Initialize()
         self._knifeRemote = resolveRemote(knifeConfig.Remote)
         self._gunRemote = resolveRemote(gunConfig.Remote)
-        if not self._knifeRemote or not self._gunRemote then
-            warn("[B0Xaz][" .. manifest.Name .. ":Attack] Remotes not found at ReplicatedStorage."
-                .. table.concat(gunConfig.Remote, ".") .. "; drivers will idle until re-init")
-        end
+
         scope:Add(RunService.Heartbeat:Connect(function()
-            local ok, err = pcall(tick, os.clock())
-            if not ok then warn("[B0Xaz][" .. manifest.Name .. ":Attack] " .. tostring(err)) end
+            pcall(tick, os.clock())
         end))
-        -- A fresh character clears in-flight state so no blink/restore straddles a respawn.
+
         scope:Add(LocalPlayer.CharacterAdded:Connect(function()
             self._knifeBusy, self._gunBusy = false, false
             self:Reset("respawn")

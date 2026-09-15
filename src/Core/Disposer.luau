@@ -1,11 +1,11 @@
---!nonstrict
+--!strict
 export type Scope = {
     Name: string,
     Add: (Scope, any, string?) -> any,
     Spawn: (Scope, (...any) -> (), ...any) -> thread?,
     Delay: (Scope, number, (...any) -> (), ...any) -> thread?,
     Bind: (Scope, string, any, string?) -> any,
-    Unbind: (Scope, string) -> (),
+    Unbind: (Scope) -> (),
     CreateChild: (Scope, string) -> Scope,
     ReleaseProperty: (Scope, any, string) -> (),
     ReleaseObject: (Scope, any) -> (),
@@ -19,13 +19,13 @@ return function(): any
     methods.__index = methods
 
     local function cleanup(item: any, customMethod: string?)
-        local ok, err = pcall(function()
+        pcall(function()
             local kind = typeof(item)
             if customMethod then
                 if customMethod == "Remove" then pcall(function() item.Visible = false end) end
                 item[customMethod](item)
             elseif kind == "thread" then
-                -- Unload is often called by one of our own handlers; cancelling it would interrupt teardown.
+                -- Unload is often triggered by one of our own handlers; cancelling it would abort teardown.
                 if item ~= coroutine.running() and coroutine.status(item) ~= "dead" then task.cancel(item) end
             elseif kind == "RBXScriptConnection" then
                 item:Disconnect()
@@ -42,14 +42,13 @@ return function(): any
                 end
             end
         end)
-        if not ok then warn("[B0Xaz][Dispose] " .. tostring(err)) end
     end
 
     function Disposer.new(name: string?, parent: any?): any
-    local scope = setmetatable({
-        Name = name or "Scope", _disposed = false, _items = {}, _nextId = 0,
-        _keys = {}, _itemSlots = {}, _leases = {}, _parent = parent,
-    }, methods)
+        local scope: any = setmetatable({
+            Name = name or "Scope", _disposed = false, _items = {}, _nextId = 0,
+            _keys = {}, _itemSlots = {}, _leases = {}, _parent = parent,
+        }, methods)
         scope._root = if parent then parent._root else scope
         if not parent then scope._journal = {} end
         return scope
@@ -80,13 +79,10 @@ return function(): any
         local args = table.pack(...)
         local worker: thread
         worker = coroutine.create(function()
-            if not scope._disposed then
-                local ok, err = pcall(callback, table.unpack(args, 1, args.n))
-                if not ok then warn("[B0Xaz][Handler:" .. scope.Name .. "] " .. tostring(err)) end
-            end
+            if not scope._disposed then pcall(callback, table.unpack(args, 1, args.n)) end
             scope:Forget(worker)
         end)
-        -- Register before starting: task.spawn can finish (or unload) before returning.
+        -- Register before starting: task.spawn can finish before it returns.
         scope:Add(worker)
         if seconds then task.delay(seconds, worker) else task.spawn(worker) end
         return worker
@@ -104,13 +100,13 @@ return function(): any
         local scope = self
         return scope:Add(signal:Connect(function(...: any) scope:Spawn(callback, ...) end))
     end
-    -- High-rate engine signals (RenderStepped, InputChanged, DescendantAdded) cannot afford a thread per event.
+
+    -- High-rate engine signals cannot afford a thread spawn per event.
     function methods:ConnectImmediate(signal: any, callback: (...any) -> ()): any
         local scope = self
         return scope:Add(signal:Connect(function(...: any)
             if scope._disposed then return end
-            local ok, err = pcall(callback, ...)
-            if not ok then warn("[B0Xaz][Handler:" .. scope.Name .. "] " .. tostring(err)) end
+            pcall(callback, ...)
         end))
     end
 
@@ -161,16 +157,16 @@ return function(): any
         end
         lease.Value = value
         if dynamic then
-            -- Integrators (teleport, spin, flight) share a live transform; they need last-write composition, not a frozen overlay.
+            -- Dynamic integrators share a live transform; move the lease to the top for last-write composition.
             for index, candidate in ipairs(entry.Owners) do
                 if candidate == lease then table.remove(entry.Owners, index); break end
             end
             table.insert(entry.Owners, lease)
         end
         -- Static first-touch ownership order is stable; a reassertion cannot steal a newer overlay's priority.
-        local ok = pcall(function() object[property] = entry.Owners[#entry.Owners].Value end)
+        pcall(function() object[property] = entry.Owners[#entry.Owners].Value end)
         if not ok and newLease then
-            -- Readable does not imply writable (terrain and surface maps vary by client). A failed first write owns nothing.
+            -- Readable does not imply writable; a failed first write owns nothing.
             owned[property] = nil
             if next(owned) == nil then self._leases[object] = nil end
             for index, candidate in ipairs(entry.Owners) do if candidate == lease then table.remove(entry.Owners, index); break end end
@@ -195,8 +191,7 @@ return function(): any
             if candidate == lease then table.remove(entry.Owners, index); break end
         end
         local top = entry.Owners[#entry.Owners]
-        local ok, err = pcall(function() object[property] = if top then top.Value else entry.Original end)
-        if not ok then warn("[B0Xaz][Restore:" .. self.Name .. "] " .. property .. ": " .. tostring(err)) end
+        pcall(function() object[property] = if top then top.Value else entry.Original end)
         if not top then
             properties[property] = nil
             if next(properties) == nil then self._root._journal[object] = nil end
@@ -232,9 +227,8 @@ return function(): any
         for object in pairs(table.clone(self._leases)) do self:RestoreObject(object) end
     end
 
-    -- Lease removal WITHOUT a write. Live transforms (CFrame, velocities) must be released this
-    -- way: restoring their cached original snaps the object back to a stale position or speed.
-    -- If another scope still owns the property, its overlay simply remains in effect.
+    -- Lease removal WITHOUT a write: live transforms must be released, not restored,
+    -- or the object snaps back to a stale position. Remaining owners keep their overlay.
     function methods:ReleaseProperty(object: any, property: string)
         local owned = self._leases[object]
         local lease = owned and owned[property]

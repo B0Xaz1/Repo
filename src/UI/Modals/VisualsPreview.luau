@@ -1,18 +1,23 @@
---!nonstrict
+--!strict
+local RunService = game:GetService("RunService")
+
+local CONFIG = table.freeze({
+    RAINBOW_SPEED = 0.15,
+    SAMPLE_TEAM = Color3.fromRGB(70, 150, 255),
+})
+
 return function(services: any): any
     local dom, theme, state = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore")
     local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("VisualsPreview")
-    local runService = game:GetService("RunService")
-    local SAMPLE_TEAM = Color3.fromRGB(70, 150, 255)
     local VisualsPreview = { Frame = nil, _parts = {}, _initialized = false }
 
     local function rainbow(): Color3
-        return Color3.fromHSV((os.clock() * 0.15) % 1, 0.75, 1)
+        return Color3.fromHSV((os.clock() * CONFIG.RAINBOW_SPEED) % 1, 0.75, 1)
     end
     local function sampleColor(config: any, fallback: Color3): Color3
         if config.Rainbow then return rainbow() end
-        if config.UseTeamColor then return SAMPLE_TEAM end
+        if config.UseTeamColor then return CONFIG.SAMPLE_TEAM end
         return fallback
     end
     local function paint()
@@ -112,7 +117,7 @@ return function(services: any): any
                 paint()
                 local on = VisualsPreview.Frame and VisualsPreview.Frame.Visible
                 if on and not renderConn then
-                    renderConn = runService.RenderStepped:Connect(paint)
+                    renderConn = RunService.RenderStepped:Connect(paint)
                 elseif not on and renderConn then
                     renderConn:Disconnect(); renderConn = nil
                 end

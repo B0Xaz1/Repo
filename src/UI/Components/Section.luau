@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 return function(services: any): any
     local dom, theme, state, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore"), services:Get("EventBus")
     local disposer = services:Get("Disposer")
@@ -28,7 +28,7 @@ return function(services: any): any
         local text = dom:Create("TextLabel", { Parent = row, BackgroundTransparency = 1, Size = UDim2.new(0.56, -8, 1, 0),
             Text = label, TextSize = 12, Font = Enum.Font.Gotham, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Text") })
         theme:BindToken(text, "TextColor3", "Text")
-        local owner = disposer:CreateChild("Control " .. label)
+        local owner = disposer:CreateChild(`Control {label}`)
         owner:Connect(row.Destroying, function() owner:Dispose() end)
         row:SetAttribute("B0XazLabel", label)
         if services:Has("UIEngine") then owner:Add(services:Get("UIEngine"):RegisterControl(row, label)) end

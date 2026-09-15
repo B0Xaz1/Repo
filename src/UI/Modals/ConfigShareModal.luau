@@ -1,4 +1,15 @@
---!nonstrict
+--!strict
+local Workspace = game:GetService("Workspace")
+
+local CONFIG = table.freeze({
+    DISPLAY_ORDER = 1150,
+    WINDOW_MAX_WIDTH = 660,
+    WINDOW_MAX_HEIGHT = 560,
+    WINDOW_MARGIN_X = 28,
+    WINDOW_MARGIN_Y = 32,
+    FALLBACK_VIEWPORT = Vector2.new(800, 600),
+})
+
 return function(services: any): any
     local dom, theme, environment, config = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment"), services:Get("ConfigService")
     local scope = services:Get("Disposer"):CreateChild("ConfigShareModal")
@@ -12,13 +23,13 @@ return function(services: any): any
         local owner = scope:CreateChild("Share editor")
         self._view = owner
         local root = dom:Create("ScreenGui", { Parent = assert(environment:GetSafeGuiParent(), "No GUI parent for config editor"), Name = dom:RandomName(),
-            ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 1150, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
+            ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = CONFIG.DISPLAY_ORDER, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
         theme:RegisterRoot(root)
         owner:Add(function() dom:DestroyInstance(root) end)
         dom:Create("Frame", { Parent = root, BorderSizePixel = 0, BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4, Size = UDim2.fromScale(1, 1), Active = true })
-        local screen = if game:GetService("Workspace").CurrentCamera then game:GetService("Workspace").CurrentCamera.ViewportSize else Vector2.new(800, 600)
+        local screen = if Workspace.CurrentCamera then Workspace.CurrentCamera.ViewportSize else CONFIG.FALLBACK_VIEWPORT
         local window = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(math.min(660, screen.X - 28), math.min(560, screen.Y - 32)), Active = true })
+            Size = UDim2.fromOffset(math.min(CONFIG.WINDOW_MAX_WIDTH, screen.X - CONFIG.WINDOW_MARGIN_X), math.min(CONFIG.WINDOW_MAX_HEIGHT, screen.Y - CONFIG.WINDOW_MARGIN_Y)), Active = true })
         theme:BindToken(window, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = window, CornerRadius = UDim.new(0, 6) })
         theme:BindToken(dom:CreateStroke(window, theme:GetToken("Border")), "Color", "Border")
         local title = dom:Create("TextLabel", { Parent = window, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 10), Size = UDim2.new(1, -36, 0, 39),

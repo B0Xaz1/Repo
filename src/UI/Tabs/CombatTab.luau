@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 return function(services: any, tab: any): any
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
@@ -33,7 +33,7 @@ return function(services: any, tab: any): any
     slider(filters, "Max Lock Radius", "Aimbot.MaxLockRadius", 10, 1000, 5, " px", nil)
     slider(filters, "Max Distance", "Aimbot.MaxDistance", 50, 10000, 50, " studs", nil)
     for _, entry in ipairs({ { "Ignore Friends", "FriendCheck" }, { "Ignore Whitelisted", "WhitelistCheck" }, { "Ignore ForceField", "ForceFieldCheck" } }) do
-        toggle(filters, entry[1], "Aimbot." .. entry[2], nil)
+        toggle(filters, entry[1], `Aimbot.{entry[2]}`, nil)
     end
     local trigger = section:Create(tab.RightCol, "Prediction & Triggerbot")
     slider(trigger, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
@@ -42,7 +42,7 @@ return function(services: any, tab: any): any
     slider(trigger, "Trigger delay", "Aimbot.Triggerbot.Delay", 0, 2, 0.01, " s", nil)
     slider(trigger, "Trigger distance", "Aimbot.Triggerbot.MaxDistance", 50, 10000, 50, " studs", nil)
     for _, entry in ipairs({ { "Triggerbot Team Check", "TeamCheck" }, { "Trigger friend check", "FriendCheck" }, { "Trigger whitelist check", "WhitelistCheck" }, { "Trigger force-field check", "ForceFieldCheck" }, { "Trigger visibility check", "VisCheck" } }) do
-        toggle(trigger, entry[1], "Aimbot.Triggerbot." .. entry[2], nil)
+        toggle(trigger, entry[1], `Aimbot.Triggerbot.{entry[2]}`, nil)
     end
     return { Name = tab.Name }
 end

@@ -1,23 +1,27 @@
---!nonstrict
--- Prison Life locations: tag/name discovery with manifest fallbacks, nearest tracking,
--- waypoints, and favorites.
+--!strict
+local CollectionService = game:GetService("CollectionService")
+local Workspace = game:GetService("Workspace")
+
+local CONFIG = table.freeze({
+    SCAN_DELAY = 1,
+    WAYPOINT_MAX_LENGTH = 48,
+    WAYPOINT_NAME_PREFIX = "WP ",
+})
+
 return function(services: any, Prison: any?): any
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")
     local Disposer = services:Get("Disposer")
     local PlayerTracker = services:Get("PlayerTracker")
     local LocomotionService = services:Get("LocomotionService")
-    local CollectionService = game:GetService("CollectionService")
-    local Players = game:GetService("Players")
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild(manifest.Name .. ".Locations")
-    local workspace = game:GetService("Workspace")
+    local scope = Disposer:CreateChild(`{manifest.Name}.Locations`)
 
     local LocationService = {
-        _resolved = {},      -- [Id] = { CFrame = CFrame, Source = "Tag" | "Name" | "Fallback" }
-        _nameIndex = {},     -- [lowered keyword] = Instance
-        _waypoints = {},     -- ordered { Name, CFrame }
+        _resolved = {},
+        _nameIndex = {},
+        _waypoints = {},
         _scanCount = 0,
     }
 
@@ -30,12 +34,11 @@ return function(services: any, Prison: any?): any
         return nil
     end
 
-    -- Preferred resolution order: tagged map object, named map object, manifest fallback.
     local function resolve(location: any): any
         local cached = LocationService._resolved[location.Id]
         if cached then return cached end
 
-        local tag = manifest.TagPrefix .. ":" .. location.Id
+        local tag = `{manifest.TagPrefix}:{location.Id}`
         for _, instance in ipairs(CollectionService:GetTagged(tag)) do
             local frame = cframeFromInstance(instance)
             if frame then
@@ -60,12 +63,11 @@ return function(services: any, Prison: any?): any
         return cached
     end
 
-    -- One workspace pass indexing models/parts by the manifest keywords (lower case, spaces stripped).
     function LocationService:ScanMapObjects(): number
         local index = {}
         local ok, count = pcall(function()
             local found = 0
-            for _, instance in ipairs(workspace:GetDescendants()) do
+            for _, instance in ipairs(Workspace:GetDescendants()) do
                 if instance:IsA("Model") or instance:IsA("BasePart") then
                     local key = tostring(instance.Name):lower():gsub("%s+", "")
                     local matched = false
@@ -153,23 +155,21 @@ return function(services: any, Prison: any?): any
         if not location then return false, "Select a location first" end
         local frame = resolve(location)
         local ok, message = LocomotionService:Teleport(frame.CFrame)
-        return ok, if ok then ("Teleported to " .. location.Name) else message
+        return ok, if ok then `Teleported to {location.Name}` else message
     end
 
     function LocationService:TeleportToName(name: string): (boolean, string)
         return self:TeleportTo(self:GetLocationByName(name))
     end
 
-    -- Session waypoints ------------------------------------------------------------
-
     function LocationService:SaveWaypoint(name: string?): (boolean, string)
         local assets = PlayerTracker:GetLocalAssets()
         if not assets then return false, "Your character is not ready" end
-        local clean = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", ""):sub(1, 48)
-        if clean == "" then clean = "WP " .. tostring(#self._waypoints + 1) end
+        local clean = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", ""):sub(1, CONFIG.WAYPOINT_MAX_LENGTH)
+        if clean == "" then clean = `{CONFIG.WAYPOINT_NAME_PREFIX}{#self._waypoints + 1}` end
         table.insert(self._waypoints, { Name = clean, CFrame = assets.RootPart.CFrame })
         EventBus:Publish("PrisonWaypointsChanged")
-        return true, "Saved waypoint " .. clean
+        return true, `Saved waypoint {clean}`
     end
 
     function LocationService:ListWaypoints(): { string }
@@ -182,7 +182,7 @@ return function(services: any, Prison: any?): any
         for _, waypoint in ipairs(self._waypoints) do
             if waypoint.Name == name then
                 local ok, message = LocomotionService:Teleport(waypoint.CFrame)
-                return ok, if ok then ("Teleported to " .. name) else message
+                return ok, if ok then `Teleported to {name}` else message
             end
         end
         return false, "Select a saved waypoint"
@@ -193,13 +193,11 @@ return function(services: any, Prison: any?): any
             if waypoint.Name == name then
                 table.remove(self._waypoints, index)
                 EventBus:Publish("PrisonWaypointsChanged")
-                return true, "Removed waypoint " .. name
+                return true, `Removed waypoint {name}`
             end
         end
         return false, "Select a saved waypoint"
     end
-
-    -- Favorites --------------------------------------------------------------------
 
     function LocationService:IsFavorite(location: any): boolean
         if not location then return false end
@@ -213,11 +211,11 @@ return function(services: any, Prison: any?): any
         if index then
             table.remove(favorites, index)
             StateStore:Set("Game.FavoriteLocations", favorites)
-            return true, location.Name .. " removed from favorites"
+            return true, `{location.Name} removed from favorites`
         end
         table.insert(favorites, location.Id)
         StateStore:Set("Game.FavoriteLocations", favorites)
-        return true, location.Name .. " added to favorites"
+        return true, `{location.Name} added to favorites`
     end
 
     function LocationService:GetFavoriteNames(): { string }
@@ -230,8 +228,7 @@ return function(services: any, Prison: any?): any
 
     function LocationService:Initialize()
         scope:Spawn(function()
-            -- Defer the first map scan: the workspace can still be streaming in.
-            task.wait(1)
+            task.wait(CONFIG.SCAN_DELAY)
             if not scope:IsDisposed() then self:ScanMapObjects() end
         end)
     end

@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 export type IGamePlugin = {
     Name: string, Initialize: (IGamePlugin, any) -> (), BuildUI: (IGamePlugin, any) -> (), Destroy: (IGamePlugin) -> (),
 }
@@ -9,8 +9,6 @@ return function(services: any): any
     local registry = load("src/Plugins/PluginRegistry.luau", services)
     local PluginManager = { _match = nil, _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false }
 
-    -- Automatic resolution reads the live place; a manual selection from the Game tab
-    -- overrides it for the rest of the session until reset to automatic.
     local function resolvedMatch(): any
         return PluginManager._manual or registry:Resolve(game.PlaceId, game.GameId)
     end
@@ -34,9 +32,8 @@ return function(services: any): any
             local panel = section:Create(tab.LeftCol, "Universal mode")
             section:Info(panel, if resolvedMatch() then "The matching game plugin is available for this place or universe." else "No plugin is registered for this place or universe. Universal tools remain available.")
             if PluginManager._lastError then
-                section:Info(panel, "Last adapter error: " .. PluginManager._lastError)
+                section:Info(panel, `Last adapter error: {PluginManager._lastError}`)
             end
-            -- Manual override: any registered adapter can be force-mounted onto this game.
             local registrations = registry:GetRegistrations()
             if #registrations > 0 then
                 local names, byName = {}, {}
@@ -56,24 +53,22 @@ return function(services: any): any
             local section = load("src/UI/Components/Section.luau", services)
             local textbox = load("src/UI/Components/Textbox.luau", services)
             local panel = section:Create(tab.LeftCol, "Plugin override")
-            section:Info(panel, "Force-mounted adapter: " .. PluginManager._manual.Name .. " (manual selection overrides automatic resolution)")
+            section:Info(panel, `Force-mounted adapter: {PluginManager._manual.Name} (manual selection overrides automatic resolution)`)
             textbox:CreateButton(panel, "Return to automatic", function()
                 return PluginManager:SelectPlugin(nil)
             end)
         end
-        -- A plugin UI failure must never take the whole suite down; surface it instead.
         local ok, err = pcall(function() PluginManager._active:BuildUI(tab) end)
         if ok then
             PluginManager._lastError = nil
             return
         end
         PluginManager._lastError = tostring(err)
-        warn("[B0Xaz][PluginManager] UI mount failed: " .. PluginManager._lastError)
         bus:Publish("PluginError", PluginManager._active.Name, PluginManager._lastError)
         bus:Publish("Notify", "Plugin UI failed", PluginManager._lastError)
         local section = load("src/UI/Components/Section.luau", services)
         local panel = section:Create(tab.LeftCol, "Plugin error")
-        section:Info(panel, PluginManager._active.Name .. " could not build its Game tab: " .. PluginManager._lastError)
+        section:Info(panel, `{PluginManager._active.Name} could not build its Game tab: {PluginManager._lastError}`)
     end
     local function deactivate()
         local owner = PluginManager._activeOwner
@@ -91,7 +86,6 @@ return function(services: any): any
             return if name == "Disposer" then owner else services:Get(name)
         end
         local ok, plugin = pcall(function()
-            -- The factory stays cached while each activation receives an isolated instance and disposer.
             local factory = load(match.PluginModule)
             local instance = factory(pluginServices)
             assert(type(instance) == "table" and type(instance.Initialize) == "function" and type(instance.Destroy) == "function", "Invalid plugin contract")
@@ -100,7 +94,6 @@ return function(services: any): any
             instance:Initialize(pluginServices)
             return instance
         end)
-        -- The owner exists before the factory runs, so even a half-constructed plugin is reversible.
         if not ok then
             PluginManager._lastError = tostring(plugin)
             deactivate()
@@ -114,10 +107,10 @@ return function(services: any): any
         local match = resolvedMatch()
         return if self._active then self._active.Name else if match then match.Name else "Universal Mode"
     end
-    -- Diagnostics surfaces the last activation or mount error instead of swallowing it.
+
     function PluginManager:GetLastError(): string? return self._lastError end
     function PluginManager:ListPlugins(): { any } return registry:GetRegistrations() end
-    -- Nil registration drops the manual override and falls back to automatic resolution.
+
     function PluginManager:SelectPlugin(registration: any): (boolean, string)
         self._manual = registration
         self._lastError = nil
@@ -127,7 +120,7 @@ return function(services: any): any
         refreshMount()
         bus:Publish("PluginChanged", PluginManager:GetActivePluginName())
         if self._active then
-            return true, (if registration then "Force-mounted " else "Activated ") .. self._active.Name
+            return true, `{if registration then "Force-mounted " else "Activated "}{self._active.Name}`
         end
         return false, self._lastError or "No adapter is active"
     end

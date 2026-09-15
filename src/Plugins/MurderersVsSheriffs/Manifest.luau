@@ -1,27 +1,16 @@
---!nonstrict
--- Murderers VS Sheriffs DUELS data manifest. Duel rounds are tracked through the Match
--- player attribute plus team membership, so every downstream service keys off those two
--- signals exactly like the reference combat script. Remote paths and action timings are
--- frozen here so the drivers stay in one readable place.
+--!strict
+
 return function(_services: any?): any
-    local manifest = {
+    local CONFIG = {
         Name = "Murderers VS Sheriffs DUELS",
         PlaceIds = { 12355337193 },
         UniverseIds = { 4348829796 },
         TagPrefix = "B0XazMvSDuels",
 
-        -- Enemy scope: both players must share the same Match attribute value and sit on
-        -- different (non-nil) teams. Nil attributes or teams mean spectators or lobby.
         Match = { Attribute = "Match" },
 
-        -- Aim part preference inside an enemy character; the root is HumanoidRootPart with
-        -- the aim part as fallback, matching the reference script's resolution order.
         AimParts = { "Head", "UpperTorso", "HumanoidRootPart" },
 
-        -- Knife detection: KnifeTool tag, "Stab" in ActivatedAnimation, or "Knife" in
-        -- PulloutAnimation. Engage: teleport behind the target, simulate a client-side
-        -- click with Tool:Activate() (pure script-level; no synthetic mouse input), wait a
-        -- heartbeat, then fire remotes.Stab:FireServer(aimPart).
         Knife = {
             Remote = { "Remotes", "Stab" },
             Tag = "KnifeTool",
@@ -32,9 +21,6 @@ return function(_services: any?): any
             SimulateClick = true,
         },
 
-        -- Revolver detection: GunTool tag or "Shoot" in ActivatedAnimation. Fire:
-        -- remotes.ShootGun:FireServer(origin, hitPosition, aimPart, hitPosition) where
-        -- origin is the top of our head. The tool's Cooldown attribute gates re-fire.
         Gun = {
             Remote = { "Remotes", "ShootGun" },
             Tag = "GunTool",
@@ -44,7 +30,6 @@ return function(_services: any?): any
             DefaultCooldown = 2.55, MinCooldown = 0.05,
         },
 
-        -- ESP overlay pacing and palette mirror the reference script (gamesense accent).
         Esp = {
             MaxVisuals = 16, Interval = 0.033, GuiName = "B0XazMvSEsp",
             Accent = Color3.fromRGB(50, 119, 186),
@@ -52,7 +37,6 @@ return function(_services: any?): any
             Text = Color3.fromRGB(239, 239, 239),
         },
 
-        -- Auto-queue settings and remote discovery targets
         Queue = {
             DefaultMode = "1v1",
             Modes = { "1v1", "2v2", "3v3", "4v4" },
@@ -89,5 +73,5 @@ return function(_services: any?): any
         end
         return value
     end
-    return freezeDeep(manifest)
+    return freezeDeep(CONFIG)
 end

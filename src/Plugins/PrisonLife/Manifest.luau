@@ -1,21 +1,14 @@
---!nonstrict
--- Prison Life (by Aesthetical) data manifest.
--- Coordinates, gun names, and obstacle folders come from the legacy plugin that ran
--- against the live map. Runtime resolution still prefers tagged map objects, named map
--- objects, and live folders over these fallbacks so a map update cannot break the plugin.
+--!strict
+
 return function(_services: any?): any
-    local manifest = {
+    local CONFIG = {
         Name = "Prison Life",
-        -- Place 155615604 is the live Prison Life place. Add a universe id to the second
-        -- table if the experience grows extra places that should share this adapter.
+
         PlaceIds = { 155615604 },
         UniverseIds = {},
-        -- CollectionService tags of the form "<TagPrefix>:<Id>" override manifest fallbacks at runtime.
+
         TagPrefix = "B0XazPrisonLife",
 
-        -- Ordered on purpose: buttons and dropdowns keep a stable order.
-        -- IsGun marks real guns (cycled by the macro, tuned by weapon mods); the remaining
-        -- entries are items the game also hands out.
         Weapons = {
             {
                 Id = "MP5", Name = "MP5", ToolNames = { "MP5" }, Category = "SMG", IsGun = true,
@@ -35,24 +28,17 @@ return function(_services: any?): any
             },
         },
 
-        -- Prison Life guns have carried their stats in two forms across updates: a
-        -- GunStates ModuleScript table (Spread/FireRate/AutoFire/Range) and instance
-        -- attributes (SpreadRadius/FireRate/AutoFire/Range) on the tool or its children.
-        -- Weapon mods honor whichever a tool carries and back both up.
         GunMods = {
             ModuleName = "GunStates",
             ModuleFields = { "Spread", "FireRate", "AutoFire", "Range" },
             Attributes = { "SpreadRadius", "FireRate", "AutoFire", "Range" },
         },
-        -- Armory pickup flow: workspace.Remote.ItemHandler:InvokeServer(workspace.Prison_ITEMS.giver.<name>.ITEMPICKUP)
+
         Items = {
             RemoteFolder = "Remote", RemoteName = "ItemHandler",
             GiverRoot = "Prison_ITEMS", GiverFolders = { "giver", "single" }, PickupChild = "ITEMPICKUP",
         },
 
-        -- Ordered locations. CFrame values are legacy fallbacks; resolution prefers
-        -- CollectionService tags ("B0XazPrisonLife:<Id>"), then map objects whose name
-        -- matches a Keyword, then these coordinates.
         Locations = {
             {
                 Id = "PrisonCells", Name = "Prison Cells", Category = "Prison", CFrame = CFrame.new(920, 98, 2436),
@@ -117,16 +103,14 @@ return function(_services: any?): any
         },
         LocationCategories = { "Prison", "Armory", "Police", "Interior", "Escape", "Criminal", "Custom" },
 
-        -- Legacy obstacle containers, matched case-insensitively against workspace
-        -- children. Everything inside them is phaseable.
         Doors = {
             Folders = { "doors", "glass", "celldoors", "prison_fences", "prison_gate" },
-            -- Heuristic fallback if a map update renames every known container.
+
             NamePatterns = { "door", "gate", "cell", "fence", "glass" },
         },
 
         Macro = {
-            MinGuns = 3, -- the macro cycles all three ranged givers (MP5, Remington 870, AK-47)
+            MinGuns = 3,
         },
     }
 
@@ -137,5 +121,5 @@ return function(_services: any?): any
         end
         return value
     end
-    return freezeDeep(manifest)
+    return freezeDeep(CONFIG)
 end

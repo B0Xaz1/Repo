@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 return function(services: any): any
     local dom, theme = services:Get("DOM"), services:Get("ThemeEngine")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)

@@ -1,26 +1,35 @@
---!nonstrict
-local MAX_JSON_BYTES: number = 1024 * 1024
+--!strict
+local HttpService = game:GetService("HttpService")
+
+local CONFIG = table.freeze({
+    MAX_JSON_BYTES = 1024 * 1024,
+    MAX_NESTING_DEPTH = 40,
+    MAX_NAME_LENGTH = 64,
+    AUTOSAVE_FILE = "Configs/_autoload.json",
+    AUTOSAVE_INTERVAL = 1.5,
+    BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" },
+})
 
 return function(services: any): any
     local environment, state = services:Get("Environment"), services:Get("StateStore")
     local bus, scope = services:Get("EventBus"), services:Get("Disposer"):CreateChild("ConfigService")
-    local http = game:GetService("HttpService")
     local ConfigService = { Dirty = false, _isLoading = false, _initialized = false, _activeProfile = "Default", _applyingLaunch = false }
 
     local function serialize(value: any, depth: number?): any
         local level = depth or 0
-        assert(level < 40, "Config nesting limit exceeded")
+        assert(level < CONFIG.MAX_NESTING_DEPTH, "Config nesting limit exceeded")
         local kind = typeof(value)
         if kind == "Color3" then return { __type = "Color3", r = value.R, g = value.G, b = value.B } end
-        if kind == "EnumItem" then return { __type = "EnumItem", enum = tostring(value.EnumType):gsub("^Enum%.", ""), name = value.Name } end
+        if kind == "EnumItem" then return { __type = "EnumItem", enum = (tostring(value.EnumType):gsub("^Enum%.", "")), name = value.Name } end
         if type(value) ~= "table" then return value end
         local result = {}
         for key, child in pairs(value) do result[key] = serialize(child, level + 1) end
         return result
     end
+
     local function deserialize(value: any, depth: number?): any
         local level = depth or 0
-        assert(level < 40, "Config nesting limit exceeded")
+        assert(level < CONFIG.MAX_NESTING_DEPTH, "Config nesting limit exceeded")
         if type(value) ~= "table" then return value end
         if value.__type == "Color3" then
             for _, key in ipairs({ "r", "g", "b" }) do
@@ -28,7 +37,7 @@ return function(services: any): any
             end
             return Color3.new(math.clamp(value.r, 0, 1), math.clamp(value.g, 0, 1), math.clamp(value.b, 0, 1))
         elseif value.__type == "EnumItem" then
-            local name = tostring(value.enum):gsub("^Enum%.", "")
+            local name = (tostring(value.enum):gsub("^Enum%.", ""))
             local ok, item = pcall(function() return (Enum :: any)[name][value.name] end)
             assert(ok and typeof(item) == "EnumItem", "Invalid EnumItem")
             return item
@@ -37,24 +46,28 @@ return function(services: any): any
         for key, child in pairs(value) do result[key] = deserialize(child, level + 1) end
         return result
     end
+
     local function decode(json: string): any
-        assert(#json <= MAX_JSON_BYTES, "Config exceeds the 1 MiB safety limit")
-        local value = http:JSONDecode(json)
+        assert(#json <= CONFIG.MAX_JSON_BYTES, "Config exceeds the 1 MiB safety limit")
+        local value = HttpService:JSONDecode(json)
         assert(type(value) == "table", "Config must be a JSON object")
         if value.Format == 1 then assert(type(value.Settings) == "table", "Config is missing Settings"); value = value.Settings end
         return deserialize(value)
     end
+
     local function encode(snapshot: any): string
-        return http:JSONEncode({ Format = 1, Version = services.Version, Settings = serialize(snapshot) })
+        return HttpService:JSONEncode({ Format = 1, Version = services.Version, Settings = serialize(snapshot) })
     end
+
     local function sanitize(name: string): string
-        return (tostring(name):gsub('[/\\%.:%*%?<>|"%z\1-\31\127]', ""):gsub("^%s+", ""):gsub("%s+$", "")):sub(1, 64)
+        return (tostring(name):gsub('[/\\%.:%*%?<>|"%z\1-\31\127]', ""):gsub("^%s+", ""):gsub("%s+$", "")):sub(1, CONFIG.MAX_NAME_LENGTH)
     end
-    local BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" }
+
     local function builtinKey(name: string): string?
         local key = string.lower(sanitize(name))
-        return if BUILTIN_LABELS[key] then key else nil
+        return if CONFIG.BUILTIN_LABELS[key] then key else nil
     end
+
     local function buildBuiltin(key: string): any
         local snapshot = state:GetDefaultSettings()
         if key == "legit" then
@@ -82,12 +95,14 @@ return function(services: any): any
         end
         return snapshot
     end
+
     local function pathFor(name: string): (string?, string)
         name = sanitize(name)
         if name == "" or name:sub(1, 1) == "_" then return nil, "Choose a non-empty profile name that does not start with '_'" end
-        if builtinKey(name) then return nil, BUILTIN_LABELS[builtinKey(name)] .. " is a built-in preset" end
-        return "Configs/" .. name .. ".json", name
+        if builtinKey(name) then return nil, `{CONFIG.BUILTIN_LABELS[builtinKey(name) :: string]} is a built-in preset` end
+        return `Configs/{name}.json`, name
     end
+
     local function hydrate(snapshot: any)
         ConfigService._isLoading = true
         local ok, err = pcall(function() state:LoadSettingsSnapshot(snapshot) end)
@@ -97,6 +112,7 @@ return function(services: any): any
     end
 
     function ConfigService:SanitizeName(name: string): string return sanitize(name) end
+
     function ConfigService:Save(name: string): (boolean, string)
         local path, clean = pathFor(name)
         if not path then return false, clean end
@@ -104,8 +120,9 @@ return function(services: any): any
         if not ok then return false, tostring(json) end
         local written, message = environment:WriteFile(path, json)
         if written then self._activeProfile = clean; bus:Publish("ProfilesChanged") end
-        return written, message or ("Saved " .. clean)
+        return written, message or `Saved {clean}`
     end
+
     function ConfigService:Load(name: string): (boolean, string)
         local key = builtinKey(name)
         if key then
@@ -114,35 +131,37 @@ return function(services: any): any
                 local current = state:GetSettingsSnapshot()
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
             end
-            hydrate(snapshot); self._activeProfile = BUILTIN_LABELS[key]
+            hydrate(snapshot); self._activeProfile = CONFIG.BUILTIN_LABELS[key]
             self:PersistLoadedProfile()
-            return true, "Loaded " .. BUILTIN_LABELS[key]
+            return true, `Loaded {CONFIG.BUILTIN_LABELS[key]}`
         end
         local path, clean = pathFor(name)
         if not path then return false, clean end
         local raw, readError = environment:ReadFile(path)
         if not raw then return false, readError or "Profile not found" end
         local ok, snapshot = pcall(decode, raw)
-        if not ok then return false, "Invalid profile: " .. tostring(snapshot) end
+        if not ok then return false, `Invalid profile: {tostring(snapshot)}` end
         hydrate(snapshot); self._activeProfile = clean
         self:PersistLoadedProfile()
-        return true, "Loaded " .. clean
+        return true, `Loaded {clean}`
     end
-    -- Loading a profile is itself a launch choice: persist it to the autosave immediately, or a
-    -- relaunch with an untouched session would silently restore the previous one. The boot-time
-    -- apply is exempt — it resolves its own restore path and writes nothing extra.
+
+    -- Loading a profile is itself a launch choice: persist it immediately, or an untouched
+    -- relaunch would silently restore the previous session. Boot-time apply is exempt.
     function ConfigService:PersistLoadedProfile()
         if self._applyingLaunch then return end
         self.Dirty = true
         self:Flush()
     end
+
     function ConfigService:Delete(name: string): (boolean, string)
         local path, clean = pathFor(name)
         if not path then return false, clean end
         local ok, message = environment:DeleteFile(path)
         if ok then bus:Publish("ProfilesChanged") end
-        return ok, message or ("Deleted " .. clean)
+        return ok, message or `Deleted {clean}`
     end
+
     function ConfigService:ListProfiles(): { string }
         local names, seen = { "Default", "Legit", "Rage" }, { default = true, legit = true, rage = true }
         local extras = {}
@@ -156,39 +175,45 @@ return function(services: any): any
         for _, name in ipairs(extras) do table.insert(names, name) end
         return names
     end
+
     function ConfigService:ProfileExists(name: string): boolean
         if builtinKey(name) then return true end
         local path = pathFor(name)
         return path ~= nil and environment:ReadFile(path) ~= nil
     end
+
     function ConfigService:Export(): (string?, string?)
         local ok, json = pcall(encode, state:GetSettingsSnapshot())
         if not ok then return nil, tostring(json) end
         local copied, message = environment:SetClipboard(json)
         return json, if copied then "Copied config JSON" else message
     end
+
     function ConfigService:Import(json: string?): (boolean, string)
         if not json or json:match("^%s*$") then json = environment:GetClipboard() end
         if not json then return false, "Clipboard reading is unavailable; paste JSON into the editor" end
         local ok, snapshot = pcall(decode, json)
-        if not ok then return false, "Invalid config JSON: " .. tostring(snapshot) end
+        if not ok then return false, `Invalid config JSON: {tostring(snapshot)}` end
         hydrate(snapshot); self._activeProfile = "Imported"
         self:PersistLoadedProfile()
         return true, "Imported config"
     end
+
     function ConfigService:ReadRawAutoload(): any?
-        local raw = environment:ReadFile("Configs/_autoload.json")
+        local raw = environment:ReadFile(CONFIG.AUTOSAVE_FILE)
         if not raw then return nil end
         local ok, snapshot = pcall(decode, raw)
         return if ok then snapshot else nil
     end
+
     function ConfigService:Flush(): (boolean, string?)
         local ok, json = pcall(encode, state:GetSettingsSnapshot())
         if not ok then return false, tostring(json) end
-        local written, message = environment:WriteFile("Configs/_autoload.json", json)
+        local written, message = environment:WriteFile(CONFIG.AUTOSAVE_FILE, json)
         if written then self.Dirty = false end
         return written, message
     end
+
     function ConfigService:ApplyLaunchState(): string
         local raw = self:ReadRawAutoload()
         local preferences = if type(raw) == "table" and type(raw.Settings) == "table" then raw.Settings else {}
@@ -209,36 +234,41 @@ return function(services: any): any
                 local current = state:GetSettingsSnapshot()
                 current.Settings.RestoreOnLaunch, current.Settings.StartupProfile = true, startup
                 hydrate(current)
-                return "profile:" .. startup
+                return `profile:{startup}`
             end
         end
         if raw then hydrate(raw); self._activeProfile = "Autosaved session"; return "autoload" end
         hydrate(state:GetDefaultSettings())
         return "defaults"
     end
+
     function ConfigService:PinStartupProfile(name: string): (boolean, string)
         if not self:ProfileExists(name) then return false, "Save the profile before pinning it" end
         state:Set("Settings.StartupProfile", sanitize(name))
         self.Dirty = true
         self:Flush()
-        return true, "Pinned " .. sanitize(name) .. " for launch"
+        return true, `Pinned {sanitize(name)} for launch`
     end
+
     function ConfigService:GetActiveProfile(): string return self._activeProfile end
+
     function ConfigService:Initialize()
         if self._initialized then return end
         self._initialized = true
         scope:Add(bus:Subscribe("StateChanged", function(_path: string, _new: any, _old: any, metadata: any)
-            -- The hydration marker rides with the event metadata, not a guard that the hydration callee could clear early.
+            -- The hydration marker rides with the event metadata; the callee cannot clear it early.
             if not ConfigService._isLoading and not (metadata and metadata.Hydrating) then ConfigService.Dirty = true end
         end))
         scope:Spawn(function()
             while not scope:IsDisposed() do
-                task.wait(1.5)
+                task.wait(CONFIG.AUTOSAVE_INTERVAL)
                 if not scope:IsDisposed() and ConfigService.Dirty and not ConfigService._isLoading then ConfigService:Flush() end
             end
         end)
     end
+
     function ConfigService:Destroy() scope:Dispose() end
+
     scope:Add(function() if ConfigService.Dirty and ConfigService._initialized then ConfigService:Flush() end end)
     return ConfigService
 end

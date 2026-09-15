@@ -26,11 +26,14 @@ return function(services: any): any
 
     function DOM:CreateStroke(parent: Instance, color: Color3, thickness: number?): UIStroke
         local theme = services:Get("ThemeEngine")
+        local tokenColor = if type(color) == "string" then theme:GetToken(color) else nil
         local resolvedColor = if typeof(color) == "Color3" then color
-            elseif type(color) == "string" then theme:GetToken(color)
-            else theme:GetToken("Border")
-        local resolvedThickness = if type(thickness) == "number" then math.max(0, thickness) else 1
-        return self:Create("UIStroke", { Parent = parent, Color = resolvedColor, Thickness = resolvedThickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+            elseif typeof(tokenColor) == "Color3" then tokenColor
+            else Color3.new(1, 1, 1)
+        local resolvedThickness = math.max(0, tonumber(thickness) or 1)
+        local stroke = self:Create("UIStroke", { Parent = parent, Color = resolvedColor, Thickness = resolvedThickness })
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        return stroke
     end
 
     function DOM:CreatePadding(parent: Instance, top: number, right: number?, bottom: number?, left: number?): UIPadding

@@ -81,7 +81,7 @@ return function(): any
             scope:Forget(worker)
         end)
         scope:Add(worker)
-        if seconds then task.defer(function() task.wait(seconds); worker:resume() end) else task.spawn(worker) end
+        if seconds then task.defer(function() task.wait(seconds); coroutine.resume(worker) end) else task.spawn(worker) end
         return worker
     end
 

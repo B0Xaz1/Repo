@@ -15,45 +15,23 @@ return function(_services: any?): any
 
         -- Ordered on purpose: buttons and dropdowns keep a stable order.
         -- IsGun marks real guns (cycled by the macro, tuned by weapon mods); the remaining
-        -- entries are items the game also hands out. The seven guns match the legacy set.
+        -- entries are items the game also hands out.
         Weapons = {
             {
-                Id = "M9", Name = "M9", ToolNames = { "M9" }, Category = "Sidearm", IsGun = true,
-                Spawn = Vector3.new(816.65, 102.50, 2229.37), Pickup = "M9",
+                Id = "MP5", Name = "MP5", ToolNames = { "MP5" }, Category = "SMG", IsGun = true,
+                Spawn = Vector3.new(813.72, 102.50, 2229.37), Pickup = "MP5",
             },
             {
                 Id = "Remington870", Name = "Remington 870", ToolNames = { "Remington 870" }, Category = "Shotgun", IsGun = true,
                 Spawn = Vector3.new(820.27, 102.50, 2229.31), Pickup = "Remington 870",
             },
             {
-                Id = "MP5", Name = "MP5", ToolNames = { "MP5" }, Category = "SMG", IsGun = true,
-                Spawn = Vector3.new(813.72, 102.50, 2229.37), Pickup = "MP5",
-            },
-            {
                 Id = "AK47", Name = "AK-47", ToolNames = { "AK-47" }, Category = "Rifle", IsGun = true,
                 Spawn = Vector3.new(-932.00, 100.74, 2039.50), Pickup = "AK-47",
             },
             {
-                Id = "M4A1", Name = "M4A1", ToolNames = { "M4A1" }, Category = "Rifle", IsGun = true,
-                Pickup = "M4A1",
-            },
-            {
-                Id = "M700", Name = "M700", ToolNames = { "M700" }, Category = "Sniper", IsGun = true,
-                Pickup = "M700",
-            },
-            {
-                Id = "Revolver", Name = "Revolver", ToolNames = { "Revolver" }, Category = "Sidearm", IsGun = true,
-                Pickup = "Revolver",
-            },
-            {
                 Id = "Taser", Name = "Taser", ToolNames = { "Taser" }, Category = "Special",
                 Spawn = Vector3.new(813.00, 102.50, 2229.30),
-            },
-            {
-                Id = "Hammer", Name = "Hammer", ToolNames = { "Hammer" }, Category = "Item", Pickup = "Hammer",
-            },
-            {
-                Id = "Keycard", Name = "Keycard", ToolNames = { "Keycard" }, Category = "Item",
             },
         },
 
@@ -148,7 +126,7 @@ return function(_services: any?): any
         },
 
         Macro = {
-            MinGuns = 2, -- the macro needs at least two guns to cycle
+            MinGuns = 3, -- the macro cycles all three ranged givers (MP5, Remington 870, AK-47)
         },
     }
 

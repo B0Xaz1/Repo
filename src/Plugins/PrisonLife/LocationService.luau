@@ -11,7 +11,7 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild("PrisonLife.Locations")
+    local scope = Disposer:CreateChild(manifest.Name .. ".Locations")
     local workspace = game:GetService("Workspace")
 
     local LocationService = {

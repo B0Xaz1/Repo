@@ -11,7 +11,7 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild("PrisonLife.WorldPhase")
+    local scope = Disposer:CreateChild(manifest.Name .. ".WorldPhase")
     local changes = scope:CreateChild("PrisonLife.WorldPhase.Changes")
     local reassert = nil :: any
 

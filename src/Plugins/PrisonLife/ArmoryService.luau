@@ -10,7 +10,7 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild("PrisonLife.Armory")
+    local scope = Disposer:CreateChild(manifest.Name .. ".Armory")
     local LocalPlayer = Players.LocalPlayer
 
     local ArmoryService = {
@@ -109,6 +109,24 @@ return function(services: any, Prison: any?): any
         if not weapon.Spawn then return false, weapon.Name .. " has no known spawn point" end
         local ok, message = LocomotionService:Teleport(CFrame.new(weapon.Spawn))
         return ok, if ok then ("Teleported to " .. weapon.Name .. " spawn") else message
+    end
+
+    -- Uses the game's own pickup flow (the same remote the map's ITEMPICKUP parts use).
+    -- Pulls the manifest spawns of every ranged guest giver (MP5, Remington 870, AK-47),
+    -- teleporting through each ground position for the touch interest to grant the tool.
+    function ArmoryService:ArmAll(): (boolean, string)
+        local requested = {}
+        for _, weapon in ipairs(manifest.Weapons) do
+            if weapon.Pickup and weapon.Spawn then table.insert(requested, weapon.Name) end
+        end
+        if #requested == 0 then return false, "No giver spawns are known on this map" end
+        for _, name in ipairs(requested) do
+            local teleportOk, teleportMessage = self:GoToWeapon(name)
+            if not teleportOk then return false, teleportMessage end
+            local pickOk, pickMessage = self:Pickup(name)
+            if not pickOk then return false, pickMessage end
+        end
+        return true, "Requested " .. table.concat(requested, ", ")
     end
 
     -- Uses the game's own pickup flow (the same remote the map's ITEMPICKUP parts use).

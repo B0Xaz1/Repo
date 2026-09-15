@@ -169,6 +169,19 @@ return function(services: any, Duel: any?): any
         end
     end
 
+    -- Updates the Knife's "ThrowSpeed" attribute according to Game.MvSKnifeThrowSpeed setting
+    local function syncKnifeThrowSpeed(knife: Tool?)
+        if not knife then return end
+        local targetVal = tonumber(StateStore:Get("Game.MvSKnifeThrowSpeed"))
+        if targetVal and targetVal > 0 then
+            pcall(function()
+                if knife:GetAttribute("ThrowSpeed") ~= targetVal then
+                    knife:SetAttribute("ThrowSpeed", targetVal)
+                end
+            end)
+        end
+    end
+
     -- Updates the Gun's "Cooldown" attribute according to Game.MvSGunAttributeCooldown setting
     local function syncGunAttributeCooldown(gun: Tool?)
         if not gun then return end
@@ -185,11 +198,16 @@ return function(services: any, Duel: any?): any
     local function tick(now: number)
         processAutoEquip(now)
 
+        local knife = getKnife()
+        if knife then
+            syncKnifeThrowSpeed(knife)
+        end
+
         local targets = Duel.Targets:GetAttackList()
         Attack._enemies = #targets
         if #targets == 0 then return end
 
-        if StateStore:Get("Game.MvSKnife") == true and not Attack._knifeBusy and Attack._knifeRemote and hasKnife() then
+        if StateStore:Get("Game.MvSKnife") == true and not Attack._knifeBusy and Attack._knifeRemote and knife then
             local cooldown = currentCooldown("Game.MvSKnifeCooldown", knifeConfig.DefaultCooldown, knifeConfig.MinCooldown)
             for _, target in ipairs(targets) do
                 if not Attack._knifeLast[target.Character] or now - Attack._knifeLast[target.Character] > cooldown then

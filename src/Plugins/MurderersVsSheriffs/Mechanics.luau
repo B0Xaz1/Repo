@@ -42,6 +42,7 @@ return function(services: any): any
         local defaults: any = {
             MvSEsp = false,
             MvSKnife = false, MvSKnifeCooldown = manifest.Knife.DefaultCooldown,
+            MvSKnifeThrowSpeed = 0,
             MvSRevolver = false, MvSGunCooldown = manifest.Gun.DefaultCooldown,
             MvSGunAttributeCooldown = 0.0,
             MvSAutoEquip = false,

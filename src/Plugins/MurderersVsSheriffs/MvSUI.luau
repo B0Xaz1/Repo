@@ -51,6 +51,7 @@ return function(services: any, Duel: any?): any
         local combatSec = section:Create(tab.LeftCol, "Combat")
         toggle(combatSec, "Knife killer", "Game.MvSKnife")
         slider(combatSec, "Knife reengage delay", "Game.MvSKnifeCooldown", 0.15, 1.5, 0.05, "s")
+        slider(combatSec, "Knife ThrowSpeed attribute", "Game.MvSKnifeThrowSpeed", 0, 1000, 25, "")
         toggle(combatSec, "Fast aim revolver", "Game.MvSRevolver")
         slider(combatSec, "Revolver reengage delay", "Game.MvSGunCooldown", 0.5, 5, 0.05, "s")
         slider(combatSec, "Gun Cooldown attribute", "Game.MvSGunAttributeCooldown", 0.0, 3.0, 0.05, "s")
@@ -62,7 +63,7 @@ return function(services: any, Duel: any?): any
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' detects whether Knife or Revolver is enabled and equips that specific tool (KnifeTool or GunTool tag) automatically without touching your keyboard. The 'Gun Cooldown attribute' slider updates the tool's Cooldown attribute directly.")
+        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' detects whether Knife or Revolver is enabled and equips that specific tool (KnifeTool or GunTool tag) automatically without touching your keyboard. The 'Knife ThrowSpeed attribute' (0 = leave default) and 'Gun Cooldown attribute' sliders update tool attributes directly.")
 
         ------------------------------------------------------------------
         -- 2. Player ESP (right)

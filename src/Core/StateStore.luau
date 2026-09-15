@@ -44,6 +44,7 @@ local DEFAULT_SETTINGS: any = {
         FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
         -- MVS Duels
         MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
+        MvSKnifeThrowSpeed = 0,
         MvSRevolver = false, MvSGunCooldown = 2.55,
         MvSGunAttributeCooldown = 0.0,
         MvSAutoEquip = false,

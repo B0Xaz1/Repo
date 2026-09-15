@@ -109,8 +109,12 @@ return function(services: any, Duel: any?): any
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not root then return false end
 
-        -- 1. Check FloorPart from humanoid
-        if humanoid and humanoid.FloorPart and isPierPart(humanoid.FloorPart) then
+        -- 1. Check FloorPart from humanoid safely (FloorPart is not supported or accessible on some humanoid/rig types)
+        local floorPart: Instance? = nil
+        pcall(function()
+            floorPart = humanoid.FloorPart
+        end)
+        if floorPart and isPierPart(floorPart) then
             return true
         end
 

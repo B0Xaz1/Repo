@@ -177,11 +177,11 @@ return function(services: any): any
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
         scope:Connect(Players.LocalPlayer.Idled, function()
             if not state:Get("Settings.AntiAfk") or not virtualUser then return end
-            pcall(function()
+            local sent = pcall(function()
                 virtualUser:CaptureController()
                 virtualUser:ClickButton2(Vector2.zero)
             end)
-            if not ok then bus:Publish("Notify", "Anti-AFK", "This executor cannot send idle-prevention input"); state:Set("Settings.AntiAfk", false) end
+            if not sent then bus:Publish("Notify", "Anti-AFK", "This executor cannot send idle-prevention input"); state:Set("Settings.AntiAfk", false) end
         end)
     end
 

@@ -55,7 +55,7 @@ function globals.B0XazRelaunch()
     globals.B0XazUnload()
     local ticket = {}
     globals.B0XazLoaderBusy = ticket
-    pcall(function()
+    local relaunched, relaunchError = pcall(function()
         assert(type(url) == "string", "Missing normalized init URL")
         local source: string? = nil
         for attempt = 1, CONFIG.RELAUNCH_ATTEMPTS do
@@ -71,6 +71,7 @@ function globals.B0XazRelaunch()
         local ran, runError = pcall(chunk)
         assert(ran, `Run failure: {tostring(runError)}`)
     end)
+    if not relaunched then warn(`[B0Xaz] Relaunch failed: {tostring(relaunchError)}`) end
     if globals.B0XazLoaderBusy == ticket then globals.B0XazLoaderBusy = nil end
 end
 
@@ -193,7 +194,7 @@ local function failBoot()
     if master then master:Dispose() end
 end
 
-pcall(function()
+local booted, bootError = pcall(function()
     step(function()
         local deadline = os.clock() + CONFIG.READINESS_TIMEOUT
         while not game:IsLoaded() or not Players.LocalPlayer do
@@ -240,14 +241,20 @@ pcall(function()
     local function launch()
         if globals.B0XazActiveToken ~= sessionId or launched then return end
         launched = true
-        local ran = pcall(function()
+        local ran, launchError = pcall(function()
             step(function() services:InitializeAll() end)
             step(function() services:Get("UIEngine"):ConstructInterface() end)
             step(function() return services:Get("ConfigService"):ApplyLaunchState() end)
             globals.B0XazLaunching, globals.B0XazRunning = nil, true
         end)
-        if not ran then failBoot() end
+        if not ran then
+            warn(`[B0Xaz] Launch failed: {tostring(launchError)}`)
+            failBoot()
+        end
     end
     launch()
 end)
-if not ok then failBoot() end
+if not booted then
+    warn(`[B0Xaz] Boot failed: {tostring(bootError)}`)
+    failBoot()
+end

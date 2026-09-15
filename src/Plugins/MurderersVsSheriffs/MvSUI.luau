@@ -53,6 +53,7 @@ return function(services: any, Duel: any?): any
         slider(combatSec, "Knife reengage delay", "Game.MvSKnifeCooldown", 0.15, 1.5, 0.05, "s")
         toggle(combatSec, "Fast aim revolver", "Game.MvSRevolver")
         slider(combatSec, "Revolver reengage delay", "Game.MvSGunCooldown", 0.5, 5, 0.05, "s")
+        toggle(combatSec, "Spam equip tools (1 & 2)", "Game.MvSAutoEquip")
         labels.combat = createInfoLabel(combatSec, "Drivers: ...")
         textbox:CreateButton(combatSec, "Stop combat drivers", function()
             StateStore:Set("Game.MvSKnife", false)
@@ -60,7 +61,7 @@ return function(services: any, Duel: any?): any
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. Only players with the same Match attribute on the enemy team are targets.")
+        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Spam equip tools' equips slots 1 & 2 alternately via humanoid without intercepting your keyboard inputs so auto-kill triggers immediately upon spawning into a duel.")
 
         ------------------------------------------------------------------
         -- 2. Player ESP (right)

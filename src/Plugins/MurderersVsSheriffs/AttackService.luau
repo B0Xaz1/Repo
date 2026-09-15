@@ -22,6 +22,8 @@ return function(services: any, Duel: any?): any
         _knifeBusy = false, _gunBusy = false,
         _knifeLast = {}, _gunLast = {}, _gunNextShot = 0,
         _enemies = 0,
+        _lastEquipSwap = 0,
+        _equipSlot = 1,
     }
 
     local function resolveRemote(path: { string }): any
@@ -118,7 +120,45 @@ return function(services: any, Duel: any?): any
         return math.max(value, minimum)
     end
 
+    -- Equips slot 1 and slot 2 tools from Backpack without overriding user hardware inputs
+    local function processAutoEquip(now: number)
+        if StateStore:Get("Game.MvSAutoEquip") ~= true then return end
+        if now - Attack._lastEquipSwap < 0.1 then return end
+
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+        if not char or not hum or not backpack then return end
+
+        local tools = {}
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                table.insert(tools, item)
+            end
+        end
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Tool") then
+                table.insert(tools, item)
+            end
+        end
+
+        if #tools == 0 then return end
+
+        Attack._lastEquipSwap = now
+        local targetIndex = Attack._equipSlot
+        Attack._equipSlot = if Attack._equipSlot == 1 then 2 else 1
+
+        local toolToEquip = tools[targetIndex] or tools[1]
+        if toolToEquip and toolToEquip.Parent ~= char then
+            pcall(function()
+                hum:EquipTool(toolToEquip)
+            end)
+        end
+    end
+
     local function tick(now: number)
+        processAutoEquip(now)
+
         local targets = Duel.Targets:GetAttackList()
         Attack._enemies = #targets
         if #targets == 0 then return end

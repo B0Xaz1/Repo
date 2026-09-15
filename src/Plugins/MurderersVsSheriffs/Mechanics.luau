@@ -43,6 +43,7 @@ return function(services: any): any
             MvSEsp = false,
             MvSKnife = false, MvSKnifeCooldown = manifest.Knife.DefaultCooldown,
             MvSRevolver = false, MvSGunCooldown = manifest.Gun.DefaultCooldown,
+            MvSAutoEquip = false,
             MvSAutoQueue = false, MvSQueueMode = manifest.Queue and manifest.Queue.DefaultMode or "1v1",
             MvSQueueDelay = manifest.Queue and manifest.Queue.DefaultDelay or 3.0,
         }

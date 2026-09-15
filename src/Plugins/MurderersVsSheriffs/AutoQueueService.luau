@@ -1,8 +1,9 @@
 --!nonstrict
 -- AutoQueueService: automated queue entry and match detection for Murderers VS Sheriffs DUELS.
--- Triggers whenever the player touches ANY part/meshpart in Workspace.Lobby.Environment.Pier.
--- It checks if Position 1 of the chosen mode (1v1, 2v2, 3v3, 4v4) is occupied by any player
--- within a 1 stud leeway. If occupied, it sends the player to Position 2 (the second strand).
+-- Whenever AutoQueue is enabled and the player is touching any part/meshpart in
+-- Workspace.Lobby.Environment.Pier (or in the pier area), it executes the exact same
+-- working queue logic as "Queue now": checking Position 1 occupancy with 1-stud leeway
+-- and teleporting to Position 2 if Position 1 is taken.
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
@@ -54,51 +55,53 @@ return function(services: any, Duel: any?): any
 
     -- Resolves Workspace.Lobby.Environment.Pier case-insensitively
     local function getPierFolder(): Instance?
-        local pierPath = queueConfig.PierPath or { "Lobby", "Environment", "Pier" }
-        local node: any = workspace
-
-        for _, targetName in ipairs(pierPath) do
-            if not node then break end
-            local nextNode = node:FindFirstChild(targetName)
-            if not nextNode then
-                local lowerTarget = targetName:lower()
-                for _, child in ipairs(node:GetChildren()) do
-                    if child.Name:lower() == lowerTarget then
-                        nextNode = child
-                        break
-                    end
+        local lobby = workspace:FindFirstChild("Lobby")
+        if lobby then
+            local env = lobby:FindFirstChild("Environment") or lobby:FindFirstChild("environment")
+            if env then
+                local pier = env:FindFirstChild("Pier") or env:FindFirstChild("pier")
+                if pier then return pier end
+            end
+            for _, desc in ipairs(lobby:GetDescendants()) do
+                if desc.Name:lower() == "pier" then
+                    return desc
                 end
             end
-            node = nextNode
         end
 
-        -- Direct search fallback if not located via strict path
-        if not node then
-            local lobby = workspace:FindFirstChild("Lobby")
-            if lobby then
-                for _, desc in ipairs(lobby:GetDescendants()) do
-                    if desc.Name:lower() == "pier" then
-                        node = desc
-                        break
+        for _, desc in ipairs(workspace:GetChildren()) do
+            if desc.Name:lower() == "lobby" then
+                for _, sub in ipairs(desc:GetDescendants()) do
+                    if sub.Name:lower() == "pier" then
+                        return sub
                     end
                 end
             end
         end
 
-        return node
+        return nil
     end
 
-    -- Fast check to see if a part is inside Workspace.Lobby.Environment.Pier
+    -- Fast check to see if an instance belongs to Workspace.Lobby.Environment.Pier
     local function isPierPart(part: Instance?): boolean
         if not part then return false end
         local pier = getPierFolder()
         if pier and part:IsDescendantOf(pier) then
             return true
         end
+
+        -- Path ancestry fallback
+        local p: Instance? = part
+        while p and p ~= workspace do
+            if p.Name:lower() == "pier" then
+                return true
+            end
+            p = p.Parent
+        end
         return false
     end
 
-    -- Check if player is on or physically touching any part inside Workspace.Lobby.Environment.Pier
+    -- Check if player is on or physically touching any part in Workspace.Lobby.Environment.Pier
     function AutoQueue:IsTouchingPier(): boolean
         local char = LocalPlayer and LocalPlayer.Character
         if not char then return false end
@@ -106,57 +109,52 @@ return function(services: any, Duel: any?): any
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not root then return false end
 
-        local pier = getPierFolder()
-        if not pier then return false end
-
-        -- 1. Check humanoid FloorPart
-        if humanoid and humanoid.FloorPart and humanoid.FloorPart:IsDescendantOf(pier) then
+        -- 1. Check FloorPart from humanoid
+        if humanoid and humanoid.FloorPart and isPierPart(humanoid.FloorPart) then
             return true
         end
 
-        -- 2. Check GetPartsInPart on character limbs/feet/root
-        pcall(function()
-            local overlap = OverlapParams.new()
-            overlap.FilterType = Enum.RaycastFilterType.Include
-            overlap.FilterDescendantsInstances = { pier }
+        local pier = getPierFolder()
 
-            for _, partName in ipairs({ "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso", "LeftLeg", "RightLeg" }) do
-                local bodyPart = char:FindFirstChild(partName)
-                if bodyPart and bodyPart:IsA("BasePart") then
-                    local touching = workspace:GetPartsInPart(bodyPart, overlap)
-                    if touching and #touching > 0 then
-                        return true
+        -- 2. Spatial query using GetPartsInPart
+        if pier then
+            pcall(function()
+                local overlap = OverlapParams.new()
+                overlap.FilterType = Enum.RaycastFilterType.Include
+                overlap.FilterDescendantsInstances = { pier }
+
+                for _, partName in ipairs({ "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso" }) do
+                    local bodyPart = char:FindFirstChild(partName)
+                    if bodyPart and bodyPart:IsA("BasePart") then
+                        local touching = workspace:GetPartsInPart(bodyPart, overlap)
+                        if touching and #touching > 0 then
+                            return true
+                        end
                     end
                 end
-            end
-        end)
+            end)
+        end
 
         -- 3. Raycast downwards directly beneath the character
         local origin = root.Position
-        local direction = Vector3.new(0, -6, 0)
+        local direction = Vector3.new(0, -8, 0)
         local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Include
-        params.FilterDescendantsInstances = { pier }
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = { char }
         local hit = workspace:Raycast(origin, direction, params)
-        if hit and hit.Instance then
+        if hit and hit.Instance and isPierPart(hit.Instance) then
             return true
         end
 
-        -- 4. Bounding box check against Pier parts
-        for _, child in ipairs(pier:GetDescendants()) do
-            if child:IsA("BasePart") then
-                local diff = (child.Position - root.Position)
-                local halfSize = child.Size * 0.5 + Vector3.new(2, 4, 2)
-                if math.abs(diff.X) <= halfSize.X and math.abs(diff.Y) <= halfSize.Y and math.abs(diff.Z) <= halfSize.Z then
-                    return true
-                end
-            end
+        -- 4. Bounding volume check of the pier area (coordinates around X: 20-65, Y: -100 to -80, Z: -220 to -140)
+        local pos = root.Position
+        if (pos.X >= 15 and pos.X <= 70) and (pos.Y >= -105 and pos.Y <= -75) and (pos.Z >= -230 and pos.Z <= -135) then
+            return true
         end
 
         return false
     end
 
-    -- Backward compatibility alias
     function AutoQueue:IsOnPier(): boolean
         return self:IsTouchingPier()
     end
@@ -212,7 +210,7 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Teleport player to the destination
+    -- Teleport player to the destination (same logic that executes on "Queue now")
     function AutoQueue:TeleportToQueue(mode: string): (boolean, string)
         local char = LocalPlayer and LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -264,7 +262,7 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Trigger queue action: Pier location positioning takes precedence, followed by fallback triggers
+    -- Trigger queue action: runs the exact "Queue now" logic
     function AutoQueue:TriggerQueue(): (boolean, string)
         local mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or "1v1")
         self._selectedMode = mode
@@ -279,6 +277,22 @@ return function(services: any, Duel: any?): any
         return false, msg
     end
 
+    -- Touch handler for immediate response on contact with Pier
+    function AutoQueue:OnTouchedPart(hit: Instance)
+        if StateStore:Get("Game.MvSAutoQueue") ~= true then return end
+        if self:IsInMatch() then return end
+
+        if isPierPart(hit) then
+            local now = os.clock()
+            if now - self._lastAttempt >= 0.3 then
+                self._lastAttempt = now
+                self._state = "Queued"
+                self._queueAttempts += 1
+                self:TriggerQueue()
+            end
+        end
+    end
+
     -- Hook Touched events on character parts to instantly react when touching Pier
     function AutoQueue:BindCharacterTouches(char: Model)
         if self._charScope then
@@ -289,23 +303,19 @@ return function(services: any, Duel: any?): any
         for _, part in ipairs(char:GetChildren()) do
             if part:IsA("BasePart") then
                 self._charScope:Add(part.Touched:Connect(function(hit: Instance)
-                    if StateStore:Get("Game.MvSAutoQueue") ~= true then return end
-                    if self:IsInMatch() then return end
-
-                    if isPierPart(hit) then
-                        local now = os.clock()
-                        if now - self._lastAttempt >= 0.5 then
-                            self._lastAttempt = now
-                            self._state = "Queued"
-                            self._queueAttempts += 1
-                            task.spawn(function()
-                                self:TriggerQueue()
-                            end)
-                        end
-                    end
+                    self:OnTouchedPart(hit)
                 end))
             end
         end
+
+        -- Also listen for DescendantAdded if parts are loaded dynamically
+        self._charScope:Add(char.DescendantAdded:Connect(function(child: Instance)
+            if child:IsA("BasePart") then
+                self._charScope:Add(child.Touched:Connect(function(hit: Instance)
+                    self:OnTouchedPart(hit)
+                end))
+            end
+        end))
     end
 
     local function step(now: number)
@@ -331,14 +341,12 @@ return function(services: any, Duel: any?): any
             return
         end
 
-        -- In lobby: if enabled, mark active
         if AutoQueue._state == "Idle" then
             AutoQueue._state = "Active"
         end
 
-        -- Check if player is touching or on any part in Workspace.Lobby.Environment.Pier
-        local isTouching = AutoQueue:IsTouchingPier()
-        if isTouching then
+        -- Every step: if the player is touching Pier, trigger the exact queue logic
+        if AutoQueue:IsTouchingPier() then
             local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
             local bestPos, strandIdx = AutoQueue:GetBestPosition(mode)
 
@@ -346,15 +354,13 @@ return function(services: any, Duel: any?): any
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
 
-            -- If touching Pier and not yet on the strand (or strand changed), teleport immediately!
+            -- If touching Pier and not yet on the best position, trigger Queue Now logic
             if distToTarget > LEEWAY then
                 if now - AutoQueue._lastAttempt >= 0.3 then
                     AutoQueue._lastAttempt = now
                     AutoQueue._state = "Queued"
                     AutoQueue._queueAttempts += 1
-                    task.spawn(function()
-                        AutoQueue:TriggerQueue()
-                    end)
+                    AutoQueue:TriggerQueue()
                 end
                 return
             end
@@ -383,7 +389,7 @@ return function(services: any, Duel: any?): any
         scope:Add(LocalPlayer.CharacterAdded:Connect(function(char)
             self:BindCharacterTouches(char)
             if not AutoQueue:IsInMatch() then
-                AutoQueue._lastAttempt = os.clock()
+                AutoQueue._lastAttempt = 0 -- immediately ready
             end
         end))
     end

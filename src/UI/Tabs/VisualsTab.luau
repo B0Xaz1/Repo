@@ -55,6 +55,5 @@ return function(services: any, tab: any): any
     toggle(telemetry, "Watermark", "Settings.Watermark", nil)
     toggle(telemetry, "FPS counter", "Settings.ShowFPS", nil)
     toggle(telemetry, "Ping monitor", "Settings.ShowPing", nil)
-    toggle(telemetry, "Radial speed lines", "Extras.SpeedLines", nil)
     return { Name = tab.Name }
 end

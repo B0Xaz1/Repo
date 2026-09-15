@@ -38,7 +38,7 @@ local CONFIG = deepFreeze({
         Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
         Extras = { Hitbox = { Enabled = false, Size = 5 }, SpinBot = { Enabled = false, Speed = 180 },
-            SpeedLines = false, AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
+            AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
         Performance = { FpsCap = 0, NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
             NoPostProcessing = false, NoShadows = false, NoParticles = false },
         Game = {
@@ -61,7 +61,7 @@ local CONFIG = deepFreeze({
             UIScale = 1, MenuVisible = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
-                Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown, SpeedLines = Enum.KeyCode.Unknown,
+                Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,
                 Menu = Enum.KeyCode.RightShift, Lighting = Enum.KeyCode.Unknown },
             RestoreOnLaunch = true, StartupProfile = "", AntiAfk = false, TpToMouse = false, Whitelist = {},
         },

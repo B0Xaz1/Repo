@@ -4,8 +4,6 @@ local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
 
 local CONFIG = table.freeze({
-    SPEED_LINE_COUNT = 36,
-    SPEED_LINE_MIN_PROGRESS = 0.18,
     FOV_MAX = 1500,
     FOV_PULSE_DEPTH = 0.07,
     FOV_THICKNESS_MAX = 8,
@@ -18,34 +16,18 @@ local CONFIG = table.freeze({
     TELEMETRY_ROW_HEIGHT = 18,
     PING_INTERVAL = 1,
     FPS_SMOOTHING = 3,
-    SPEED_LINES_MIN_SPEED = 5,
-    SPEED_LINES_SCALE_MIN = 0.1,
-    SPEED_LINES_SCALE_MAX = 3,
-    SPEED_LINES_NORMAL_SPEED = 70,
-    SPEED_LINE_LENGTH_MIN = 15,
-    SPEED_LINE_LENGTH_MAX = 100,
     FALLBACK_ACCENT = Color3.fromRGB(140, 167, 255),
 })
 
 return function(services: any): any
     local state, pool, scheduler, environment = services:Get("StateStore"), services:Get("DrawingPool"), services:Get("TaskScheduler"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("OverlayController")
-    local random = Random.new()
-    local OverlayController = { _objects = {}, _lines = {}, _last = {}, _shown = {}, _time = 0, _fps = 60, _ping = 0, _pingElapsed = 0, _initialized = false, _idle = true }
+    local OverlayController = { _objects = {}, _last = {}, _shown = {}, _time = 0, _fps = 60, _ping = 0, _pingElapsed = 0, _initialized = false, _idle = true }
 
     local function acquire(name: string, kind: string): any?
         local object = pool:Acquire(kind)
         OverlayController._objects[name] = object
         return object
-    end
-
-    local function ensureSpeedLines()
-        if OverlayController._lines[1] or not pool.Available then return end
-        for index = 1, CONFIG.SPEED_LINE_COUNT do
-            acquire(`Speed{index}`, "Line")
-            local angle = random:NextNumber(0, math.pi * 2)
-            table.insert(OverlayController._lines, { Direction = Vector2.new(math.cos(angle), math.sin(angle)), Progress = random:NextNumber(CONFIG.SPEED_LINE_MIN_PROGRESS, 1), Speed = random:NextNumber(0.4, 1) })
-        end
     end
 
     local function paint(name: string, properties: any)
@@ -82,8 +64,7 @@ return function(services: any): any
         local showWatermark = state:Peek("Settings.Watermark")
         local showFps = state:Peek("Settings.ShowFPS")
         local showPing = state:Peek("Settings.ShowPing")
-        local showLines = state:Peek("Extras.SpeedLines")
-        if not pool.Available or not (showFov or showWatermark or showFps or showPing or showLines) then
+        if not pool.Available or not (showFov or showWatermark or showFps or showPing) then
             if not OverlayController._idle then
                 for _, object in pairs(OverlayController._objects) do if object.Visible then object.Visible = false end end
                 OverlayController._idle = true
@@ -120,22 +101,6 @@ return function(services: any): any
             end
             paint("Ping", { Text = `{math.round(OverlayController._ping)} ms`, Position = Vector2.new(CONFIG.WATERMARK_POSITION.X, y), Center = false, Size = 13, Outline = true, Color = Color3.new(1, 1, 1) })
         end
-        if showLines then
-            ensureSpeedLines()
-            local assets = services:Get("PlayerTracker"):GetLocalAssets()
-            local speed = if assets then assets.RootPart.AssemblyLinearVelocity.Magnitude else 0
-            if speed > CONFIG.SPEED_LINES_MIN_SPEED then
-                local centre = camera.ViewportSize / 2
-                local radius = camera.ViewportSize.Magnitude / 2
-                for index, line in ipairs(OverlayController._lines) do
-                    line.Progress += dt * line.Speed * math.clamp(speed / CONFIG.SPEED_LINES_NORMAL_SPEED, CONFIG.SPEED_LINES_SCALE_MIN, CONFIG.SPEED_LINES_SCALE_MAX)
-                    if line.Progress > 1 then line.Progress = CONFIG.SPEED_LINE_MIN_PROGRESS end
-                    local start = centre + line.Direction * radius * line.Progress
-                    paint(`Speed{index}`, { From = start, To = start + line.Direction * math.clamp(speed, CONFIG.SPEED_LINE_LENGTH_MIN, CONFIG.SPEED_LINE_LENGTH_MAX), Thickness = 1,
-                        Color = accent, Transparency = math.clamp((line.Progress - 0.15) * 0.7, 0, 0.5) })
-                end
-            end
-        end
         concealUnused()
     end
 
@@ -152,6 +117,6 @@ return function(services: any): any
 
     function OverlayController:Destroy() scope:Dispose() end
 
-    scope:Add(function() for _, object in pairs(OverlayController._objects) do pool:Release(object) end; table.clear(OverlayController._objects); table.clear(OverlayController._lines) end)
+    scope:Add(function() for _, object in pairs(OverlayController._objects) do pool:Release(object) end; table.clear(OverlayController._objects) end)
     return OverlayController
 end

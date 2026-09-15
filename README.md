@@ -57,7 +57,7 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Tab | Contents |
 | --- | --- |
 | Combat | Camera/mouse aim, R6/R15 hit parts, hold/toggle locks, exponential smoothing, WindMouse, prediction, target filters, FOV circle, and triggerbot. |
-| Visuals | Boxes, names, health, distance, tools/backpacks, tracers, skeletons, head dots/look direction, chams, rainbow/team color, a live ESP preview, optimization, lighting, telemetry, and speed lines. |
+| Visuals | Boxes, names, health, distance, tools/backpacks, tracers, skeletons, head dots/look direction, chams, rainbow/team color, a live ESP preview, optimization, lighting, and telemetry. |
 | Movement | Humanoid overrides, sprint/air jump, touch fling, displacement, flight, gravity/FOV, bookmarks, and click/tap teleport. |
 | Players | Live name filter, teleport, spectate, copy name, whitelist, and bounded fling controls. |
 | Game | Place/universe information plus the active game adapter. In Prison Life (place 155615604) the tab becomes a two-column command center; otherwise an explicit Universal Mode panel. |

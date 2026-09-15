@@ -16,7 +16,6 @@ local CONFIG = table.freeze({
         { Key = "ESP", Label = "ESP", Path = "ESP.Enabled" }, { Key = "Chams", Label = "Chams", Path = "Chams.Enabled" },
         { Key = "Hitboxes", Label = "Hitboxes", Path = "Extras.Hitbox.Enabled" },
         { Key = "Aimbot", Label = "Aimbot", Path = "Aimbot.Enabled" },
-        { Key = "SpeedLines", Label = "Speed lines", Path = "Extras.SpeedLines" },
         { Key = "Menu", Label = "Menu", Path = "Settings.MenuVisible" },
         { Key = "Lighting", Label = "Lighting mode", Path = "Lighting.Mode", Cycle = { "Off", "Static Day", "Static Night", "Dynamic" } },
     },
@@ -93,10 +92,10 @@ return function(services: any): any
     function HotkeyService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
+        scope:Connect(UIS.InputBegan, function(event: InputObject, _processed: boolean)
             if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             for _, entry in ipairs(CONFIG.BIND_TARGETS) do
-                if (not processed or entry.Key == "Menu") and environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
+            if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
                     if entry.Cycle then
                         local index = table.find(entry.Cycle, state:Get(entry.Path)) or 0
                         services:Get("LightingService"):SetMode(entry.Cycle[index % #entry.Cycle + 1])

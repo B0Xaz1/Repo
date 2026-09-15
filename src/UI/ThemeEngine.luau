@@ -167,8 +167,8 @@ return function(services: any): any
     function ThemeEngine:UpdateAllBindings()
         for instance, properties in pairs(self._bindings) do
             for property, token in pairs(properties) do
-                pcall(function() applyInstance(instance, property, token) end)
-                if not ok then self._bindings[instance] = nil; break end
+                local applied = pcall(function() applyInstance(instance, property, token) end)
+                if not applied then self._bindings[instance] = nil; break end
             end
         end
     end

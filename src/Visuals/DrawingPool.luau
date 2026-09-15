@@ -13,9 +13,9 @@ return function(services: any): any
 
     if environment.Capabilities.Drawing then
         local probe = nil
-        pcall(function() probe = drawing.new("Line"); probe.Visible = false; probe:Remove() end)
-        if not ok and probe then pcall(function() probe.Visible = false; probe:Remove() end) end
-        DrawingPool.Available = ok
+        local created = pcall(function() probe = drawing.new("Line"); probe.Visible = false; probe:Remove() end)
+        if not created and probe then pcall(function() probe.Visible = false; probe:Remove() end) end
+        DrawingPool.Available = created
     end
 
     local function reset(primitive: any, kind: string)

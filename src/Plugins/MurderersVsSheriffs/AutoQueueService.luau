@@ -166,10 +166,11 @@ return function(services: any, Duel: any?): any
         ["4v4"] = 4,
     }
 
-    -- Count how many other players are currently occupying a pad position
-    -- Checks Players service characters and workspace character models
+    -- Count how many other players are currently occupying a specific pad position
+    -- Uses a tight, focused radius (3.2 studs horizontally, 4.5 studs vertically)
+    -- so it NEVER bleeds over to the adjacent mode pads (which are 14+ studs apart)
     function AutoQueue:CountOccupants(pos: Vector3, radius: number?): number
-        local checkRadius = radius or 8.0
+        local checkRadius = radius or 3.2
         local count = 0
         local countedChars: { [Model]: boolean } = {}
 
@@ -180,42 +181,24 @@ return function(services: any, Duel: any?): any
             local hum = char:FindFirstChildOfClass("Humanoid")
             if not hum or hum.Health <= 0 then return end
 
-            -- Find any representative root/torso part
             local part = char:FindFirstChild("HumanoidRootPart") 
                 or char:FindFirstChild("Torso") 
                 or char:FindFirstChild("UpperTorso")
                 or char.PrimaryPart
-            
-            if not part then
-                for _, child in ipairs(char:GetChildren()) do
-                    if child:IsA("BasePart") then
-                        part = child
-                        break
-                    end
-                end
-            end
 
             if part and part:IsA("BasePart") then
                 local pPos = part.Position
                 local horizDist = Vector2.new(pPos.X - pos.X, pPos.Z - pos.Z).Magnitude
                 local vertDist = math.abs(pPos.Y - pos.Y)
-                if horizDist <= checkRadius and vertDist <= 10.0 then
+                if horizDist <= checkRadius and vertDist <= 4.5 then
                     countedChars[char] = true
                     count += 1
                 end
             end
         end
 
-        -- 1. Check all registered players
         for _, player in ipairs(Players:GetPlayers()) do
             checkChar(player.Character)
-        end
-
-        -- 2. Check workspace children in case executor or game hides players from Players service
-        for _, obj in ipairs(workspace:GetChildren()) do
-            if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
-                checkChar(obj)
-            end
         end
 
         return count
@@ -228,14 +211,14 @@ return function(services: any, Duel: any?): any
         local pos1, pos2 = pair[1], pair[2]
         local maxPerStrand = MODE_CAPACITY[mode] or 1
 
-        local count1 = self:CountOccupants(pos1, 8.0)
+        local count1 = self:CountOccupants(pos1, 3.2)
         -- If Stand 1 has space (count < capacity), take Stand 1
         if count1 < maxPerStrand then
             return pos1, 1, false
         end
 
         -- Stand 1 is full (count >= capacity), check Stand 2
-        local count2 = self:CountOccupants(pos2, 8.0)
+        local count2 = self:CountOccupants(pos2, 3.2)
         if count2 < maxPerStrand then
             return pos2, 2, false
         end

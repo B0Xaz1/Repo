@@ -17,7 +17,7 @@ return function(_services: any?): any
             ActivatedField = "ActivatedAnimation", ActivatedNeedle = "Stab",
             PulloutField = "PulloutAnimation", PulloutNeedle = "Knife",
             BackOffset = 2.25, UpOffset = 0.4, Settle = 0.025,
-            DefaultCooldown = 0.45, MinCooldown = 0.05,
+            DefaultCooldown = 0.45, MinCooldown = 0.005,
             SimulateClick = true,
         },
 

@@ -17,7 +17,7 @@ return function(disposer: any): any
         for _, job in ipairs(TaskScheduler._pipelines[pipeline]) do
             if job.CircuitOpen and job.Enabled then job.CircuitOpen, job.Strikes = false, 0 end
             if job.Enabled and job.Connected then
-                local ran = pcall(job.Callback, dt)
+                local ran, jobError = pcall(job.Callback, dt)
                 if ran then
                     job.Strikes = 0
                 else
@@ -25,6 +25,7 @@ return function(disposer: any): any
                     if job.Strikes == CONFIG.MAX_STRIKES then
                         job.Enabled = false
                         job.CircuitOpen = true
+                        warn(`[B0Xaz] Task '{job.Name}' disabled after {CONFIG.MAX_STRIKES} consecutive errors: {tostring(jobError)}`)
                     end
                 end
             end

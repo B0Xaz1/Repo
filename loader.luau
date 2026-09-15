@@ -73,5 +73,7 @@ local booted, bootError = pcall(function()
     local ran, runError = pcall(chunk)
     assert(ran, runError)
 end)
-if not booted then end
+if not booted then
+    warn(`[B0Xaz] Loader failed: {tostring(bootError)}`)
+end
 if globals.B0XazLoaderBusy == ticket then globals.B0XazLoaderBusy = nil end

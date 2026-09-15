@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.4.4 — 2026-09-15
+
+Boot failure visibility hotfix.
+
+- **Fixed (critical):** `init.luau` no longer compiled. The `if not ran then` guard in the boot
+  `launch()` routine was deleted (fallout of the 2.4.3 print-removal pass), leaving an orphaned
+  `failBoot()` and an unmatchable `end` — a guaranteed syntax error in the downloaded init chunk.
+  Every load attempt died at `loadstring` and never reached the service registration.
+- **Fixed (major):** the loader then swallowed the evidence: `if not booted then end` discarded
+  the captured `bootError`, so a dead init compiled-or-not produced zero console output. The
+  loader now warns `[B0Xaz] Loader failed: …` with the underlying error, and `init.luau` warns
+  `[B0Xaz] Boot failed: …` / `[B0Xaz] Launch failed: …` on its two capture points. `B0XazRelaunch`
+  also no longer discards its pcall result (`[B0Xaz] Relaunch failed: …`).
+- **Fixed:** the task scheduler's circuit breaker silently disabled erroring jobs after 5 strikes
+  (a feature would simply stop with no output). It now warns once with the job name and the last
+  error when the circuit opens; strike/reset behaviour is unchanged.
+
 ## 2.4.3 — 2026-09-11
 
 Menu responsiveness pass.

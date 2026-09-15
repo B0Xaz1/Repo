@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
-    VERSION = "2.4.3",
+    VERSION = "2.4.4",
     NOT_FOUND_BODY = "404" .. ": Not Found",
     DEFAULT_REF = "main",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
@@ -69,6 +69,9 @@ function globals.B0XazRelaunch()
         local ran, runError = pcall(chunk)
         assert(ran, `Run failure: {tostring(runError)}`)
     end)
+    if not relaunched then
+        warn(`[B0Xaz] Relaunch failed: {tostring(relaunchError)}`)
+    end
     if globals.B0XazLoaderBusy == ticket then globals.B0XazLoaderBusy = nil end
 end
 
@@ -248,11 +251,14 @@ local booted, bootError = pcall(function()
             step(function() return services:Get("ConfigService"):ApplyLaunchState() end)
             globals.B0XazLaunching, globals.B0XazRunning = nil, true
         end)
+        if not ran then
+            warn(`[B0Xaz] Launch failed: {tostring(launchError)}`)
             failBoot()
         end
     end
     launch()
 end)
 if not booted then
+    warn(`[B0Xaz] Boot failed: {tostring(bootError)}`)
     failBoot()
 end

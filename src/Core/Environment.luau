@@ -160,9 +160,9 @@ return function(disposer: any): any
         end
         for _, parent in ipairs(candidates) do
             local folder = Instance.new("Folder")
-            pcall(function() folder.Parent = parent end)
+            local writable = pcall(function() folder.Parent = parent end)
             folder:Destroy()
-            if ok then cachedParent = parent; return parent end
+            if writable then cachedParent = parent; return parent end
         end
         return nil
     end
@@ -262,8 +262,8 @@ return function(disposer: any): any
         if click then return pcall(click) end
         if not virtualInput or mousePressed then return false end
         local point = UIS:GetMouseLocation()
-        pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0) end)
-        if not ok then return false end
+        local sent = pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0) end)
+        if not sent then return false end
         mousePressed = true
         scope:Delay(CONFIG.CLICK_RELEASE_DELAY, function()
             -- Leave the flag armed if release throws, so unload still makes a final release attempt.

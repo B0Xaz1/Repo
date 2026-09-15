@@ -164,8 +164,8 @@ return function(): any
             table.insert(entry.Owners, lease)
         end
         -- Static first-touch ownership order is stable; a reassertion cannot steal a newer overlay's priority.
-        pcall(function() object[property] = entry.Owners[#entry.Owners].Value end)
-        if not ok and newLease then
+        local wrote = pcall(function() object[property] = entry.Owners[#entry.Owners].Value end)
+        if not wrote and newLease then
             -- Readable does not imply writable; a failed first write owns nothing.
             owned[property] = nil
             if next(owned) == nil then self._leases[object] = nil end
@@ -175,7 +175,7 @@ return function(): any
                 if next(properties) == nil then journal[object] = nil end
             end
         end
-        return ok
+        return wrote
     end
 
     function methods:RestoreProperty(object: any, property: string)

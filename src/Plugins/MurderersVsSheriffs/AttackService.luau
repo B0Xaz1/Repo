@@ -6,7 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local CONFIG = table.freeze({
     EQUIP_SWAP_INTERVAL = 0.15,
-    MIN_SHOT_INTERVAL = 0.03,
+    MIN_SHOT_INTERVAL = 0.01,
     KNIFE_SPAM_INTERVAL = 0.05,
     SPAM_KEY_RELEASE_DELAY = 0.02,
     SPAM_THROW_KEY = Enum.KeyCode.E,

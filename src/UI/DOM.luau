@@ -25,7 +25,12 @@ return function(services: any): any
     end
 
     function DOM:CreateStroke(parent: Instance, color: Color3, thickness: number?): UIStroke
-        return self:Create("UIStroke", { Parent = parent, Color = color, Thickness = thickness or 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+        local theme = services:Get("ThemeEngine")
+        local resolvedColor = if typeof(color) == "Color3" then color
+            elseif type(color) == "string" then theme:GetToken(color)
+            else theme:GetToken("Border")
+        local resolvedThickness = if type(thickness) == "number" then math.max(0, thickness) else 1
+        return self:Create("UIStroke", { Parent = parent, Color = resolvedColor, Thickness = resolvedThickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
     end
 
     function DOM:CreatePadding(parent: Instance, top: number, right: number?, bottom: number?, left: number?): UIPadding

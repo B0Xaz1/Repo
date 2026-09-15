@@ -52,18 +52,22 @@ return function(services: any, Duel: any?): any
         toggle(combatSec, "Knife killer", "Game.MvSKnife")
         slider(combatSec, "Knife reengage delay", "Game.MvSKnifeCooldown", 0.15, 1.5, 0.05, "s")
         slider(combatSec, "Knife ThrowSpeed attribute", "Game.MvSKnifeThrowSpeed", 0, 1000, 25, "")
+        toggle(combatSec, "Knife spam throw (E)", "Game.MvSKnifeSpamThrow")
         toggle(combatSec, "Fast aim revolver", "Game.MvSRevolver")
         slider(combatSec, "Revolver reengage delay", "Game.MvSGunCooldown", 0.5, 5, 0.05, "s")
         slider(combatSec, "Gun Cooldown attribute", "Game.MvSGunAttributeCooldown", 0.0, 3.0, 0.05, "s")
+        toggle(combatSec, "Gun spam shoot (auto-click)", "Game.MvSGunSpamShoot")
         toggle(combatSec, "Auto equip active weapon", "Game.MvSAutoEquip")
         labels.combat = createInfoLabel(combatSec, "Drivers: ...")
         textbox:CreateButton(combatSec, "Stop combat drivers", function()
             StateStore:Set("Game.MvSKnife", false)
             StateStore:Set("Game.MvSRevolver", false)
+            StateStore:Set("Game.MvSKnifeSpamThrow", false)
+            StateStore:Set("Game.MvSGunSpamShoot", false)
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' detects whether Knife or Revolver is enabled and equips that specific tool (KnifeTool or GunTool tag) automatically without touching your keyboard. The 'Knife ThrowSpeed attribute' (0 = leave default) and 'Gun Cooldown attribute' sliders update tool attributes directly.")
+        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' equips the matching tool (if both are active, it prioritizes the unequipped one or Knife). 'Gun spam shoot' auto-clicks at your configured gun cooldown, and 'Knife spam throw' spams E to throw knives.")
 
         ------------------------------------------------------------------
         -- 2. Player ESP (right)

@@ -45,8 +45,10 @@ local DEFAULT_SETTINGS: any = {
         -- MVS Duels
         MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
         MvSKnifeThrowSpeed = 0,
+        MvSKnifeSpamThrow = false,
         MvSRevolver = false, MvSGunCooldown = 2.55,
         MvSGunAttributeCooldown = 0.0,
+        MvSGunSpamShoot = false,
         MvSAutoEquip = false,
         MvSAutoQueue = false, MvSQueueMode = "1v1", MvSQueueDelay = 3.0,
         -- Locations
@@ -75,7 +77,7 @@ local ALIASES: { [string]: string } = {
 local GAME_BOOLEAN_FLAGS: { string } = {
     "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
     "Game.DoorPhase", "Game.FakeMacro",
-    "Game.MvSEsp", "Game.MvSKnife", "Game.MvSRevolver", "Game.MvSAutoEquip", "Game.MvSAutoQueue",
+    "Game.MvSEsp", "Game.MvSKnife", "Game.MvSKnifeSpamThrow", "Game.MvSRevolver", "Game.MvSGunSpamShoot", "Game.MvSAutoEquip", "Game.MvSAutoQueue",
 }
 
 local function clone(value: any): any

@@ -249,6 +249,11 @@ return function(services: any, Duel: any?): any
             return
         end
 
+        -- In lobby: if enabled and not currently holding a strand, state is Active/Queued
+        if AutoQueue._state == "Idle" then
+            AutoQueue._state = "Active"
+        end
+
         -- Check Pier presence: trigger when on Pier parts, or continuously while auto-queue is enabled in lobby
         local onPier = AutoQueue:IsOnPier()
         local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")

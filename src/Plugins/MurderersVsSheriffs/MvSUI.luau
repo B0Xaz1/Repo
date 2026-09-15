@@ -94,8 +94,8 @@ return function(services: any, Duel: any?): any
         ------------------------------------------------------------------
         local REFRESH_INTERVAL = 0.5
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
-        local gameTabActive = false
-        local forceRender = false
+        local gameTabActive = true -- Initialized to true so status renders immediately even before tab switching
+        local forceRender = true
         scope:Add(StateStore:Observe("Settings.MenuVisible", function(value: any)
             menuVisible = value == true
             if menuVisible then forceRender = true end
@@ -104,6 +104,14 @@ return function(services: any, Duel: any?): any
             local active = name == "Game"
             if active and not gameTabActive then forceRender = true end
             gameTabActive = active
+        end))
+
+        -- Also immediately re-render when AutoQueue state changes in StateStore
+        scope:Add(StateStore:Observe("Game.MvSAutoQueue", function()
+            forceRender = true
+        end))
+        scope:Add(StateStore:Observe("Game.MvSQueueMode", function()
+            forceRender = true
         end))
 
         local function renderStatus()
@@ -118,7 +126,8 @@ return function(services: any, Duel: any?): any
             end
             if Duel.AutoQueue then
                 local qStatus = Duel.AutoQueue:GetStatus()
-                setLabel(labels.queue, "AutoQueue: " .. qStatus.State .. " (" .. qStatus.Mode .. ") - " .. qStatus.Message)
+                local autoLabel = if qStatus.Enabled then qStatus.State else "Off"
+                setLabel(labels.queue, "AutoQueue: " .. autoLabel .. " (" .. qStatus.Mode .. ") - " .. qStatus.Message)
             end
         end
 

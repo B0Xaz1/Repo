@@ -219,9 +219,17 @@ local booted, bootError = pcall(function()
     services:Register("Require", requireModule)
     services:Register("DOM", step(function() return requireModule("src/UI/DOM.luau", services) end))
     globals.B0XazServiceContainer = services
-    master:Connect(UIS.InputBegan, function(input: InputObject, _processed: boolean)
+    -- Unload is the only global input listener. Avoid querying transient state and
+    -- the focused textbox for every keystroke; both values change much less often
+    -- than InputBegan fires during mouse/keyboard activity.
+    local lastInputCheck = -math.huge
+    local INPUT_CHECK_INTERVAL = 0.05
+    master:ConnectImmediate(UIS.InputBegan, function(input: InputObject, _processed: boolean)
+        local now = os.clock()
+        if now - lastInputCheck < INPUT_CHECK_INTERVAL then return end
+        lastInputCheck = now
         if state:GetTransient("IsBindingKey") or UIS:GetFocusedTextBox() then return end
-        if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end
+        if environment:MatchesInput(input, state:Peek("Settings.UnloadKeybind")) then globals.B0XazUnload() end
     end)
     local registration = {
         { "ConfigService", "src/Services/ConfigService.luau" }, { "PlayerTracker", "src/Services/PlayerTracker.luau" },

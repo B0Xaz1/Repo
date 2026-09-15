@@ -188,7 +188,7 @@ return function(services: any): any
         for index, object in ipairs(Workspace:GetDescendants()) do
             if scope:IsDisposed() or not state:Get("Lighting.RemasterMaterials") or state:Get("Visuals.Fullbright") or state:Get("Lighting.Mode") == "Off" then return end
             remaster(object)
-            if index % CONFIG.STREAM_CHUNK_SIZE == 0 then task.wait() end
+            if index % CONFIG.STREAM_CHUNK_SIZE == 0 then task.wait(0.001) end
         end
     end
 

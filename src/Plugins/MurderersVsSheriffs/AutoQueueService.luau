@@ -167,24 +167,57 @@ return function(services: any, Duel: any?): any
     }
 
     -- Count how many other players are currently occupying a pad position
-    -- Uses a cylinder/spherical check around pos with radius of 6 studs
+    -- Checks Players service characters and workspace character models
     function AutoQueue:CountOccupants(pos: Vector3, radius: number?): number
-        local checkRadius = radius or 6.0
+        local checkRadius = radius or 8.0
         local count = 0
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local char = player.Character
-                local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
-                if root and root:IsA("BasePart") then
-                    local pPos = root.Position
-                    local horizDist = Vector2.new(pPos.X - pos.X, pPos.Z - pos.Z).Magnitude
-                    local vertDist = math.abs(pPos.Y - pos.Y)
-                    if horizDist <= checkRadius and vertDist <= 8.0 then
-                        count += 1
+        local countedChars: { [Model]: boolean } = {}
+
+        local function checkChar(char: Instance?)
+            if not char or not char:IsA("Model") or countedChars[char] then return end
+            if LocalPlayer and char == LocalPlayer.Character then return end
+
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then return end
+
+            -- Find any representative root/torso part
+            local part = char:FindFirstChild("HumanoidRootPart") 
+                or char:FindFirstChild("Torso") 
+                or char:FindFirstChild("UpperTorso")
+                or char.PrimaryPart
+            
+            if not part then
+                for _, child in ipairs(char:GetChildren()) do
+                    if child:IsA("BasePart") then
+                        part = child
+                        break
                     end
                 end
             end
+
+            if part and part:IsA("BasePart") then
+                local pPos = part.Position
+                local horizDist = Vector2.new(pPos.X - pos.X, pPos.Z - pos.Z).Magnitude
+                local vertDist = math.abs(pPos.Y - pos.Y)
+                if horizDist <= checkRadius and vertDist <= 10.0 then
+                    countedChars[char] = true
+                    count += 1
+                end
+            end
         end
+
+        -- 1. Check all registered players
+        for _, player in ipairs(Players:GetPlayers()) do
+            checkChar(player.Character)
+        end
+
+        -- 2. Check workspace children in case executor or game hides players from Players service
+        for _, obj in ipairs(workspace:GetChildren()) do
+            if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+                checkChar(obj)
+            end
+        end
+
         return count
     end
 
@@ -195,18 +228,19 @@ return function(services: any, Duel: any?): any
         local pos1, pos2 = pair[1], pair[2]
         local maxPerStrand = MODE_CAPACITY[mode] or 1
 
-        local count1 = self:CountOccupants(pos1, 6.0)
+        local count1 = self:CountOccupants(pos1, 8.0)
+        -- If Stand 1 has space (count < capacity), take Stand 1
         if count1 < maxPerStrand then
             return pos1, 1, false
         end
 
-        -- Strand 1 is full, check strand 2
-        local count2 = self:CountOccupants(pos2, 6.0)
+        -- Stand 1 is full (count >= capacity), check Stand 2
+        local count2 = self:CountOccupants(pos2, 8.0)
         if count2 < maxPerStrand then
             return pos2, 2, false
         end
 
-        -- Both strands are full (reached or exceeded mode capacity)
+        -- Both Stand 1 and Stand 2 are full (>= capacity)
         return nil, nil, true
     end
 
@@ -222,7 +256,7 @@ return function(services: any, Duel: any?): any
 
         if isFull or not targetPos or not strandIndex then
             local maxPerStrand = MODE_CAPACITY[mode] or 1
-            local fullMsg = "No available " .. mode .. " left"
+            local fullMsg = "no available " .. mode .. " left"
             self._lastStatusMessage = fullMsg
             if EventBus then
                 EventBus:Publish("Notify", "Auto Queue", fullMsg, 4)
@@ -232,7 +266,7 @@ return function(services: any, Duel: any?): any
 
         if strandIndex == 2 then
             if EventBus then
-                EventBus:Publish("Notify", "Auto Queue", "Stand 1 is full going to next one", 3)
+                EventBus:Publish("Notify", "Auto Queue", "stand 1 is full going to next one", 3)
             end
         end
 

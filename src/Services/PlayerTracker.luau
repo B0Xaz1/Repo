@@ -73,7 +73,6 @@ return function(services: any): any
         local assets = self._registry[player]
         if assets and assets.Character == player.Character and assets.Humanoid.Parent and assets.RootPart.Parent
             and assets.RootPart:IsDescendantOf(assets.Character) then return assets end
-        -- Frame callers may re-resolve but must never yield on a half-streamed rig.
         assets = resolve(player, false)
         self._registry[player] = assets
         return assets
@@ -124,7 +123,6 @@ return function(services: any): any
         if next(self._cameraOriginals) == nil then return end
         local localAssets = self:GetLocalAssets()
         for camera, original in pairs(self._cameraOriginals) do
-            -- A destroyed original subject is the one documented restoration exception: use the local humanoid.
             if not original.Value or not original.Value.Parent then
                 if localAssets then pcall(function() camera.CameraSubject = localAssets.Humanoid end) end
             end

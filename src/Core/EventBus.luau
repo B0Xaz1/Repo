@@ -24,13 +24,10 @@ return function(disposer: any): any
         return node
     end
 
-    -- Synchronous dispatch: publishing happens on every UI interaction and per-frame state
-    -- write, so handlers run inline and must never yield.
     function EventBus:Publish(name: string, ...: any)
         if self._scope:IsDisposed() then return end
         local list = self._lists[name]
         if not list then return end
-        -- Snapshot first: a handler may disconnect itself or its neighbour mid-dispatch.
         local snapshot = {}
         local node = list.Head
         while node do table.insert(snapshot, node); node = node.Next end

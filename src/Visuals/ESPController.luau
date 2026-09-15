@@ -85,7 +85,6 @@ return function(services: any): any
         record.Bones = true
     end
 
-    -- Diffed writes keep per-frame property churn to real deltas only.
     local function draw(record: any, name: string, properties: any)
         local object = record.Drawings[name]
         if not object then return end

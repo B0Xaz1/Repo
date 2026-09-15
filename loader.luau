@@ -73,6 +73,5 @@ local booted, bootError = pcall(function()
     local ran, runError = pcall(chunk)
     assert(ran, runError)
 end)
-if not booted then warn(`[B0Xaz] Loader failed: {tostring(bootError)}`) end
--- Ticket identity keeps a slow, cancelled download from clearing a newer loader's lock.
+if not booted then end
 if globals.B0XazLoaderBusy == ticket then globals.B0XazLoaderBusy = nil end

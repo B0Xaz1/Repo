@@ -180,7 +180,6 @@ return function(services: any): any
     end
 
     local function touchFlingLoop()
-        -- Alternating micro-offset keeps the touched rig from settling back to rest.
         local liftOffset = CONFIG.TOUCH_FLING_OFFSET
         while not scope:IsDisposed() do
             if not state:Peek("Movement.TouchFling") or LocomotionService._flingTarget then

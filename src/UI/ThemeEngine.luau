@@ -86,7 +86,6 @@ return function(services: any): any
         pcall(function() instance:SetAttribute(CONFIG.ATTRIBUTE_PREFIX .. property, token) end)
     end
 
-    -- Unbound instances are re-matched by attribute tag first, then by exact previous color.
     local function refreshUnbound(previous: any)
         local reverse = {}
         for _, token in ipairs(CONFIG.TOKEN_NAMES) do

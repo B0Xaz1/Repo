@@ -1,5 +1,5 @@
 --!strict
-local UIS = game:GetService("UIS")
+local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
 local CONFIG = table.freeze({

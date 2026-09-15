@@ -43,7 +43,6 @@ return function(disposer: any): any
     end
 
     local syn, fluxus, http = probe("syn"), probe("fluxus"), probe("http")
-    -- Cache capability references once; their identity is fixed for the session.
     local getHui = first(probe("gethui"))
     local write, read, exists = first(probe("writefile")), first(probe("readfile")), first(probe("isfile"))
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
@@ -193,7 +192,6 @@ return function(disposer: any): any
 
     function Environment:SetFpsCap(value: number): boolean
         if not fps then return false end
-        -- 0 is the executor convention for uncapped; preserve it instead of clamping to one.
         return pcall(fps, if value == 0 then 0 else math.clamp(math.round(value), CONFIG.FPS_MIN, CONFIG.FPS_MAX))
     end
 
@@ -230,8 +228,6 @@ return function(disposer: any): any
         return if ok then inset else Vector2.zero
     end
 
-    -- WorldToViewportPoint, Drawing, and GetMouseLocation share the window top-left origin,
-    -- so the aim point must not be shifted by the GuiInset.
     function Environment:GetAimPoint(camera: Camera): Vector2
         if self:IsMobile() then return camera.ViewportSize / 2 end
         local ok, location = pcall(function() return UIS:GetMouseLocation() end)
@@ -239,7 +235,6 @@ return function(disposer: any): any
         return camera.ViewportSize / 2
     end
 
-    -- IgnoreGuiInset ScreenGuis report AbsolutePosition in GetMouseLocation space; touch stays in GUI space.
     function Environment:GetPointerLocation(event: InputObject): Vector2
         if event.UserInputType == Enum.UserInputType.Touch then
             return Vector2.new(event.Position.X, event.Position.Y)
@@ -266,7 +261,6 @@ return function(disposer: any): any
         if not sent then return false end
         mousePressed = true
         scope:Delay(CONFIG.CLICK_RELEASE_DELAY, function()
-            -- Leave the flag armed if release throws, so unload still makes a final release attempt.
             virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, false, game, 0)
             mousePressed = false
         end)

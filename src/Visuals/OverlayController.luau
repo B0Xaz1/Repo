@@ -53,7 +53,6 @@ return function(services: any): any
         if not object then return end
         local last = OverlayController._last[name]
         if not last then last = {}; OverlayController._last[name] = last end
-        -- Diffed writes keep per-frame property churn to real deltas only.
         for property, value in pairs(properties) do
             if last[property] ~= value then object[property] = value; last[property] = value end
         end

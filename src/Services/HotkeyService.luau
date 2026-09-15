@@ -37,8 +37,6 @@ return function(services: any): any
 
     function HotkeyService:BuildTeleportSource(): string
         local globals = environment.Globals
-        -- The 404 sentinel stays split so the generated source cannot reject itself, and a
-        -- slash-containing ref is preserved verbatim so the build does not change after teleport.
         return string.format('local g=_G;if type(getgenv)=="function" then local o,v=pcall(getgenv);if o then g=v end end;g.B0XazRef=%q;g.B0XazBaseURL=%q;local d=os.clock()+60;while not game:IsLoaded() or not game:GetService("Players").LocalPlayer do if os.clock()>d then return end;task.wait(.1) end;for a=1,5 do local o,s=pcall(function() return game:HttpGet(%q.."?t="..os.time().."_"..a) end);if o and type(s)=="string" and #s>=10 and not s:find("404"..": Not Found",1,true) then local f=loadstring(s,"@B0XazInit");if f then pcall(f);break end end;task.wait(a*.7) end',
             tostring(globals.B0XazRef or ""), tostring(globals.B0XazBaseURL or ""), tostring(globals.B0XazInitURL or ""))
     end

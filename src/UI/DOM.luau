@@ -5,8 +5,6 @@ return function(services: any): any
     local disposer = services:Get("Disposer")
     local DOM = {}
 
-    -- Parent last: properties and children are applied before parenting so observers
-    -- never see a partially configured instance.
     function DOM:Create(className: string, properties: any?, children: { Instance }?): any
         local instance = Instance.new(className)
         local props = properties or {}
@@ -21,7 +19,6 @@ return function(services: any): any
     end
 
     function DOM:DestroyInstance(instance: Instance)
-        -- Forget the whole subtree first, or the master bag keeps stale entries.
         for _, child in ipairs(instance:GetDescendants()) do disposer:Forget(child) end
         disposer:Forget(instance)
         instance:Destroy()

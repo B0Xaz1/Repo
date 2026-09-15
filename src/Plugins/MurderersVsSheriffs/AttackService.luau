@@ -249,7 +249,7 @@ return function(services: any, Duel: any?): any
         if VirtualInputManager then
             pcall(function()
                 VirtualInputManager:SendKeyEvent(true, CONFIG.SPAM_THROW_KEY, false, game)
-                task.delay(CONFIG.SPAM_KEY_RELEASE_DELAY, function()
+                task.defer(function() task.wait(CONFIG.SPAM_KEY_RELEASE_DELAY);
                     pcall(function()
                         VirtualInputManager:SendKeyEvent(false, CONFIG.SPAM_THROW_KEY, false, game)
                     end)

@@ -4,7 +4,6 @@ local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
     VERSION = "2.4.3",
-    -- Split so this file's own source never contains the contiguous 404 marker it screens for.
     NOT_FOUND_BODY = "404" .. ": Not Found",
     DEFAULT_REF = "main",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
@@ -31,7 +30,6 @@ end
 local consoleFns = {}
 for index, name in ipairs(CONFIG.CONSOLE_CLEAR_NAMES) do consoleFns[index] = runtime[name] end
 
--- Public cleanup stays independent of any single closure so it remains valid across reloads.
 function globals.B0XazUnload()
     local master, container = globals.B0XazMasterDisposer, globals.B0XazServiceContainer
     globals.B0XazRunning, globals.B0XazLaunching = false, nil
@@ -71,7 +69,6 @@ function globals.B0XazRelaunch()
         local ran, runError = pcall(chunk)
         assert(ran, `Run failure: {tostring(runError)}`)
     end)
-    if not relaunched then warn(`[B0Xaz] Relaunch failed: {tostring(relaunchError)}`) end
     if globals.B0XazLoaderBusy == ticket then globals.B0XazLoaderBusy = nil end
 end
 
@@ -79,7 +76,6 @@ globals.B0XazRunning = globals.B0XazRunning == true
 local base: string = if type(globals.B0XazBaseURL) == "string" then globals.B0XazBaseURL
     else CONFIG.REPOSITORY .. (if type(globals.B0XazRef) == "string" then globals.B0XazRef else CONFIG.DEFAULT_REF)
 base = base:gsub("[?#].*$", ""):gsub("/+$", "")
--- Never strip arbitrary branch segments (refs may contain '/'); only known published suffixes.
 local changed = true
 while changed do
     changed = false
@@ -219,7 +215,12 @@ local booted, bootError = pcall(function()
     services:Register("Require", requireModule)
     services:Register("DOM", step(function() return requireModule("src/UI/DOM.luau", services) end))
     globals.B0XazServiceContainer = services
+    local lastInputCheck = 0
+    local inputCheckInterval = 0.05
     master:Connect(UIS.InputBegan, function(input: InputObject, _processed: boolean)
+        local now = os.clock()
+        if now - lastInputCheck < inputCheckInterval then return end
+        lastInputCheck = now
         if state:GetTransient("IsBindingKey") or UIS:GetFocusedTextBox() then return end
         if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end
     end)
@@ -247,14 +248,11 @@ local booted, bootError = pcall(function()
             step(function() return services:Get("ConfigService"):ApplyLaunchState() end)
             globals.B0XazLaunching, globals.B0XazRunning = nil, true
         end)
-        if not ran then
-            warn(`[B0Xaz] Launch failed: {tostring(launchError)}`)
             failBoot()
         end
     end
     launch()
 end)
 if not booted then
-    warn(`[B0Xaz] Boot failed: {tostring(bootError)}`)
     failBoot()
 end

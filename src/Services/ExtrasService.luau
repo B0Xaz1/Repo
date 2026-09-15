@@ -49,8 +49,6 @@ return function(services: any): any
         local owner, root = ExtrasService._spinScope, ExtrasService._spinRoot
         ExtrasService._spinScope, ExtrasService._spinRoot = nil, nil
         if owner then
-            -- Release (never restore) the live transform leases so the character keeps its
-            -- spun pose; AutoRotate stays a plain property and restores normally.
             if root then
                 owner:ReleaseProperty(root, "CFrame")
                 owner:ReleaseProperty(root, "AssemblyAngularVelocity")
@@ -107,7 +105,6 @@ return function(services: any): any
         local suppressed = os.clock() < (state:GetTransient("AntiFlingSuppressUntil") or 0)
         if ExtrasService._guardRoot ~= root then guardChanges:RestoreProperties(); ExtrasService._guardRoot = root end
         if not enabled or suppressed or humanoid.Health <= 0 or ExtrasService._baselineRoot ~= root then
-            -- Teleports, flight and disabled periods continuously establish the next legitimate baseline.
             ExtrasService._baseline, ExtrasService._baselineRoot = root.CFrame, root
             if not enabled then restoreDefence() end
             return
@@ -121,7 +118,6 @@ return function(services: any): any
         end
         local velocity, angular = root.AssemblyLinearVelocity, root.AssemblyAngularVelocity
         local horizontal = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-        -- Downward speed alone is never a fling: ordinary long falls reach arbitrarily high speeds.
         local threshold = math.max(CONFIG.FLING_FALL_SPEED_CAP, config.Threshold, humanoid.WalkSpeed * 6, state:Get("Movement.SprintSpeed") * 6)
         local upwardLimit = math.max(CONFIG.FLING_UPWARD_CAP, humanoid.JumpPower * 5)
         local impossible = horizontal > threshold or velocity.Y > upwardLimit or angular.Magnitude > CONFIG.FLING_ANGULAR_CAP
@@ -158,7 +154,6 @@ return function(services: any): any
             end
             local owner = ExtrasService._spinScope
             owner:SetProperty(assets.Humanoid, "AutoRotate", false)
-            -- Rotation integrates exactly once; zeroing angular velocity stops the solver adding a second spin.
             owner:SetProperty(root, "AssemblyAngularVelocity", Vector3.zero, true)
             owner:SetProperty(root, "CFrame", root.CFrame * CFrame.Angles(0, math.rad(math.clamp(config.Speed, -CONFIG.SPIN_SPEED_LIMIT, CONFIG.SPIN_SPEED_LIMIT)) * dt, 0), true)
         end)

@@ -81,7 +81,6 @@ return function(services: any): any
     local function update(dt: number)
         if not state:Peek("Aimbot.Enabled") then
             if AimbotService._target or AimbotService._camera then
-                -- Release, never restore: the camera resumes from the aimed orientation.
                 drop(); cameraChanges:ReleaseProperties(); AimbotService._camera = nil
             end
             return
@@ -159,7 +158,6 @@ return function(services: any): any
             local total = delta + remainder
             local x = clampAxis(math.round(total.X), math.sign(remaining.X) * math.floor(math.abs(remaining.X)))
             local y = clampAxis(math.round(total.Y), math.sign(remaining.Y) * math.floor(math.abs(remaining.Y)))
-            -- Carry fractional work into later frames instead of losing it to integer executor input.
             AimbotService._remainder = Vector2.new(math.clamp(total.X - x, -1, 1), math.clamp(total.Y - y, -1, 1))
             if (x ~= 0 or y ~= 0) and not environment:MouseMove(x, y) then
                 state:Set("Aimbot.UseCamera", true)

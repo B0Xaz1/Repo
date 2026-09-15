@@ -5,7 +5,6 @@ local function deepFreeze(value: any): any
     return table.freeze(value)
 end
 
--- Zero-valued overrides mean "leave the game's value alone"; boot must not impose Roblox defaults.
 local CONFIG = deepFreeze({
     MIN_TIER = 1,
     MAX_TIER = 3,
@@ -73,7 +72,6 @@ local CONFIG = deepFreeze({
         ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
         ["ESP.DepthMode"] = "Chams.DepthMode", ["Chams.DepthMode"] = "ESP.DepthMode",
     },
-    -- Tier downgrades may only disable these boolean feature flags; every other value is preserved.
     GAME_BOOLEAN_FLAGS = {
         "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
         "Game.DoorPhase", "Game.FakeMacro",
@@ -144,7 +142,6 @@ return function(eventBus: any, disposer: any): any
         local metadata = { Hydrating = StateStore._hydrating, Revision = StateStore._revision }
         eventBus:Publish(`StateChanged:{path}`, clone(value), clone(old), metadata)
         eventBus:Publish("StateChanged", path, clone(value), clone(old), metadata)
-        -- Parent-table writes still reach leaf observers.
         if type(value) == "table" or type(old) == "table" then
             local keys = {}
             if type(value) == "table" then for key in pairs(value) do keys[key] = true end end
@@ -158,7 +155,6 @@ return function(eventBus: any, disposer: any): any
 
     function StateStore:Get(path: string): any return clone(read(self._settings, path)) end
 
-    -- Live table for frame loops; callers must not mutate it.
     function StateStore:Peek(path: string): any return read(self._settings, path) end
 
     function StateStore:Set(path: string, value: any): (boolean, string?)
@@ -216,8 +212,6 @@ return function(eventBus: any, disposer: any): any
         local old = self._settings
         self._hydrating = true
         self._settings = merge(CONFIG.DEFAULT_SETTINGS, snapshot)
-        -- Mirror only the bind representation the snapshot did NOT carry, so a legacy
-        -- profile's customised bind is never clobbered by a default.
         local incomingSettings = if type(snapshot.Settings) == "table" then snapshot.Settings else {}
         local incomingBinds = if type(incomingSettings.Binds) == "table" then incomingSettings.Binds else {}
         local incomingMovement = if type(snapshot.Movement) == "table" then snapshot.Movement else {}
@@ -231,7 +225,6 @@ return function(eventBus: any, disposer: any): any
         else
             self._settings.Settings.MenuKeybind = self._settings.Settings.Binds.Menu
         end
-        -- Older profiles only stored chams depth; keep ESP drawings on the same mode.
         local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
         local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode
         if type(incomingEsp) == "string" then self._settings.ESP.DepthMode = incomingEsp

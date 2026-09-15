@@ -146,8 +146,6 @@ return function(services: any): any
         return true, `Loaded {clean}`
     end
 
-    -- Loading a profile is itself a launch choice: persist it immediately, or an untouched
-    -- relaunch would silently restore the previous session. Boot-time apply is exempt.
     function ConfigService:PersistLoadedProfile()
         if self._applyingLaunch then return end
         self.Dirty = true
@@ -230,7 +228,6 @@ return function(services: any): any
             local loaded = self:Load(startup)
             self._applyingLaunch = false
             if loaded then
-                -- Profile contents must not unpin the launch selector that selected them.
                 local current = state:GetSettingsSnapshot()
                 current.Settings.RestoreOnLaunch, current.Settings.StartupProfile = true, startup
                 hydrate(current)
@@ -256,7 +253,6 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         scope:Add(bus:Subscribe("StateChanged", function(_path: string, _new: any, _old: any, metadata: any)
-            -- The hydration marker rides with the event metadata; the callee cannot clear it early.
             if not ConfigService._isLoading and not (metadata and metadata.Hydrating) then ConfigService.Dirty = true end
         end))
         scope:Spawn(function()

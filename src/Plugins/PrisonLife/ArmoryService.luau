@@ -145,7 +145,7 @@ return function(services: any, Prison: any?): any
             if pickup then
                 local ok, err = pcall(function() (remote :: any):InvokeServer(pickup) end)
                 if ok then
-                    task.delay(CONFIG.PICKUP_SCAN_DELAY, function() if not scope:IsDisposed() then ArmoryService:Scan() end end)
+                    task.defer(function() task.wait(CONFIG.PICKUP_SCAN_DELAY);  if not scope:IsDisposed() then ArmoryService:Scan() end end)
                     return true, `Requested {weapon.Name}`
                 end
                 return false, `Pickup rejected: {tostring(err)}`

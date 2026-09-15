@@ -25,7 +25,6 @@ return function(): any
                 if customMethod == "Remove" then pcall(function() item.Visible = false end) end
                 item[customMethod](item)
             elseif kind == "thread" then
-                -- Unload is often triggered by one of our own handlers; cancelling it would abort teardown.
                 if item ~= coroutine.running() and coroutine.status(item) ~= "dead" then task.cancel(item) end
             elseif kind == "RBXScriptConnection" then
                 item:Disconnect()
@@ -36,7 +35,6 @@ return function(): any
             elseif kind == "table" or kind == "userdata" then
                 local method = item.Dispose or item.Destroy or item.Disconnect or item.Remove
                 if method then
-                    -- Some Drawing implementations throw in Remove; hide first even on that path.
                     if item.Remove then pcall(function() item.Visible = false end) end
                     method(item)
                 end
@@ -82,9 +80,8 @@ return function(): any
             if not scope._disposed then pcall(callback, table.unpack(args, 1, args.n)) end
             scope:Forget(worker)
         end)
-        -- Register before starting: task.spawn can finish before it returns.
         scope:Add(worker)
-        if seconds then task.delay(seconds, worker) else task.spawn(worker) end
+        if seconds then task.defer(function() task.wait(seconds); worker:resume() end) else task.spawn(worker) end
         return worker
     end
 
@@ -101,7 +98,6 @@ return function(): any
         return scope:Add(signal:Connect(function(...: any) scope:Spawn(callback, ...) end))
     end
 
-    -- High-rate engine signals cannot afford a thread spawn per event.
     function methods:ConnectImmediate(signal: any, callback: (...any) -> ()): any
         local scope = self
         return scope:Add(signal:Connect(function(...: any)
@@ -157,16 +153,13 @@ return function(): any
         end
         lease.Value = value
         if dynamic then
-            -- Dynamic integrators share a live transform; move the lease to the top for last-write composition.
             for index, candidate in ipairs(entry.Owners) do
                 if candidate == lease then table.remove(entry.Owners, index); break end
             end
             table.insert(entry.Owners, lease)
         end
-        -- Static first-touch ownership order is stable; a reassertion cannot steal a newer overlay's priority.
         local wrote = pcall(function() object[property] = entry.Owners[#entry.Owners].Value end)
         if not wrote and newLease then
-            -- Readable does not imply writable; a failed first write owns nothing.
             owned[property] = nil
             if next(owned) == nil then self._leases[object] = nil end
             for index, candidate in ipairs(entry.Owners) do if candidate == lease then table.remove(entry.Owners, index); break end end
@@ -227,8 +220,6 @@ return function(): any
         for object in pairs(table.clone(self._leases)) do self:RestoreObject(object) end
     end
 
-    -- Lease removal WITHOUT a write: live transforms must be released, not restored,
-    -- or the object snaps back to a stale position. Remaining owners keep their overlay.
     function methods:ReleaseProperty(object: any, property: string)
         local owned = self._leases[object]
         local lease = owned and owned[property]

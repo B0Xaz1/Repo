@@ -81,7 +81,6 @@ return function(services: any): any
     local function applyProfile(profile: any, owner: any, applied: any)
         snapshot()
         for _, property in ipairs(CONFIG.PROPERTIES) do
-            -- Skip no-change writes so the engine only sees real deltas on the reassert tick.
             if LightingService._original[property] and profile[property] ~= nil and applied[property] ~= profile[property] then
                 if owner:SetProperty(Lighting, property, profile[property]) then applied[property] = profile[property]
                 else applied[property] = nil end
@@ -93,7 +92,6 @@ return function(services: any): any
         if LightingService._effectsScope then return end
         local effectsScope = scope:CreateChild("Owned post effects")
         LightingService._effectsScope = effectsScope
-        -- High bloom threshold and low specular avoid blowing out pale avatars and white walls.
         local bloom = Instance.new("BloomEffect")
         bloom.Name, bloom.Intensity, bloom.Size, bloom.Threshold = "B0XazBloom", 0.12, 18, 2.2
         effectsScope:Add(bloom); bloom.Parent = Lighting
@@ -106,7 +104,6 @@ return function(services: any): any
     local function clearVignette()
         local gui = LightingService._vignette
         LightingService._vignette = nil
-        -- DestroyInstance also forgets the gui in the master bag; a raw Destroy() would leak the entry.
         if gui then pcall(function() dom:DestroyInstance(gui) end) end
     end
 
@@ -155,7 +152,6 @@ return function(services: any): any
         local config = state:Get("Lighting")
         local fullbright = state:Get("Visuals.Fullbright")
         if fullbright then
-            -- Fullbright holds exclusive grading ownership until disabled.
             restoreMode()
             local profile = table.clone(CONFIG.DAY)
             profile.Ambient, profile.OutdoorAmbient = CONFIG.FULLBRIGHT_AMBIENT, CONFIG.FULLBRIGHT_AMBIENT
@@ -188,7 +184,7 @@ return function(services: any): any
         for index, object in ipairs(Workspace:GetDescendants()) do
             if scope:IsDisposed() or not state:Get("Lighting.RemasterMaterials") or state:Get("Visuals.Fullbright") or state:Get("Lighting.Mode") == "Off" then return end
             remaster(object)
-            if index % CONFIG.STREAM_CHUNK_SIZE == 0 then task.wait() end
+            if index % CONFIG.STREAM_CHUNK_SIZE == 0 then task.wait(0.001) end
         end
     end
 
@@ -217,7 +213,6 @@ return function(services: any): any
     function LightingService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        -- Coalesce observer storms (slider drags) into at most one pass per resumption window.
         local function scheduleForward(flag: string, body: () -> ())
             if LightingService[flag] then return end
             LightingService[flag] = true

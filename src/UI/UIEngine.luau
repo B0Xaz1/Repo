@@ -265,7 +265,7 @@ return function(services: any): any
         scope:Connect(search:GetPropertyChangedSignal("Text"), function()
             UIEngine._searchSeq += 1
             local sequence, query = UIEngine._searchSeq, search.Text
-            task.delay(CONFIG.SEARCH_DEBOUNCE, function()
+            task.defer(function() task.wait(CONFIG.SEARCH_DEBOUNCE);
                 if scope:IsDisposed() or sequence ~= UIEngine._searchSeq then return end
                 UIEngine:Search(query)
             end)

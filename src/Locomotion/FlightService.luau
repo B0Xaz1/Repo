@@ -20,7 +20,6 @@ return function(services: any): any
         local owner, root = self._flightScope, self._root
         self._flightScope, self._root, self._velocity, self._gyro, self._active = nil, nil, nil, nil, false
         if owner then
-            -- Release live velocity leases so the character keeps its momentum instead of snapping.
             if root then
                 owner:ReleaseProperty(root, "AssemblyLinearVelocity")
                 owner:ReleaseProperty(root, "AssemblyAngularVelocity")

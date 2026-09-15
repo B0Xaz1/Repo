@@ -48,7 +48,6 @@ return function(services: any): any
             or object:IsA("Smoke") or object:IsA("Fire") or object:IsA("Sparkles")) then
             cacheWrite(OptimizerService._particleCache, object, "Enabled", false)
         end
-        -- The lighting service owns its own effects; never borrow them for optimization.
         if performance.NoPostProcessing and object:IsA("PostEffect") and not object.Name:match(CONFIG.OWNED_EFFECT_PREFIX) then
             cacheWrite(OptimizerService._postFxCache, object, "Enabled", false)
         end
@@ -69,13 +68,13 @@ return function(services: any): any
         local revision = self._revision
         local performance = state:Get("Performance")
         processInstance(Lighting, performance)
-        local descendants = Workspace:GetDescendants()
+        local descendants = {}
+        for _, object in ipairs(Workspace:GetDescendants()) do table.insert(descendants, object) end
         for _, object in ipairs(Lighting:GetDescendants()) do table.insert(descendants, object) end
         for index, object in ipairs(descendants) do
             if revision ~= self._revision or scope:IsDisposed() then return end
             processInstance(object, performance)
-            -- Stream large maps in bounded chunks so a toggle cannot monopolize the executor thread.
-            if index % CONFIG.STREAM_CHUNK_SIZE == 0 then task.wait() end
+            if index % CONFIG.STREAM_CHUNK_SIZE == 0 then task.wait(0.001) end
         end
     end
 

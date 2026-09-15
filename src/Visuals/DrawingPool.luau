@@ -24,7 +24,10 @@ return function(services: any): any
         elseif kind == "Text" then defaults.Text, defaults.Size, defaults.Center, defaults.Outline, defaults.Font = "", CONFIG.TEXT_DEFAULT_SIZE, true, true, CONFIG.TEXT_DEFAULT_FONT
         elseif kind == "Square" then defaults.Position, defaults.Size, defaults.Filled, defaults.Thickness = Vector2.zero, Vector2.zero, false, 1
         elseif kind == "Circle" then defaults.Position, defaults.Radius, defaults.Filled, defaults.NumSides, defaults.Thickness = Vector2.zero, 1, false, CONFIG.CIRCLE_DEFAULT_SIDES, 1 end
-        for property, value in pairs(defaults) do pcall(function() primitive[property] = value end) end
+        for property, value in pairs(defaults) do
+            local ok, current = pcall(function() return primitive[property] end)
+            if not ok or current ~= value then pcall(function() primitive[property] = value end) end
+        end
     end
 
     function DrawingPool:Acquire(kind: string): any?

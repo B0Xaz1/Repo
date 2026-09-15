@@ -14,9 +14,7 @@ return function(disposer: any): any
 
     local function run(pipeline: string, dt: number)
         if scope:IsDisposed() then return end
-        -- Registration replaces the array, so jobs can (re)register during iteration safely.
         for _, job in ipairs(TaskScheduler._pipelines[pipeline]) do
-            -- The breaker only clears Enabled; an observer re-enabling it requests a retry.
             if job.CircuitOpen and job.Enabled then job.CircuitOpen, job.Strikes = false, 0 end
             if job.Enabled and job.Connected then
                 local ran = pcall(job.Callback, dt)
@@ -34,7 +32,7 @@ return function(disposer: any): any
     end
 
     local function register(pipeline: string, name: string, priority: number, callback: (number) -> ()): any
-        local jobs = table.clone(TaskScheduler._pipelines[pipeline])
+        local jobs = TaskScheduler._pipelines[pipeline]
         for index = #jobs, 1, -1 do
             if jobs[index].Name == name then jobs[index]:Disconnect(); table.remove(jobs, index) end
         end
@@ -42,8 +40,6 @@ return function(disposer: any): any
         function job:Disconnect()
             if self.Connected ~= true then return end
             self.Connected, self.Enabled = false, false
-            -- Clone-swap removal keeps any in-flight iteration stable; Forget stops dead
-            -- entries from accumulating in the scope across re-registers.
             local current = TaskScheduler._pipelines[pipeline]
             local at = table.find(current, self)
             if at then
@@ -53,12 +49,14 @@ return function(disposer: any): any
             end
             scope:Forget(self)
         end
-        table.insert(jobs, job)
-        table.sort(jobs, function(a: any, b: any)
-            if a.Priority == b.Priority then return a.Name < b.Name end
-            return a.Priority < b.Priority
-        end)
-        TaskScheduler._pipelines[pipeline] = jobs
+        local insertAt = #jobs + 1
+        for index, existing in ipairs(jobs) do
+            if priority < existing.Priority or (priority == existing.Priority and name < existing.Name) then
+                insertAt = index
+                break
+            end
+        end
+        table.insert(jobs, insertAt, job)
         scope:Add(job)
         return job
     end
@@ -81,7 +79,6 @@ return function(disposer: any): any
 
     function TaskScheduler:Destroy() scope:Dispose() end
 
-    -- Dispatch boundaries stay synchronous to preserve their engine phase.
     scope:Add(RunService.Stepped:Connect(function(_time: number, dt: number) run("PreSim", dt) end))
     scope:Add(RunService.Heartbeat:Connect(function(dt: number) run("Heartbeat", dt) end))
     scope:Add(RunService.RenderStepped:Connect(function(dt: number) run("Render", dt) end))

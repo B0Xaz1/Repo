@@ -5,7 +5,7 @@ return function(services: any): any
     local orders = setmetatable({}, { __mode = "k" })
     local Section = {}
 
-    function Section:Create(parent: Instance, title: string): Frame
+    function Section:Create(parent: Instance, title: string, resetPath: string?): Frame
         orders[parent] = (orders[parent] or 0) + 1
         local frame = dom:Create("Frame", { Parent = parent, Name = "Section", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent], BackgroundColor3 = theme:GetToken("Panel") })
@@ -20,6 +20,17 @@ return function(services: any): any
         theme:BindToken(header, "TextColor3", "Accent")
         local content = dom:Create("Frame", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
         dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+        if resetPath then
+            local reset = dom:Create("TextButton", { Parent = content, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20),
+                Text = "Reset section", Font = Enum.Font.Gotham, TextSize = 10, AutoButtonColor = false, LayoutOrder = 999 })
+            self:StyleButton(reset, disposer:CreateChild(`Reset {title}`))
+            local owner = disposer:CreateChild(`Reset action {title}`)
+            owner:Connect(reset.Activated, function()
+                local ok, message = state:ResetSection(resetPath)
+                bus:Publish("Notify", if ok then "Section reset" else "Reset failed", message or `{title} restored to defaults`)
+            end)
+            owner:Connect(frame.Destroying, function() owner:Dispose() end)
+        end
         return content
     end
     function Section:Control(parent: Instance, label: string, height: number?): (Frame, TextLabel, any)

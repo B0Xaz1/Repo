@@ -19,6 +19,10 @@ local CONFIG = table.freeze({
         { Key = "Menu", Label = "Menu", Path = "Settings.MenuVisible" },
         { Key = "Lighting", Label = "Lighting mode", Path = "Lighting.Mode", Cycle = { "Off", "Static Day", "Static Night", "Dynamic" } },
     },
+    BIND_DEFINITIONS = {
+        { Label = "Menu", Path = "Settings.MenuKeybind" }, { Label = "Unload", Path = "Settings.UnloadKeybind" },
+        { Label = "Aimbot", Path = "Aimbot.Keybind" }, { Label = "Macro", Path = "Game.FakeMacroKey" },
+    },
 })
 
 return function(services: any): any
@@ -32,6 +36,27 @@ return function(services: any): any
         local result = {}
         for _, entry in ipairs(CONFIG.BIND_TARGETS) do table.insert(result, table.clone(entry)) end
         return result
+    end
+
+    function HotkeyService:GetBindDefinitions(): any
+        local result = {}
+        for _, entry in ipairs(CONFIG.BIND_DEFINITIONS) do table.insert(result, table.clone(entry)) end
+        for _, entry in ipairs(CONFIG.BIND_TARGETS) do
+            if entry.Key ~= "Menu" then table.insert(result, { Label = entry.Label, Path = `Settings.Binds.{entry.Key}` }) end
+        end
+        return result
+    end
+
+    function HotkeyService:FindBindConflict(path: string, value: any): string?
+        local item = environment:ParseKeybind(value)
+        if not item or item == Enum.KeyCode.Unknown then return nil end
+        for _, entry in ipairs(self:GetBindDefinitions()) do
+            local other = environment:ParseKeybind(state:Peek(entry.Path))
+            if entry.Path ~= path and other == item then
+                return entry.Label
+            end
+        end
+        return nil
     end
 
     function HotkeyService:BuildTeleportSource(): string

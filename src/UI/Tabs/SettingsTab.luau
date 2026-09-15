@@ -20,10 +20,12 @@ return function(services: any, tab: any): any
     textbox:CreateButton(profiles, "Load Default preset", function() return config:Load("Default") end)
     textbox:CreateButton(profiles, "Load Legit preset", function() return config:Load("Legit") end)
     textbox:CreateButton(profiles, "Load Rage preset", function() return config:Load("Rage") end)
+    textbox:CreateButton(profiles, "Create validated backup", function() return config:Backup() end)
+    textbox:CreateButton(profiles, "Restore validated backup", function() return config:RestoreBackup() end)
     scope:Add(services:Get("EventBus"):Subscribe("ProfilesChanged", function() selected:Refresh(config:ListProfiles(), true) end))
     section:Info(profiles, if environment.Capabilities.Files then "Autosave flushes dirty state every 1.5 seconds. Default, Legit, and Rage are built-in. Default resets everything; Legit/Rage keep your theme and hotkeys."
         else "File persistence is unavailable. Built-in Default/Legit/Rage still load. Use the JSON editor to copy/paste other profiles.")
-    local launch = section:Create(tab.LeftCol, "Launch behavior")
+    local launch = section:Create(tab.LeftCol, "Launch behavior", "Settings")
     toggle(launch, "Restore settings on launch", "Settings.RestoreOnLaunch")
     textbox(launch, "Startup profile", "", nil, "Settings.StartupProfile")
     textbox:CreateButton(launch, "Pin selected profile for launch", function() return config:PinStartupProfile(selected:Get() or "Default") end)
@@ -32,17 +34,25 @@ return function(services: any, tab: any): any
     local share = section:Create(tab.LeftCol, "Import & export")
     textbox:CreateButton(share, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)
     textbox:CreateButton(share, "Import from clipboard", function() return config:Import("") end)
-    local interface = section:Create(tab.LeftCol, "Interface & lifecycle")
+    local interface = section:Create(tab.LeftCol, "Interface & lifecycle", "Settings")
     slider(interface, "UI scale", "Settings.UIScale", 0.6, 1.5, 0.05, "x")
+    toggle(interface, "Compact menu mode", "Settings.CompactMenu")
     keybind(interface, "Menu hotkey", "Settings.MenuKeybind")
     keybind(interface, "Quick unload hotkey", "Settings.UnloadKeybind")
     section:Info(interface, "Click a bind to record. Escape cancels and unbinds. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")
-    local hotkeys = section:Create(tab.RightCol, "Feature hotkeys")
+    local hotkeys = section:Create(tab.RightCol, "Feature hotkeys", "Settings")
     for _, target in ipairs(services:Get("HotkeyService"):GetBindTargets()) do
         if target.Key ~= "Menu" then keybind(hotkeys, target.Label, `Settings.Binds.{target.Key}`) end
     end
+    textbox:CreateButton(hotkeys, "Reset all hotkeys", function()
+        local defaults = state:GetDefaultSettings().Settings.Binds
+        for key, value in pairs(defaults) do state:Set(`Settings.Binds.{key}`, value) end
+        state:Set("Settings.MenuKeybind", state:GetDefaultSettings().Settings.MenuKeybind)
+        state:Set("Settings.UnloadKeybind", state:GetDefaultSettings().Settings.UnloadKeybind)
+        return true, "All hotkeys reset"
+    end)
     section:Info(hotkeys, "All feature bindings are available immediately and ignore focused textboxes while recording.")
-    local appearance = section:Create(tab.RightCol, "Theme palette")
+    local appearance = section:Create(tab.RightCol, "Theme palette", "Theme")
     dropdown(appearance, "Theme preset", "Theme.ActivePreset", theme:GetPresetNames(), function(value: string) theme:SetPreset(value) end)
     local pickers = {}
     for _, token in ipairs(theme:GetTokenNames()) do pickers[token] = color(appearance, token, theme:GetToken(token), function(value: Color3) theme:UpdateToken(token, value) end) end

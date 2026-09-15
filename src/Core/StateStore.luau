@@ -59,6 +59,7 @@ local CONFIG = deepFreeze({
         },
         Settings = {
             UIScale = 1, MenuVisible = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
+            CompactMenu = false, PluginEnabled = true,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
                 Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,
@@ -191,6 +192,39 @@ return function(eventBus: any, disposer: any): any
     function StateStore:GetSettingsSnapshot(): any return clone(self._settings) end
 
     function StateStore:GetDefaultSettings(): any return clone(CONFIG.DEFAULT_SETTINGS) end
+
+    function StateStore:Reset(path: string): (boolean, string?)
+        local defaults = self:GetDefaultSettings()
+        local value = read(defaults, path)
+        if value == nil then return false, `Unknown settings path: {path}` end
+        return self:Set(path, value)
+    end
+
+    function StateStore:ResetSection(path: string): (boolean, string?)
+        local defaults = self:GetDefaultSettings()
+        local value = read(defaults, path)
+        if type(value) ~= "table" then return false, `Settings section is not a table: {path}` end
+        local current = read(self._settings, path)
+        if equal(current, value) then return true end
+        write(self._settings, path, clone(value))
+        publishChanges(path, value, current)
+        for source, alias in pairs(CONFIG.ALIASES) do
+            local sourceInSection = source == path or source:sub(1, #path + 1) == `{path}.`
+            local aliasInSection = alias == path or alias:sub(1, #path + 1) == `{path}.`
+            if sourceInSection then
+                local sourceValue = read(self._settings, source)
+                local oldAlias = read(self._settings, alias)
+                write(self._settings, alias, clone(sourceValue))
+                publishChanges(alias, sourceValue, oldAlias)
+            elseif aliasInSection then
+                local aliasValue = read(self._settings, alias)
+                local oldSource = read(self._settings, source)
+                write(self._settings, source, clone(aliasValue))
+                publishChanges(source, aliasValue, oldSource)
+            end
+        end
+        return true
+    end
 
     function StateStore:GetTier(): number return self._currentTier end
 

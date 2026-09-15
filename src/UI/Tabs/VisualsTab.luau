@@ -8,14 +8,14 @@ return function(services: any, tab: any): any
     local color = load("src/UI/Components/ColorPicker.luau", services)
     local textbox = load("src/UI/Components/Textbox.luau", services)
     local environment, lighting = services:Get("Environment"), services:Get("LightingService")
-    local esp = section:Create(tab.LeftCol, "ESP features")
+    local esp = section:Create(tab.LeftCol, "ESP features", "ESP")
     section:Info(esp, if services:Get("DrawingPool").Available then "Drawing available / pooled per-player overlays" else "Drawing is unavailable. ESP and telemetry overlays will not render; native chams can still work.")
     toggle(esp, "Enable ESP", "ESP.Enabled", nil)
     for _, entry in ipairs({ { "Boxes", "Box" }, { "Names", "Name" }, { "Health bars", "Health" }, { "Distance", "Distance" }, { "Equipped tools", "Tool" },
         { "Backpack contents", "Backpack" }, { "Tracers", "Tracers" }, { "Skeleton", "Skeleton" }, { "Head dots", "HeadDot" }, { "Look direction", "LookDir" }, { "Hide teammates", "TeamCheck" } }) do
         toggle(esp, entry[1], `ESP.{entry[2]}`, nil)
     end
-    local espStyle = section:Create(tab.LeftCol, "ESP style")
+    local espStyle = section:Create(tab.LeftCol, "ESP style", "ESP")
     slider(espStyle, "ESP distance limit", "ESP.MaxDist", 50, 10000, 50, " studs", nil)
     dropdown(espStyle, "Overlay font", "ESP.Font", { "Plex", "UI", "System", "Monospace" }, nil)
     dropdown(espStyle, "Depth mode", "ESP.DepthMode", { "AlwaysOnTop", "Occluded" }, nil)
@@ -25,7 +25,7 @@ return function(services: any, tab: any): any
     toggle(espStyle, "Use team color", "ESP.UseTeamColor", nil)
     color(espStyle, "ESP color", "ESP.Color", nil)
     section:Info(espStyle, "Rainbow overrides the solid color. Team color uses the player's team. Occluded hides overlays behind walls.")
-    local chams = section:Create(tab.LeftCol, "Native chams")
+    local chams = section:Create(tab.LeftCol, "Native chams", "Chams")
     toggle(chams, "Enable chams", "Chams.Enabled", nil)
     toggle(chams, "Rainbow mode", "Chams.Rainbow", nil)
     toggle(chams, "Use team color", "Chams.UseTeamColor", nil)
@@ -33,7 +33,7 @@ return function(services: any, tab: any): any
     color(chams, "Outline color", "Chams.OutlineColor", nil)
     local preview = load("src/UI/Modals/VisualsPreview.luau", services)
     preview:Mount(services:Get("UIEngine")._root)
-    local performance = section:Create(tab.RightCol, "Performance")
+    local performance = section:Create(tab.RightCol, "Performance", "Performance")
     for _, entry in ipairs({ { "Remove textures", "NoTextures" }, { "Simple materials", "LowMaterials" }, { "Disable shadows", "NoShadows" },
         { "Disable particles", "NoParticles" }, { "Optimize terrain", "OptimizeTerrain" }, { "Disable post-processing", "NoPostProcessing" } }) do
         toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
@@ -41,7 +41,7 @@ return function(services: any, tab: any): any
     slider(performance, "FPS cap - 0 uncaps", "Performance.FpsCap", 0, 360, 15, " FPS", nil)
     section:Info(performance, if environment:HasFpsCap() then "FPS-cap wrapper available. Unload always requests an uncapped limit." else "FPS cap is unsupported by this executor. Other optimizations remain available.")
     textbox:CreateButton(performance, "Request memory collection", function() return services:Get("OptimizerService"):FlushMemory() end)
-    local light = section:Create(tab.RightCol, "Cinematic lighting")
+    local light = section:Create(tab.RightCol, "Cinematic lighting", "Lighting")
     toggle(light, "Fullbright", "Visuals.Fullbright", nil)
     dropdown(light, "Lighting mode", "Lighting.Mode", { "Off", "Static Day", "Static Night", "Dynamic" }, function(value: string) lighting:SetMode(value) end)
     slider(light, "Time of day", "Lighting.TimeOfDay", 0, 24, 0.1, " h", function(value: number) lighting:SetTime(value) end)
@@ -51,7 +51,7 @@ return function(services: any, tab: any): any
     toggle(light, "Soft vignette", "Lighting.Vignette", nil)
     toggle(light, "Remaster materials", "Lighting.RemasterMaterials", nil)
     section:Info(light, "Time and grade apply when a lighting mode is active. Fullbright takes precedence; the game's own effects are never borrowed.")
-    local telemetry = section:Create(tab.RightCol, "Telemetry & motion")
+    local telemetry = section:Create(tab.RightCol, "Telemetry & motion", "Settings")
     toggle(telemetry, "Watermark", "Settings.Watermark", nil)
     toggle(telemetry, "FPS counter", "Settings.ShowFPS", nil)
     toggle(telemetry, "Ping monitor", "Settings.ShowPing", nil)

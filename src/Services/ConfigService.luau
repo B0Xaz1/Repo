@@ -6,6 +6,7 @@ local CONFIG = table.freeze({
     MAX_NESTING_DEPTH = 40,
     MAX_NAME_LENGTH = 64,
     AUTOSAVE_FILE = "Configs/_autoload.json",
+    BACKUP_FILE = "Configs/_backup.json",
     AUTOSAVE_INTERVAL = 1.5,
     BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" },
 })
@@ -187,9 +188,35 @@ return function(services: any): any
         return json, if copied then "Copied config JSON" else message
     end
 
+    function ConfigService:Validate(json: string): (boolean, string?)
+        local ok, result = pcall(decode, json)
+        return ok, if ok then nil else `Invalid config JSON: {tostring(result)}`
+    end
+
+    function ConfigService:Backup(): (boolean, string)
+        local ok, json = pcall(encode, state:GetSettingsSnapshot())
+        if not ok then return false, tostring(json) end
+        local written, message = environment:WriteFile(CONFIG.BACKUP_FILE, json)
+        return written, message or "Backup created"
+    end
+
+    function ConfigService:RestoreBackup(): (boolean, string)
+        local raw, readError = environment:ReadFile(CONFIG.BACKUP_FILE)
+        if not raw then return false, readError or "No backup exists" end
+        local valid, validationError = self:Validate(raw)
+        if not valid then return false, validationError or "Backup validation failed" end
+        local ok, snapshot = pcall(decode, raw)
+        if not ok then return false, `Backup validation failed: {tostring(snapshot)}` end
+        hydrate(snapshot); self._activeProfile = "Backup restore"
+        self:PersistLoadedProfile()
+        return true, "Backup restored"
+    end
+
     function ConfigService:Import(json: string?): (boolean, string)
         if not json or json:match("^%s*$") then json = environment:GetClipboard() end
         if not json then return false, "Clipboard reading is unavailable; paste JSON into the editor" end
+        local valid, validationError = self:Validate(json)
+        if not valid then return false, validationError or "Invalid config JSON" end
         local ok, snapshot = pcall(decode, json)
         if not ok then return false, `Invalid config JSON: {tostring(snapshot)}` end
         hydrate(snapshot); self._activeProfile = "Imported"

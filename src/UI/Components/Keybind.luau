@@ -8,6 +8,7 @@ local CONFIG = table.freeze({
 return function(services: any): any
     local load, state, dom = services:Get("Require"), services:Get("StateStore"), services:Get("DOM")
     local environment = services:Get("Environment")
+    local hotkeys = services:Has("HotkeyService") and services:Get("HotkeyService") or nil
     local section = load("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Keybind capture")
     local Keybind = { _active = nil }
@@ -16,6 +17,13 @@ return function(services: any): any
         local handle = Keybind._active
         Keybind._active = nil
         if handle then
+            if value and hotkeys and handle.Path then
+                local conflict = hotkeys:FindBindConflict(handle.Path, value)
+                if conflict then
+                    services:Get("EventBus"):Publish("Notify", "Keybind already in use", `{conflict} already uses {environment:FormatKeybindName(value)}`)
+                    value = nil
+                end
+            end
             if value then handle:Set(value) else handle:Set(handle:Get(), true) end
         end
         scope:Delay(CONFIG.CAPTURE_SETTLE_DELAY, function() if not Keybind._active then state:SetTransient("IsBindingKey", false) end end)

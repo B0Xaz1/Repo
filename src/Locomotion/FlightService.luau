@@ -79,8 +79,8 @@ return function(services: any): any
             if not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") then
                 if environment:IsMobile() then
                     direction = assets.Humanoid.MoveDirection
-                    if state:Get("Movement.MobileFlyUp") then direction += Vector3.yAxis end
-                    if state:Get("Movement.MobileFlyDown") then direction -= Vector3.yAxis end
+                    if state:Get("Movement.MobileFlyUp") or state:GetTransient("MobileFlyUpHeld") then direction += Vector3.yAxis end
+                    if state:Get("Movement.MobileFlyDown") or state:GetTransient("MobileFlyDownHeld") then direction -= Vector3.yAxis end
                 else
                     if UIS:IsKeyDown(Enum.KeyCode.W) then direction += camera.CFrame.LookVector end
                     if UIS:IsKeyDown(Enum.KeyCode.S) then direction -= camera.CFrame.LookVector end

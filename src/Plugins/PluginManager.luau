@@ -7,7 +7,8 @@ return function(services: any): any
     local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("PluginManager")
     local registry = load("src/Plugins/PluginRegistry.luau", services)
-    local PluginManager = { _match = nil, _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false }
+    local state = services:Get("StateStore")
+    local PluginManager = { _match = nil, _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false, _enabled = true }
 
     local function resolvedMatch(): any
         return PluginManager._manual or registry:Resolve(game.PlaceId, game.GameId)
@@ -76,7 +77,7 @@ return function(services: any): any
         if owner then owner:Dispose() end
     end
     local function activate()
-        if scope:IsDisposed() or PluginManager._active then return end
+        if scope:IsDisposed() or PluginManager._active or not PluginManager._enabled then return end
         local match = resolvedMatch()
         if not match then return end
         local owner = scope:CreateChild("Active plugin")
@@ -102,6 +103,7 @@ return function(services: any): any
         end
     end
     function PluginManager:IsGameSupported(): boolean return resolvedMatch() ~= nil end
+    function PluginManager:IsEnabled(): boolean return self._enabled end
     function PluginManager:IsManualOverride(): boolean return self._manual ~= nil end
     function PluginManager:GetActivePluginName(): string
         local match = resolvedMatch()
@@ -110,6 +112,15 @@ return function(services: any): any
 
     function PluginManager:GetLastError(): string? return self._lastError end
     function PluginManager:ListPlugins(): { any } return registry:GetRegistrations() end
+
+    function PluginManager:SetEnabled(enabled: boolean): (boolean, string)
+        self._enabled = enabled == true
+        state:Set("Settings.PluginEnabled", self._enabled)
+        if self._enabled then activate() else deactivate() end
+        refreshMount()
+        bus:Publish("PluginChanged", self:GetActivePluginName())
+        return true, if self._enabled then "Plugin enabled" else "Plugin disabled"
+    end
 
     function PluginManager:SelectPlugin(registration: any): (boolean, string)
         self._manual = registration
@@ -138,6 +149,10 @@ return function(services: any): any
     function PluginManager:Initialize()
         if self._initialized then return end
         self._initialized = true
+        PluginManager._enabled = state:Peek("Settings.PluginEnabled") ~= false
+        scope:Add(state:Observe("Settings.PluginEnabled", function(value: boolean)
+            if value ~= PluginManager._enabled then PluginManager:SetEnabled(value) end
+        end))
         PluginManager._match = resolvedMatch()
         activate()
         bus:Publish("PluginChanged", PluginManager:GetActivePluginName())

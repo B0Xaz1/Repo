@@ -19,7 +19,7 @@ return function(services: any, tab: any): any
     textbox:CreateButton(actions, "Spectate player", function() return tracker:StartSpectate(tracker:GetPlayerByName(target:Get() or "")) end)
     textbox:CreateButton(actions, "Stop spectating", function() tracker:StopSpectate(); return true, "Camera subject restored" end)
     textbox:CreateButton(actions, "Copy username", function() return tracker:CopyName(tracker:GetPlayerByName(target:Get() or "")) end)
-    local whitelist = section:Create(tab.RightCol, "Target whitelist")
+    local whitelist = section:Create(tab.RightCol, "Target whitelist", "Settings")
     local summary = section:Info(whitelist, tracker:GetWhitelistSummary())
     scope:Add(state:Observe("Settings.Whitelist", function() summary:Set(tracker:GetWhitelistSummary()) end))
     textbox:CreateButton(whitelist, "Whitelist selected player", function() return tracker:AddWhitelist(tracker:GetPlayerByName(target:Get() or "")) end)

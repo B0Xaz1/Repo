@@ -32,7 +32,7 @@ return function(services: any): any
     local dom, theme, state, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore"), services:Get("Environment")
     local bus, load = services:Get("EventBus"), services:Get("Require")
     local scope = services:Get("Disposer"):CreateChild("UIEngine")
-    local UIEngine = { _root = nil, _main = nil, _tabs = {}, _tabByName = {}, _active = nil, _controls = {}, _dropdowns = {},
+    local UIEngine = { _root = nil, _main = nil, _tabs = {}, _tabByName = {}, _active = nil, _controls = {}, _dropdowns = {}, _layout = {},
         _query = "", _searchHeaders = {}, _searchActive = false, _searchSeq = 0, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
 
     local function viewport(): Vector2 return if Workspace.CurrentCamera then Workspace.CurrentCamera.ViewportSize else CONFIG.FALLBACK_VIEWPORT end
@@ -223,10 +223,26 @@ return function(services: any): any
         if not UIEngine._main then return end
         local screen = viewport()
         local requested = math.clamp(state:Get("Settings.UIScale"), CONFIG.SCALE_MIN_SETTING, CONFIG.SCALE_MAX_SETTING)
-        local width = if environment:IsMobile() then math.clamp(screen.X / requested - CONFIG.WINDOW_MOBILE_PADDING, CONFIG.WINDOW_MOBILE_MIN_WIDTH, CONFIG.WINDOW_MOBILE_MAX_WIDTH) else CONFIG.WINDOW_WIDTH
-        local height = math.clamp(screen.Y / requested - 40, 360, CONFIG.WINDOW_HEIGHT)
+        local compact = state:Get("Settings.CompactMenu") == true
+        local width = if compact then math.clamp(screen.X / requested - 20, 300, 560)
+            elseif environment:IsMobile() then math.clamp(screen.X / requested - CONFIG.WINDOW_MOBILE_PADDING, CONFIG.WINDOW_MOBILE_MIN_WIDTH, CONFIG.WINDOW_MOBILE_MAX_WIDTH)
+            else CONFIG.WINDOW_WIDTH
+        local height = math.clamp(screen.Y / requested - 40, if compact then 340 else 360, if compact then 460 else CONFIG.WINDOW_HEIGHT)
         local scale = math.max(0.25, math.min(requested, (screen.X - CONFIG.SCREEN_MARGIN) / width, (screen.Y - CONFIG.SCREEN_MARGIN) / height))
         UIEngine._main.Size, UIEngine._scale.Scale = UDim2.fromOffset(width, height), scale
+        local layout = UIEngine._layout
+        if layout.TitleBar then
+            local titleHeight = if compact then 30 else 34
+            layout.TitleBar.Size = UDim2.new(1, 0, 0, titleHeight)
+            layout.Search.Position = UDim2.new(1, if compact then -138 else -150, 0, if compact then 5 else 7)
+            layout.Strip.Position = UDim2.fromOffset(8, titleHeight)
+            layout.Divider.Position = UDim2.fromOffset(12, titleHeight + 24)
+            for _, tab in ipairs(UIEngine._tabs) do
+                tab.Page.Position = UDim2.fromOffset(10, titleHeight + 30)
+                tab.Page.Size = UDim2.new(1, -20, 1, -(titleHeight + 48))
+            end
+            if layout.Footer then layout.Footer.Position = UDim2.new(0, compact and 12 or 18, 1, -18) end
+        end
         local stacked = width < CONFIG.STACKED_BREAKPOINT
         for _, tab in ipairs(UIEngine._tabs) do
             tab.ColumnLayout.FillDirection = if stacked then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
@@ -259,6 +275,7 @@ return function(services: any): any
         local search = dom:Create("TextBox", { Parent = titleBar, BorderSizePixel = 0, Position = UDim2.new(1, -150, 0, 7), Size = UDim2.fromOffset(118, 20), ClearTextOnFocus = false,
             Text = "", PlaceholderText = "search...", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
         self._searchBox = search
+        self._layout.TitleBar, self._layout.Search = titleBar, search
         theme:BindToken(search, "BackgroundColor3", "Elem"); theme:BindToken(search, "TextColor3", "Text"); theme:BindToken(search, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(search, 0, 8)
@@ -276,6 +293,7 @@ return function(services: any): any
         theme:BindToken(strip, "ScrollBarImageColor3", "Accent")
         dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
         local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 0, 1) })
+        self._layout.Strip, self._layout.Divider = strip, divider
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
         for index, entry in ipairs(CONFIG.TABS) do
             local button = dom:Create("TextButton", { Parent = strip, BackgroundTransparency = 1, BorderSizePixel = 0, Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 13, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = index })
@@ -313,11 +331,13 @@ return function(services: any): any
         end
         local footer = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, Position = UDim2.new(0, 18, 1, -18), Size = UDim2.new(1, -96, 0, 14),
             Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
+        self._layout.Footer = footer
         theme:BindToken(footer, "TextColor3", "TextMuted")
         local function updateFooter()
             footer.Text = `{environment:FormatKeybindName(state:Get("Settings.MenuKeybind"))}  menu     {environment:FormatKeybindName(state:Get("Settings.UnloadKeybind"))}  unload`
         end
         updateFooter(); scope:Add(state:Observe("Settings.MenuKeybind", updateFooter)); scope:Add(state:Observe("Settings.UnloadKeybind", updateFooter))
+        scope:Add(state:Observe("Settings.CompactMenu", resize))
         self._versionLabel = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 1, -18), Size = UDim2.fromOffset(72, 14),
             Text = `v{services.Version}`, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
         theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
@@ -363,6 +383,7 @@ return function(services: any): any
         restoreSearch()
         if UIEngine._root then dom:DestroyInstance(UIEngine._root) end
         UIEngine._root, UIEngine._main, UIEngine._toastRoot = nil, nil, nil
+        table.clear(UIEngine._layout)
         table.clear(UIEngine._controls); table.clear(UIEngine._dropdowns); table.clear(UIEngine._toasts); table.clear(UIEngine._pending)
     end)
     return UIEngine

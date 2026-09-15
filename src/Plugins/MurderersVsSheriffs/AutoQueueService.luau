@@ -262,14 +262,14 @@ return function(services: any, Duel: any?): any
         for _, name in ipairs(remoteNames) do
             local rem = ReplicatedStorage:FindFirstChild(name) or (ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild(name))
             if rem then
-                pcall(function()
+                local fired = pcall(function()
                     if rem:IsA("RemoteFunction") then
                         rem:InvokeServer(mode)
                     else
                         rem:FireServer(mode)
                     end
                 end)
-                if ok then return true end
+                if fired then return true end
             end
         end
         return false

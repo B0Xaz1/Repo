@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 return function(services: any, tab: any): any
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
@@ -39,7 +39,7 @@ return function(services: any, tab: any): any
     section:Info(interface, "Click a bind to record. Escape cancels and unbinds. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")
     local hotkeys = section:Create(tab.RightCol, "Feature hotkeys")
     for _, target in ipairs(services:Get("HotkeyService"):GetBindTargets()) do
-        if target.Key ~= "Menu" then keybind(hotkeys, target.Label, "Settings.Binds." .. target.Key) end
+        if target.Key ~= "Menu" then keybind(hotkeys, target.Label, `Settings.Binds.{target.Key}`) end
     end
     section:Info(hotkeys, "All feature bindings are available immediately and ignore focused textboxes while recording.")
     local appearance = section:Create(tab.RightCol, "Theme palette")
@@ -50,7 +50,7 @@ return function(services: any, tab: any): any
         for token, picker in pairs(pickers) do picker:Set(theme:GetToken(token), true) end
     end))
     local session = section:Create(tab.RightCol, "Session")
-    section:Info(session, "Build " .. services.Version .. "\nSource ref: " .. tostring(environment.Globals.B0XazRef or "custom URL"))
+    section:Info(session, `Build {services.Version}\nSource ref: {tostring(environment.Globals.B0XazRef or "custom URL")}`)
     section:Info(session, "All controls are available in this build. There is no key entry, account check, device identifier, or gated feature level.")
     textbox:CreateButton(session, "Relaunch this build", function() environment.Globals.B0XazRelaunch() end)
     textbox:CreateButton(session, "Unload & restore everything", function() environment.Globals.B0XazUnload() end)

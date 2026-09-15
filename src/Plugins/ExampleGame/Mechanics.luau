@@ -1,9 +1,16 @@
---!nonstrict
+--!strict
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+
+local CONFIG = table.freeze({
+    SETTING_PATHS = { "Game.Example.DoorsOpen", "Game.Example.WeaponTuning" },
+    WATCHED_DOOR_PROPERTIES = { "CanCollide", "Transparency" },
+})
+
 return function(services: any): any
     local load, state = services:Get("Require"), services:Get("StateStore")
     local manifest = load("src/Plugins/ExampleGame/Manifest.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Plugin ExampleGame")
-    local collection, players = game:GetService("CollectionService"), game:GetService("Players")
     local Plugin = { Name = manifest.Name, _doors = {}, _weapons = {}, _initialized = false }
     local function applyDoor(part: BasePart, owner: any)
         if scope:IsDisposed() then return end
@@ -14,9 +21,9 @@ return function(services: any): any
     end
     local function watchDoor(object: Instance)
         if not object:IsA("BasePart") or Plugin._doors[object] then return end
-        local owner = scope:CreateChild("Door " .. object.Name)
+        local owner = scope:CreateChild(`Door {object.Name}`)
         Plugin._doors[object] = owner
-        for _, property in ipairs({ "CanCollide", "Transparency" }) do owner:Connect(object:GetPropertyChangedSignal(property), function() applyDoor(object, owner) end) end
+        for _, property in ipairs(CONFIG.WATCHED_DOOR_PROPERTIES) do owner:Connect(object:GetPropertyChangedSignal(property), function() applyDoor(object, owner) end) end
         applyDoor(object, owner)
     end
     local function applyWeapon(tool: Tool, owner: any)
@@ -28,7 +35,7 @@ return function(services: any): any
     local function watchWeapon(object: Instance)
         if not object:IsA("Tool") or not table.find(manifest.Weapons.Names, object.Name) then return end
         if Plugin._weapons[object] then applyWeapon(object, Plugin._weapons[object]); return end
-        local owner = scope:CreateChild("Weapon " .. object.Name)
+        local owner = scope:CreateChild(`Weapon {object.Name}`)
         Plugin._weapons[object] = owner
         for attribute in pairs(manifest.Weapons.Attributes) do owner:Connect(object:GetAttributeChangedSignal(attribute), function() applyWeapon(object, owner) end) end
         owner:Connect(object.Destroying, function() Plugin._weapons[object] = nil; owner:Dispose() end)
@@ -43,15 +50,15 @@ return function(services: any): any
     function Plugin:Initialize(_container: any)
         if self._initialized then return end
         self._initialized = true
-        for _, path in ipairs({ "Game.Example.DoorsOpen", "Game.Example.WeaponTuning" }) do if state:Get(path) == nil then state:Set(path, false) end end
-        for _, object in ipairs(collection:GetTagged(manifest.Doors.Tag)) do watchDoor(object) end
-        scope:Connect(collection:GetInstanceAddedSignal(manifest.Doors.Tag), watchDoor)
-        scope:Connect(collection:GetInstanceRemovedSignal(manifest.Doors.Tag), function(object: Instance)
+        for _, path in ipairs(CONFIG.SETTING_PATHS) do if state:Get(path) == nil then state:Set(path, false) end end
+        for _, object in ipairs(CollectionService:GetTagged(manifest.Doors.Tag)) do watchDoor(object) end
+        scope:Connect(CollectionService:GetInstanceAddedSignal(manifest.Doors.Tag), watchDoor)
+        scope:Connect(CollectionService:GetInstanceRemovedSignal(manifest.Doors.Tag), function(object: Instance)
             local owner = Plugin._doors[object]; Plugin._doors[object] = nil; if owner then owner:Dispose() end
         end)
         scope:Add(state:Observe("Game.Example.DoorsOpen", function() for door, owner in pairs(Plugin._doors) do applyDoor(door, owner) end end))
         scope:Add(state:Observe("Game.Example.WeaponTuning", function() for tool, owner in pairs(Plugin._weapons) do applyWeapon(tool, owner) end end))
-        local localPlayer = players.LocalPlayer
+        local localPlayer = Players.LocalPlayer
         local backpack = localPlayer:FindFirstChildOfClass("Backpack")
         if backpack then watchInventory(backpack, "Backpack") end
         scope:Connect(localPlayer.ChildAdded, function(child: Instance) if child:IsA("Backpack") then watchInventory(child, "Backpack") end end)

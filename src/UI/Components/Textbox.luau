@@ -1,9 +1,9 @@
---!nonstrict
+--!strict
 return function(services: any): any
     local dom, theme, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("EventBus")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local Textbox = {}
-    -- Exception to the shared string convention: text is literal initial text; use the explicit path argument to bind it.
+
     function Textbox:Create(parent: Instance, label: string, text: string?, callback: any?, path: string?): any
         local row, labelObject, owner = section:Control(parent, label, 38)
         labelObject.Size, labelObject.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)

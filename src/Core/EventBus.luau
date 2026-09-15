@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 export type Connection = { Connected: boolean, Disconnect: (Connection) -> () }
 
 return function(disposer: any): any
@@ -19,29 +19,25 @@ return function(disposer: any): any
             self.Previous, self.Next = nil, nil
             EventBus._scope:Forget(self)
             self.Callback = nil
-            -- Both list removal and disposer removal are O(1); disconnected UI rows retain no callbacks.
         end
         self._scope:Add(node)
         return node
     end
 
+    -- Synchronous dispatch: publishing happens on every UI interaction and per-frame state
+    -- write, so handlers run inline and must never yield.
     function EventBus:Publish(name: string, ...: any)
         if self._scope:IsDisposed() then return end
         local list = self._lists[name]
         if not list then return end
-        -- Synchronous dispatch: every UI interaction and per-frame state write publishes, and
-        -- spending a coroutine spawn per handler per event was the suite's biggest steady-state
-        -- cost. Handlers must therefore never yield (none in this codebase do; engine signals
-        -- keep owned threads via Disposer:Spawn instead).
+        -- Snapshot first: a handler may disconnect itself or its neighbour mid-dispatch.
         local snapshot = {}
         local node = list.Head
         while node do table.insert(snapshot, node); node = node.Next end
         local args = table.pack(...)
-        -- Snapshot first because a handler may disconnect itself or its neighbour mid-dispatch.
         for _, handler in ipairs(snapshot) do
             if handler.Connected and handler.Callback then
-                local ok, err = pcall(handler.Callback, table.unpack(args, 1, args.n))
-                if not ok then warn("[B0Xaz][Event:" .. name .. "] " .. tostring(err)) end
+                pcall(handler.Callback, table.unpack(args, 1, args.n))
             end
         end
     end

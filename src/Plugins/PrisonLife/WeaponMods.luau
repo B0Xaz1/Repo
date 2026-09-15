@@ -1,24 +1,33 @@
---!nonstrict
--- Prison Life weapon mods. Prison Life guns have carried their stats in two forms across
--- updates: instance attributes (SpreadRadius / FireRate / AutoFire / Range) on the tool or
--- its children, and a GunStates ModuleScript table. Both mechanisms are honored, captured,
--- and restored. Disabling any setting restores the captured originals before the enabled
--- set is reapplied, so toggles are fully reversible at any moment.
+--!strict
+local Players = game:GetService("Players")
+
+local CONFIG = table.freeze({
+    FIRE_RATE_MIN = 0.001,
+    FIRE_RATE_MAX = 0.5,
+    FIRE_RATE_DEFAULT = 0.001,
+    RANGE_MIN = 500,
+    RANGE_MAX = 100000,
+    RANGE_DEFAULT = 10000,
+    OBSERVED_PATHS = {
+        "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
+        "Game.FastFireDelay", "Game.ForceRangeValue",
+    },
+})
+
 return function(services: any, Prison: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
     local EventBus = services:Get("EventBus")
-    local Players = game:GetService("Players")
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild(manifest.Name .. ".WeaponMods")
+    local scope = Disposer:CreateChild(`{manifest.Name}.WeaponMods`)
     local LocalPlayer = Players.LocalPlayer
 
-    local ABSENT = {} -- marker for module fields the table did not define before we touched it
+    local ABSENT = {}
 
     local WeaponMods = {
-        _tracked = {},      -- [Tool] = { AttrTargets = {...}, Module = table?, ModuleBackup = {} }
+        _tracked = {},
         _reapplyQueued = false,
     }
 
@@ -44,9 +53,6 @@ return function(services: any, Prison: any?): any
         return module
     end
 
-    -- Public: the armory and the macro reuse this so "a gun" means the same thing everywhere.
-    -- A tool counts if it is a known gun name, carries a GunStates module, or exposes gun
-    -- attributes itself or on any descendant.
     function WeaponMods:IsGunTool(tool: Tool): boolean
         if not tool:IsA("Tool") then return false end
         if isKnownGunName(tool.Name) then return true end
@@ -58,8 +64,6 @@ return function(services: any, Prison: any?): any
         return false
     end
 
-    -- Legacy behavior: spread and fire rate can live on the tool itself or on child models
-    -- inside it; every object that carries a gun attribute is its own backup target.
     local function collectAttrTargets(tool: Tool): { any }
         local targets = {}
         if hasGunAttributes(tool) then table.insert(targets, { Object = tool, Backup = {} }) end
@@ -70,7 +74,6 @@ return function(services: any, Prison: any?): any
     end
 
     function WeaponMods:ScanAllWeapons(): number
-        -- Forget tools that left the inventory, then track every current gun.
         local present = {}
         local function visit(parent: Instance)
             if not parent then return end
@@ -97,8 +100,6 @@ return function(services: any, Prison: any?): any
         return self:GetScannedCount()
     end
 
-    -- Attributes are only written where they already exist (the legacy rule), and the
-    -- original value is captured before the first write.
     local function applyAttr(target: any, attribute: string, value: any)
         local object = target.Object
         if object:GetAttribute(attribute) == nil then return end
@@ -121,7 +122,6 @@ return function(services: any, Prison: any?): any
         end
     end
 
-    -- Restores every tracked attribute target and GunStates module to its captured state.
     function WeaponMods:RestoreAll(): number
         for _, record in pairs(self._tracked) do restoreRecord(record) end
         return self:GetScannedCount()
@@ -132,9 +132,9 @@ return function(services: any, Prison: any?): any
         local fastFire = StateStore:Get("Game.FastFire") == true
         local forceAuto = StateStore:Get("Game.ForceAuto") == true
         local forceRange = StateStore:Get("Game.ForceRange") == true
-        -- Legacy targets: fire rate 0.001 and range 10000; both stay tunable.
-        local fireRate = math.clamp(tonumber(StateStore:Get("Game.FastFireDelay")) or 0.001, 0.001, 0.5)
-        local range = math.clamp(tonumber(StateStore:Get("Game.ForceRangeValue")) or 10000, 500, 100000)
+
+        local fireRate = math.clamp(tonumber(StateStore:Get("Game.FastFireDelay")) or CONFIG.FIRE_RATE_DEFAULT, CONFIG.FIRE_RATE_MIN, CONFIG.FIRE_RATE_MAX)
+        local range = math.clamp(tonumber(StateStore:Get("Game.ForceRangeValue")) or CONFIG.RANGE_DEFAULT, CONFIG.RANGE_MIN, CONFIG.RANGE_MAX)
 
         for _, target in ipairs(record.AttrTargets) do
             if noSpread then applyAttr(target, "SpreadRadius", 0) end
@@ -159,7 +159,6 @@ return function(services: any, Prison: any?): any
         end
     end
 
-    -- The core reversibility rule: restore-first, then apply only the enabled settings.
     function WeaponMods:Reapply()
         self:RestoreAll()
         self:ScanAllWeapons()
@@ -167,8 +166,6 @@ return function(services: any, Prison: any?): any
         EventBus:Publish("PrisonWeaponsChanged", self:GetStats())
     end
 
-    -- Coalesced variant for observers: several flags may flip at once.
-    -- task.defer keeps the reapply in the same resumption instead of a full frame later.
     function WeaponMods:QueueReapply()
         if self._reapplyQueued then return end
         self._reapplyQueued = true
@@ -194,23 +191,17 @@ return function(services: any, Prison: any?): any
         table.sort(names)
         return {
             Scanned = #names,
-            Backups = #names, -- every tracked tool keeps attribute and/or module backups
+            Backups = #names,
             AttrObjects = attrObjects,
             Names = names,
         }
     end
 
     function WeaponMods:Initialize()
-        local paths = {
-            "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
-            "Game.FastFireDelay", "Game.ForceRangeValue",
-        }
-        for _, path in ipairs(paths) do
+        for _, path in ipairs(CONFIG.OBSERVED_PATHS) do
             scope:Add(StateStore:Observe(path, function() self:QueueReapply() end))
         end
 
-        -- New guns picked up mid-session inherit the enabled settings immediately; the
-        -- deferred reapply gives the game a moment to finish wiring the new tool.
         local function watch(parent: Instance)
             if not parent then return end
             scope:Connect(parent.ChildAdded, function() self:QueueReapply() end)

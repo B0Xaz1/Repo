@@ -1,16 +1,13 @@
---!nonstrict
--- AutoQueueService: automated queue entry and match detection for Murderers VS Sheriffs DUELS.
--- Whenever AutoQueue is enabled and the player is touching any part/meshpart in
--- Workspace.Lobby.Environment.Pier (or in the pier area), it executes the exact same
--- working queue logic as "Queue now": checking Position 1 occupancy with 1-stud leeway
--- and teleporting to Position 2 if Position 1 is taken.
+--!strict
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
     local EventBus = services:Get("EventBus")
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local LocalPlayer = Players.LocalPlayer
 
     local Duel = Duel or {}
@@ -18,11 +15,11 @@ return function(services: any, Duel: any?): any
     local queueConfig = manifest.Queue or {}
     local matchAttribute = (manifest.Match and manifest.Match.Attribute) or "Match"
 
-    local scope = Disposer:CreateChild((manifest.Name or "MvSDuels") .. ".AutoQueue")
+    local scope = Disposer:CreateChild(`{manifest.Name or "MvSDuels"}.AutoQueue`)
 
     local AutoQueue = {
         _running = false,
-        _state = "Idle", -- "Idle" | "Active" | "Queued" | "InMatch"
+        _state = "Idle",
         _lastAttempt = 0,
         _lastMatchValue = nil :: any,
         _selectedMode = "1v1",
@@ -32,7 +29,6 @@ return function(services: any, Duel: any?): any
         _charScope = nil :: any,
     }
 
-    -- Exact mode strand positions with +2 studs Y elevation
     local QUEUE_POSITIONS: { [string]: { Vector3 } } = queueConfig.Positions or {
         ["1v1"] = {
             Vector3.new(56.9468994140625, -93.15959167480469, -203.5184783935547),
@@ -52,11 +48,22 @@ return function(services: any, Duel: any?): any
         },
     }
 
-    local LEEWAY: number = queueConfig.Leeway or 1.0
+    local CONFIG = table.freeze({
+        CHECK_RADIUS = 3.2,
+        OCCUPANT_VERTICAL_TOLERANCE = 4.5,
+        HOLD_DISTANCE = 3.5,
+        PAD_PROXIMITY = 5,
+        TOUCH_DEBOUNCE = 0.3,
+        FULL_RETRY_INTERVAL = 1.5,
+        RAYCAST_DEPTH = 6,
+        FALLBACK_MODE = "1v1",
+        FALLBACK_REMOTE_NAMES = { "Queue", "QueueRemote", "JoinQueue", "EnterQueue", "Matchmaking", "Queue1v1", "QueueDuel" },
+        FOOT_PART_NAMES = { "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso" },
+        MODE_CAPACITY = { ["1v1"] = 1, ["2v2"] = 2, ["3v3"] = 3, ["4v4"] = 4 },
+    })
 
-    -- Resolves Workspace.Lobby.Environment.Pier case-insensitively
     local function getPierFolder(): Instance?
-        local lobby = workspace:FindFirstChild("Lobby")
+        local lobby = Workspace:FindFirstChild("Lobby")
         if lobby then
             local env = lobby:FindFirstChild("Environment") or lobby:FindFirstChild("environment")
             if env then
@@ -67,7 +74,6 @@ return function(services: any, Duel: any?): any
         return nil
     end
 
-    -- Strictly checks if an instance is inside Workspace.Lobby.Environment.Pier
     local function isPierPart(part: Instance?): boolean
         if not part then return false end
         local pier = getPierFolder()
@@ -77,7 +83,6 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Check if player is on or physically touching any part in Workspace.Lobby.Environment.Pier
     function AutoQueue:IsTouchingPier(): boolean
         local char = LocalPlayer and LocalPlayer.Character
         if not char then return false end
@@ -85,10 +90,9 @@ return function(services: any, Duel: any?): any
         local humanoid = char:FindFirstChildOfClass("Humanoid")
         if not root then return false end
 
-        -- If player is already within 5 studs of any queue pad, they are on the pad waiting/leaving, not on the pier
         for _, positions in pairs(QUEUE_POSITIONS) do
             for _, padPos in ipairs(positions) do
-                if (root.Position - padPos).Magnitude <= 5 then
+                if (root.Position - padPos).Magnitude <= CONFIG.PAD_PROXIMITY then
                     return false
                 end
             end
@@ -97,7 +101,6 @@ return function(services: any, Duel: any?): any
         local pier = getPierFolder()
         if not pier then return false end
 
-        -- 1. Check FloorPart from humanoid safely
         local floorPart: Instance? = nil
         pcall(function()
             floorPart = humanoid.FloorPart
@@ -106,28 +109,26 @@ return function(services: any, Duel: any?): any
             return true
         end
 
-        -- 2. Raycast downwards directly beneath the character checking for Pier descendants
         local origin = root.Position
-        local direction = Vector3.new(0, -6, 0)
+        local direction = Vector3.new(0, -CONFIG.RAYCAST_DEPTH, 0)
         local params = RaycastParams.new()
         params.FilterType = Enum.RaycastFilterType.Include
         params.FilterDescendantsInstances = { pier }
-        local hit = workspace:Raycast(origin, direction, params)
+        local hit = Workspace:Raycast(origin, direction, params)
         if hit and hit.Instance and hit.Instance:IsDescendantOf(pier) then
             return true
         end
 
-        -- 3. Spatial query using GetPartsInPart targeting strictly pier parts
         local isTouching = false
         pcall(function()
             local overlap = OverlapParams.new()
             overlap.FilterType = Enum.RaycastFilterType.Include
             overlap.FilterDescendantsInstances = { pier }
 
-            for _, partName in ipairs({ "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso" }) do
+            for _, partName in ipairs(CONFIG.FOOT_PART_NAMES) do
                 local bodyPart = char:FindFirstChild(partName)
                 if bodyPart and bodyPart:IsA("BasePart") then
-                    local touching = workspace:GetPartsInPart(bodyPart, overlap)
+                    local touching = Workspace:GetPartsInPart(bodyPart, overlap)
                     if touching and #touching > 0 then
                         isTouching = true
                         return
@@ -143,7 +144,6 @@ return function(services: any, Duel: any?): any
         return self:IsTouchingPier()
     end
 
-    -- Check if player is currently in an active duel match.
     function AutoQueue:IsInMatch(): boolean
         if not LocalPlayer then return false end
         if self:IsTouchingPier() then return false end
@@ -158,19 +158,8 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Mode capacity limits
-    local MODE_CAPACITY: { [string]: number } = {
-        ["1v1"] = 1,
-        ["2v2"] = 2,
-        ["3v3"] = 3,
-        ["4v4"] = 4,
-    }
-
-    -- Count how many other players are currently occupying a specific pad position
-    -- Uses a tight, focused radius (3.2 studs horizontally, 4.5 studs vertically)
-    -- so it NEVER bleeds over to the adjacent mode pads (which are 14+ studs apart)
     function AutoQueue:CountOccupants(pos: Vector3, radius: number?): number
-        local checkRadius = radius or 3.2
+        local checkRadius = radius or CONFIG.CHECK_RADIUS
         local count = 0
         local countedChars: { [Model]: boolean } = {}
 
@@ -181,8 +170,8 @@ return function(services: any, Duel: any?): any
             local hum = char:FindFirstChildOfClass("Humanoid")
             if not hum or hum.Health <= 0 then return end
 
-            local part = char:FindFirstChild("HumanoidRootPart") 
-                or char:FindFirstChild("Torso") 
+            local part = char:FindFirstChild("HumanoidRootPart")
+                or char:FindFirstChild("Torso")
                 or char:FindFirstChild("UpperTorso")
                 or char.PrimaryPart
 
@@ -190,7 +179,7 @@ return function(services: any, Duel: any?): any
                 local pPos = part.Position
                 local horizDist = Vector2.new(pPos.X - pos.X, pPos.Z - pos.Z).Magnitude
                 local vertDist = math.abs(pPos.Y - pos.Y)
-                if horizDist <= checkRadius and vertDist <= 4.5 then
+                if horizDist <= checkRadius and vertDist <= CONFIG.OCCUPANT_VERTICAL_TOLERANCE then
                     countedChars[char] = true
                     count += 1
                 end
@@ -204,30 +193,24 @@ return function(services: any, Duel: any?): any
         return count
     end
 
-    -- Determine target position based on chosen mode and strand capacity
-    -- Returns (targetPosition, strandIndex, isFull)
     function AutoQueue:GetBestPosition(mode: string): (Vector3?, number?, boolean)
         local pair = QUEUE_POSITIONS[mode] or QUEUE_POSITIONS["1v1"]
         local pos1, pos2 = pair[1], pair[2]
-        local maxPerStrand = MODE_CAPACITY[mode] or 1
+        local maxPerStrand = CONFIG.MODE_CAPACITY[mode] or 1
+        local count1 = self:CountOccupants(pos1, CONFIG.CHECK_RADIUS)
 
-        local count1 = self:CountOccupants(pos1, 3.2)
-        -- If Stand 1 has space (count < capacity), take Stand 1
         if count1 < maxPerStrand then
             return pos1, 1, false
         end
 
-        -- Stand 1 is full (count >= capacity), check Stand 2
-        local count2 = self:CountOccupants(pos2, 3.2)
+        local count2 = self:CountOccupants(pos2, CONFIG.CHECK_RADIUS)
         if count2 < maxPerStrand then
             return pos2, 2, false
         end
 
-        -- Both Stand 1 and Stand 2 are full (>= capacity)
         return nil, nil, true
     end
 
-    -- Teleport player to the destination (same logic that executes on "Queue now")
     function AutoQueue:TeleportToQueue(mode: string): (boolean, string)
         local char = LocalPlayer and LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -238,8 +221,8 @@ return function(services: any, Duel: any?): any
         local targetPos, strandIndex, isFull = self:GetBestPosition(mode)
 
         if isFull or not targetPos or not strandIndex then
-            local maxPerStrand = MODE_CAPACITY[mode] or 1
-            local fullMsg = "no available " .. mode .. " left"
+            local maxPerStrand = CONFIG.MODE_CAPACITY[mode] or 1
+            local fullMsg = `no available {mode} left`
             self._lastStatusMessage = fullMsg
             if EventBus then
                 EventBus:Publish("Notify", "Auto Queue", fullMsg, 4)
@@ -255,9 +238,8 @@ return function(services: any, Duel: any?): any
 
         local currentDist = (root.Position - targetPos).Magnitude
 
-        -- If already at this strand position, we are holding it
-        if currentDist <= 3.5 then
-            self._lastStatusMessage = "Holding " .. mode .. " strand #" .. strandIndex
+        if currentDist <= CONFIG.HOLD_DISTANCE then
+            self._lastStatusMessage = `Holding {mode} strand #{strandIndex}`
             return true, self._lastStatusMessage
         end
 
@@ -271,19 +253,16 @@ return function(services: any, Duel: any?): any
             root.AssemblyAngularVelocity = Vector3.zero
         end)
 
-        self._lastStatusMessage = "Moved to " .. mode .. " strand #" .. strandIndex .. (strandIndex == 2 and " (strand 1 full)" or "")
+        self._lastStatusMessage = `Moved to {mode} strand #{strandIndex}{strandIndex == 2 and " (strand 1 full)" or ""}`
         return true, self._lastStatusMessage
     end
 
-    -- Fallback remote queue trigger if remote exists
     local function tryQueueRemote(mode: string): boolean
-        local remoteNames = queueConfig.RemoteNames or {
-            "Queue", "QueueRemote", "JoinQueue", "EnterQueue", "Matchmaking", "Queue1v1", "QueueDuel"
-        }
+        local remoteNames = queueConfig.RemoteNames or CONFIG.FALLBACK_REMOTE_NAMES
         for _, name in ipairs(remoteNames) do
             local rem = ReplicatedStorage:FindFirstChild(name) or (ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild(name))
             if rem then
-                local ok = pcall(function()
+                pcall(function()
                     if rem:IsA("RemoteFunction") then
                         rem:InvokeServer(mode)
                     else
@@ -296,9 +275,8 @@ return function(services: any, Duel: any?): any
         return false
     end
 
-    -- Trigger queue action: runs the exact "Queue now" logic
     function AutoQueue:TriggerQueue(): (boolean, string)
-        local mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or "1v1")
+        local mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or CONFIG.FALLBACK_MODE)
         self._selectedMode = mode
 
         local success, msg = self:TeleportToQueue(mode)
@@ -311,14 +289,13 @@ return function(services: any, Duel: any?): any
         return false, msg
     end
 
-    -- Touch handler for immediate response on contact with Pier
     function AutoQueue:OnTouchedPart(hit: Instance)
         if StateStore:Get("Game.MvSAutoQueue") ~= true then return end
         if self:IsInMatch() then return end
 
         if isPierPart(hit) then
             local now = os.clock()
-            if now - self._lastAttempt >= 0.3 then
+            if now - self._lastAttempt >= CONFIG.TOUCH_DEBOUNCE then
                 self._lastAttempt = now
                 self._state = "Queued"
                 self._queueAttempts += 1
@@ -327,7 +304,6 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Hook Touched events on character parts to instantly react when touching Pier
     function AutoQueue:BindCharacterTouches(char: Model)
         if self._charScope then
             self._charScope:Dispose()
@@ -342,7 +318,6 @@ return function(services: any, Duel: any?): any
             end
         end
 
-        -- Also listen for DescendantAdded if parts are loaded dynamically
         self._charScope:Add(char.DescendantAdded:Connect(function(child: Instance)
             if child:IsA("BasePart") then
                 self._charScope:Add(child.Touched:Connect(function(hit: Instance)
@@ -361,7 +336,6 @@ return function(services: any, Duel: any?): any
 
         local inMatch = AutoQueue:IsInMatch()
 
-        -- Match state change detection
         local currentMatchVal = LocalPlayer and LocalPlayer:GetAttribute(matchAttribute)
         if AutoQueue._lastMatchValue ~= currentMatchVal then
             if inMatch and not AutoQueue._lastMatchValue then
@@ -379,13 +353,12 @@ return function(services: any, Duel: any?): any
             AutoQueue._state = "Active"
         end
 
-        -- Every step: if the player is touching Pier, trigger the exact queue logic
         if AutoQueue:IsTouchingPier() then
-            local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
+            local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or CONFIG.FALLBACK_MODE)
             local bestPos, strandIdx, isFull = AutoQueue:GetBestPosition(mode)
 
             if isFull or not bestPos then
-                if now - AutoQueue._lastAttempt >= 1.5 then
+                if now - AutoQueue._lastAttempt >= CONFIG.FULL_RETRY_INTERVAL then
                     AutoQueue._lastAttempt = now
                     AutoQueue:TriggerQueue()
                 end
@@ -396,9 +369,8 @@ return function(services: any, Duel: any?): any
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
 
-            -- If touching Pier and not yet on the best position, trigger Queue Now logic
-            if distToTarget > 3.5 then
-                if now - AutoQueue._lastAttempt >= 0.3 then
+            if distToTarget > CONFIG.HOLD_DISTANCE then
+                if now - AutoQueue._lastAttempt >= CONFIG.TOUCH_DEBOUNCE then
                     AutoQueue._lastAttempt = now
                     AutoQueue._state = "Queued"
                     AutoQueue._queueAttempts += 1
@@ -413,15 +385,12 @@ return function(services: any, Duel: any?): any
         self._queueAttempts = 0
         self._lastAttempt = 0
         self._state = "Idle"
-        self._lastStatusMessage = "Reset (" .. tostring(reason or "user") .. ")"
+        self._lastStatusMessage = `Reset ({tostring(reason or "user")})`
     end
 
     function AutoQueue:Initialize()
         scope:Add(RunService.Heartbeat:Connect(function()
-            local ok, err = pcall(step, os.clock())
-            if not ok then
-                warn("[B0Xaz][" .. (manifest.Name or "MvSDuels") .. ":AutoQueue] " .. tostring(err))
-            end
+            pcall(step, os.clock())
         end))
 
         if LocalPlayer.Character then
@@ -431,7 +400,7 @@ return function(services: any, Duel: any?): any
         scope:Add(LocalPlayer.CharacterAdded:Connect(function(char)
             self:BindCharacterTouches(char)
             if not AutoQueue:IsInMatch() then
-                AutoQueue._lastAttempt = 0 -- immediately ready
+                AutoQueue._lastAttempt = 0
             end
         end))
     end
@@ -441,7 +410,7 @@ return function(services: any, Duel: any?): any
         return {
             Enabled = enabled,
             State = if enabled then self._state else "Off",
-            Mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or "1v1"),
+            Mode = tostring(StateStore:Get("Game.MvSQueueMode") or self._selectedMode or CONFIG.FALLBACK_MODE),
             Attempts = self._queueAttempts,
             Matches = self._matchesCount,
             Message = self._lastStatusMessage,

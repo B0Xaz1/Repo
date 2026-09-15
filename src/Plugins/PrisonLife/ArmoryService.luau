@@ -1,20 +1,24 @@
---!nonstrict
--- Prison Life armory: weapon inventory across backpack/character, manifest spawn awareness,
--- and the game's own ItemHandler pickup flow.
+--!strict
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local CONFIG = table.freeze({
+    INVENTORY_STALE_AFTER = 0.5,
+    PICKUP_SCAN_DELAY = 0.2,
+})
+
 return function(services: any, Prison: any?): any
     local EventBus, Disposer = services:Get("EventBus"), services:Get("Disposer")
     local PlayerTracker = services:Get("PlayerTracker")
     local LocomotionService = services:Get("LocomotionService")
-    local Players = game:GetService("Players")
-    local workspace = game:GetService("Workspace")
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = Disposer:CreateChild(manifest.Name .. ".Armory")
+    local scope = Disposer:CreateChild(`{manifest.Name}.Armory`)
     local LocalPlayer = Players.LocalPlayer
 
     local ArmoryService = {
-        _inventory = {},       -- ordered entries: { Weapon, Status, Tool }
+        _inventory = {},
         _lastScan = 0,
     }
 
@@ -25,17 +29,15 @@ return function(services: any, Prison: any?): any
         return nil
     end
 
-    -- Unknown-but-real guns (future map updates) are detected through the shared check.
     local function isGunTool(tool: Tool): boolean
         return Prison.WeaponMods ~= nil and Prison.WeaponMods:IsGunTool(tool) == true
     end
 
-    -- Known manifest weapons first (stable order), then any unknown gun tool.
     function ArmoryService:Scan(): { any }
         local backpack = LocalPlayer and LocalPlayer:FindFirstChildOfClass("Backpack")
         local character = LocalPlayer and LocalPlayer.Character
-        local found = {}      -- [weaponId] = { Status, Tool }
-        local extras = {}     -- unknown gun tools
+        local found = {}
+        local extras = {}
 
         local function visit(parent: Instance, equipped: boolean)
             if not parent then return end
@@ -74,7 +76,7 @@ return function(services: any, Prison: any?): any
     end
 
     function ArmoryService:GetInventory(): { any }
-        if os.clock() - self._lastScan > 0.5 then return self:Scan() end
+        if os.clock() - self._lastScan > CONFIG.INVENTORY_STALE_AFTER then return self:Scan() end
         return self._inventory
     end
 
@@ -97,23 +99,20 @@ return function(services: any, Prison: any?): any
         for _, entry in ipairs(self:GetInventory()) do
             if entry.Weapon.Id == weapon.Id and entry.Tool then
                 local ok, err = pcall(function() assets.Humanoid:EquipTool(entry.Tool) end)
-                return ok, if ok then ("Equipped " .. weapon.Name) else tostring(err)
+                return ok, if ok then `Equipped {weapon.Name}` else tostring(err)
             end
         end
-        return false, weapon.Name .. " is not in your backpack"
+        return false, `{weapon.Name} is not in your backpack`
     end
 
     function ArmoryService:GoToWeapon(name: string): (boolean, string)
         local weapon = self:GetWeaponByName(name)
         if not weapon then return false, "Unknown weapon" end
-        if not weapon.Spawn then return false, weapon.Name .. " has no known spawn point" end
+        if not weapon.Spawn then return false, `{weapon.Name} has no known spawn point` end
         local ok, message = LocomotionService:Teleport(CFrame.new(weapon.Spawn))
-        return ok, if ok then ("Teleported to " .. weapon.Name .. " spawn") else message
+        return ok, if ok then `Teleported to {weapon.Name} spawn` else message
     end
 
-    -- Uses the game's own pickup flow (the same remote the map's ITEMPICKUP parts use).
-    -- Pulls the manifest spawns of every ranged guest giver (MP5, Remington 870, AK-47),
-    -- teleporting through each ground position for the touch interest to grant the tool.
     function ArmoryService:ArmAll(): (boolean, string)
         local requested = {}
         for _, weapon in ipairs(manifest.Weapons) do
@@ -126,17 +125,16 @@ return function(services: any, Prison: any?): any
             local pickOk, pickMessage = self:Pickup(name)
             if not pickOk then return false, pickMessage end
         end
-        return true, "Requested " .. table.concat(requested, ", ")
+        return true, `Requested {table.concat(requested, ", ")}`
     end
 
-    -- Uses the game's own pickup flow (the same remote the map's ITEMPICKUP parts use).
     function ArmoryService:Pickup(name: string): (boolean, string)
         local weapon = self:GetWeaponByName(name)
         if not weapon then return false, "Unknown weapon" end
-        if not weapon.Pickup then return false, weapon.Name .. " has no pickup point" end
-        local remote = workspace:FindFirstChild(manifest.Items.RemoteFolder)
+        if not weapon.Pickup then return false, `{weapon.Name} has no pickup point` end
+        local remote = Workspace:FindFirstChild(manifest.Items.RemoteFolder)
         remote = remote and remote:FindFirstChild(manifest.Items.RemoteName)
-        local root = workspace:FindFirstChild(manifest.Items.GiverRoot)
+        local root = Workspace:FindFirstChild(manifest.Items.GiverRoot)
         if not remote or not root then
             return false, "Pickup remote is not present on this map"
         end
@@ -147,13 +145,13 @@ return function(services: any, Prison: any?): any
             if pickup then
                 local ok, err = pcall(function() (remote :: any):InvokeServer(pickup) end)
                 if ok then
-                    task.delay(0.2, function() if not scope:IsDisposed() then ArmoryService:Scan() end end)
-                    return true, "Requested " .. weapon.Name
+                    task.delay(CONFIG.PICKUP_SCAN_DELAY, function() if not scope:IsDisposed() then ArmoryService:Scan() end end)
+                    return true, `Requested {weapon.Name}`
                 end
-                return false, "Pickup rejected: " .. tostring(err)
+                return false, `Pickup rejected: {tostring(err)}`
             end
         end
-        return false, "No pickup point found for " .. weapon.Name
+        return false, `No pickup point found for {weapon.Name}`
     end
 
     function ArmoryService:Initialize()

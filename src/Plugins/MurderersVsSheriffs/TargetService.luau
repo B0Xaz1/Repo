@@ -1,9 +1,8 @@
---!nonstrict
--- MVS DUELS target resolution: decides who counts as an enemy (same Match attribute,
--- different non-nil team) and builds the distance-sorted engagement list shared by the
--- combat drivers and the ESP overlay, mirroring the reference script's queries.
+--!strict
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
 return function(_services: any, Duel: any?): any
-    local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
     local Duel = Duel or {}
@@ -12,8 +11,6 @@ return function(_services: any, Duel: any?): any
 
     local Targets = {}
 
-    -- Reference rule: skip self, require both Match attributes present and equal (compared
-    -- as strings), and require both players on non-nil, different teams.
     function Targets:IsEnemy(player: Player): boolean
         if player == LocalPlayer then return false end
         local mine, theirs = LocalPlayer:GetAttribute(matchAttribute), player:GetAttribute(matchAttribute)
@@ -21,15 +18,13 @@ return function(_services: any, Duel: any?): any
         return LocalPlayer.Team ~= nil and player.Team ~= nil and LocalPlayer.Team ~= player.Team
     end
 
-    -- The ESP overlay only needs characters with a live humanoid; matches the reference
-    -- filter so the drawn set always equals the engageable set.
     function Targets:GetOpponents(): { any }
         local list: { any } = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if self:IsEnemy(player) then
                 local character = player.Character
                 local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-                if character and character:IsDescendantOf(workspace) and humanoid and humanoid.Health > 0 then
+                if character and character:IsDescendantOf(Workspace) and humanoid and humanoid.Health > 0 then
                     table.insert(list, { Player = player, Character = character, Humanoid = humanoid })
                 end
             end
@@ -37,8 +32,6 @@ return function(_services: any, Duel: any?): any
         return list
     end
 
-    -- Attack list: nearest-first entries carrying the aim part (Head > UpperTorso >
-    -- HumanoidRootPart) and the movement root, exactly like the reference targetList().
     function Targets:GetAttackList(): { any }
         local list: { any } = {}
         local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")

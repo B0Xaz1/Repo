@@ -1,7 +1,12 @@
---!nonstrict
--- Prison Life Game tab: a lean control center.
--- Left: Armory (MP5 / Remington 870 / AK-47 buttons) / Weapon mods.
--- Right: Doors & obstacles / Weapon macro / Map locations.
+--!strict
+local CONFIG = table.freeze({
+    REFRESH_INTERVAL = 0.5,
+    MAX_INVENTORY_LINES = 10,
+    FIRST_PAINT_DELAY = 0.1,
+    FAVORITE_ORDER_BASE = 100,
+    LABEL_INDENT = "  ",
+})
+
 return function(services: any, Prison: any?): any
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
@@ -17,14 +22,13 @@ return function(services: any, Prison: any?): any
 
     local Prison = Prison or {}
     local manifest = Prison.Manifest
-    local scope = services:Get("Disposer"):CreateChild(manifest.Name .. ".UI")
+    local scope = services:Get("Disposer"):CreateChild(`{manifest.Name}.UI`)
 
     local UI = {}
 
-    -- Status lines use the compact code-face style from the design brief.
     local function createInfoLabel(parent: Instance, text: string): TextLabel
         return DOM:Create("TextLabel", {
-            Text = "  " .. text,
+            Text = CONFIG.LABEL_INDENT .. text,
             Font = Enum.Font.Code,
             TextSize = 11,
             TextColor3 = ThemeEngine:GetToken("TextDim"),
@@ -35,11 +39,9 @@ return function(services: any, Prison: any?): any
         }) :: TextLabel
     end
 
-    -- Every TextLabel write cascades up through the AutomaticSize chain (label -> section
-    -- -> column -> page canvas), so writes are change-detected: identical text is skipped.
     local function setLabel(label: TextLabel, text: string)
         if not label.Parent then return end
-        local nextText = "  " .. text
+        local nextText = CONFIG.LABEL_INDENT .. text
         if label.Text ~= nextText then label.Text = nextText end
     end
 
@@ -49,15 +51,8 @@ return function(services: any, Prison: any?): any
     end
 
     function UI:Build(tab: any)
-        -- Shared state for the low-rate refresh job.
         local labels = {}
 
-        ------------------------------------------------------------------
-        -- 1. Armory (left): three giver buttons, one per ranged guest gun.
-        -- Pickup is requested through the game's own ITEMPICKUP flow first; if the
-        -- invoke comes back rejected the player is teleported to the giver spawn and
-        -- the same request is repeated once at ground level.
-        ------------------------------------------------------------------
         local armorySec = section:Create(tab.LeftCol, "Armory")
         labels.armory = createInfoLabel(armorySec, "Inventory: ...")
         labels.armory.TextWrapped = true
@@ -83,9 +78,6 @@ return function(services: any, Prison: any?): any
         end)
         section:Info(armorySec, "Request runs through the game's own ITEMPICKUP flow; a rejected invoke falls back to the spawn teleport plus a second request. Granted guns land in the backpack.")
 
-        ------------------------------------------------------------------
-        -- 2. Weapon Mods (left)
-        ------------------------------------------------------------------
         local modsSec = section:Create(tab.LeftCol, "Weapon Mods")
         toggle(modsSec, "No spread", "Game.NoSpread")
         toggle(modsSec, "Fast fire rate", "Game.FastFire")
@@ -106,9 +98,6 @@ return function(services: any, Prison: any?): any
         end)
         section:Info(modsSec, "Disabling a switch restores the captured gun values immediately. Client-side gun changes are testing behavior; a server-authoritative experience may reject them.")
 
-        ------------------------------------------------------------------
-        -- 3. Doors and Obstacles (right)
-        ------------------------------------------------------------------
         local doorsSec = section:Create(tab.RightCol, "Doors and Obstacles")
         toggle(doorsSec, "Phase doors & fences", "Game.DoorPhase")
         slider(doorsSec, "Phase transparency", "Game.PhaseTransparency", 0.1, 0.95, 0.05)
@@ -128,9 +117,6 @@ return function(services: any, Prison: any?): any
         end)
         section:Info(doorsSec, "Phases every obstacle inside the legacy containers (doors, glass, celldoors, prison_fences, prison_gate). Turning it off restores collision and transparency.")
 
-        ------------------------------------------------------------------
-        -- 4. Weapon Macro (right)
-        ------------------------------------------------------------------
         local macroSec = section:Create(tab.RightCol, "Weapon Macro")
         toggle(macroSec, "Weapon switch macro", "Game.FakeMacro")
         keybind(macroSec, "Macro key", "Game.FakeMacroKey")
@@ -143,9 +129,6 @@ return function(services: any, Prison: any?): any
         end)
         section:Info(macroSec, "Cycles the guns you hold; needs at least two. Stops on death, respawn, focus loss, weapon loss, and unload. Hold mode runs only while the key is down.")
 
-        ------------------------------------------------------------------
-        -- 5. Map Locations (right)
-        ------------------------------------------------------------------
         local routesSec = section:Create(tab.RightCol, "Map Locations")
         labels.nearest = createInfoLabel(routesSec, "Nearest: ...")
         local favoriteHost = DOM:Create("Frame", {
@@ -159,9 +142,9 @@ return function(services: any, Prison: any?): any
             end
             if not Prison.Locations then return end
             for index, name in ipairs(Prison.Locations:GetFavoriteNames()) do
-                textbox:CreateButton(favoriteHost, "Go: " .. name, function()
+                textbox:CreateButton(favoriteHost, `Go: {name}`, function()
                     return Prison.Locations:TeleportToName(name)
-                end).Row.LayoutOrder = 100 + index
+                end).Row.LayoutOrder = CONFIG.FAVORITE_ORDER_BASE + index
             end
         end
         rebuildFavoriteButtons()
@@ -173,7 +156,7 @@ return function(services: any, Prison: any?): any
             if not Prison.Locations then return end
             locationPicker:Refresh(Prison.Locations:GetLocationNames(categoryPicker and categoryPicker:Get() or "All"), true)
         end
-        -- The dropdown callback fires only on user selection, so this never loops.
+
         categoryPicker = dropdown(routesSec, "Location category", nil, { "All", table.unpack(manifest.LocationCategories) }, function()
             task.defer(refreshLocations)
         end)
@@ -199,18 +182,11 @@ return function(services: any, Prison: any?): any
         local function refreshWaypoints()
             if not Prison.Locations then return end
             waypointPicker:Refresh(Prison.Locations:ListWaypoints(), true)
-            setLabel(labels.waypoints, "Waypoints: " .. tostring(#Prison.Locations:ListWaypoints()))
+            setLabel(labels.waypoints, `Waypoints: {#Prison.Locations:ListWaypoints()}`)
         end
         scope:Add(EventBus:Subscribe("PrisonWaypointsChanged", refreshWaypoints))
         section:Info(routesSec, "Locations resolve from tagged map objects first, then named map objects, then manifest coordinates. Waypoints are session-only.")
 
-        ------------------------------------------------------------------
-        -- Low-rate refresh job for every dynamic label. Rendering is gated to run only
-        -- while the menu is open AND the Game tab is the active page: each label write
-        -- cascades through the AutomaticSize layout chain, so painting an invisible or
-        -- background tab is pure waste. Returning to the tab forces one immediate paint.
-        ------------------------------------------------------------------
-        local REFRESH_INTERVAL = 0.5
         local armorySignature = ""
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
         local gameTabActive = false
@@ -231,78 +207,68 @@ return function(services: any, Prison: any?): any
                 local localPosition = Prison.Locations and Prison.Locations:GetLocalPosition() or nil
                 local lines = {}
                 for _, entry in ipairs(inventory) do
-                    if #lines < 10 then
-                        -- Weapon spawns are plain Vector3 positions; measure them directly
-                        -- instead of routing through the location resolver.
+                    if #lines < CONFIG.MAX_INVENTORY_LINES then
                         local distance = ""
                         if entry.Weapon.Spawn and localPosition then
-                            distance = "  " .. fmtDistance((entry.Weapon.Spawn - localPosition).Magnitude)
+                            distance = CONFIG.LABEL_INDENT .. fmtDistance((entry.Weapon.Spawn - localPosition).Magnitude)
                         end
                         table.insert(lines, string.format("[%s] %s%s", entry.Weapon.Name, entry.Status, distance))
                     end
                 end
-                local signature = table.concat(lines, "|") .. "#" .. tostring(#inventory)
+                local signature = `{table.concat(lines, "|")}#{#inventory}`
                 if signature ~= armorySignature then
                     armorySignature = signature
-                    labels.armory.Text = "  Inventory:\n  " .. table.concat(lines, "\n  ")
+                    labels.armory.Text = `{CONFIG.LABEL_INDENT}Inventory:\n{CONFIG.LABEL_INDENT}{table.concat(lines, "\n" .. CONFIG.LABEL_INDENT)}`
                     labels.armory.Size = UDim2.new(1, -8, 0, 16 * (#lines + 1))
                 end
             end
 
             if Prison.WeaponMods then
                 local stats = Prison.WeaponMods:GetStats()
-                setLabel(labels.weapons, "Weapons: " .. tostring(stats.Scanned) .. " tracked"
-                    .. (if #stats.Names > 0 then " (" .. table.concat(stats.Names, ", ") .. ")" else ""))
+                setLabel(labels.weapons, `Weapons: {stats.Scanned} tracked{if #stats.Names > 0 then ` ({table.concat(stats.Names, ", ")})` else ""}`)
             end
 
             if Prison.WorldPhase then
                 local counts = Prison.WorldPhase:GetCounts()
-                setLabel(labels.doors, "Doors: " .. tostring(counts.Containers) .. " containers, " .. tostring(counts.Parts) .. " parts"
-                    .. "  Phased: " .. tostring(counts.Phased)
-                    .. (if #counts.Folders > 0 then "  [" .. table.concat(counts.Folders, ", ") .. "]" else "  [heuristic scan]"))
+                setLabel(labels.doors, `Doors: {counts.Containers} containers, {counts.Parts} parts  Phased: {counts.Phased}{if #counts.Folders > 0 then `  [{table.concat(counts.Folders, ", ")}]` else "  [heuristic scan]"}`)
             end
 
             if Prison.Macro then
                 local status = Prison.Macro:GetStatus()
-                setLabel(labels.macro, "Macro: " .. status.State:upper()
-                    .. "  Next: " .. status.NextTool
-                    .. string.format("  Delay: %dms", status.Delay * 1000)
-                    .. "  Cycles: " .. tostring(status.Cycles)
-                    .. (if status.StopReason then "  Reason: " .. status.StopReason else "  Reason: -"))
+                setLabel(labels.macro, `Macro: {status.State:upper()}  Next: {status.NextTool}  Delay: {string.format("%d", status.Delay * 1000)}ms  Cycles: {status.Cycles}{if status.StopReason then `  Reason: {status.StopReason}` else "  Reason: -"}`)
             end
 
             if Prison.Locations then
                 local nearest = Prison.Locations:GetNearestSummary()
                 if nearest then
-                    setLabel(labels.nearest, "Nearest: " .. nearest.Name .. " (" .. fmtDistance(nearest.Distance) .. ")")
+                    setLabel(labels.nearest, `Nearest: {nearest.Name} ({fmtDistance(nearest.Distance)})`)
                 end
                 local favorites = Prison.Locations:GetFavoriteNames()
-                setLabel(labels.favorites, "Favorites: " .. (if #favorites > 0 then table.concat(favorites, ", ") else "none"))
+                setLabel(labels.favorites, `Favorites: {if #favorites > 0 then table.concat(favorites, ", ") else "none"}`)
             end
         end
 
         local function paint()
-            local ok, err = pcall(renderStatus)
-            if not ok then warn("[B0Xaz][" .. manifest.Name .. ":UI] " .. tostring(err)) end
+            pcall(renderStatus)
         end
         local accumulator = 0
-        local job = TaskScheduler:RegisterHeartbeat("Game." .. manifest.Name:gsub("%s+", "") .. "UI", 45, function(dt: number)
+        local job = TaskScheduler:RegisterHeartbeat(`Game.{(manifest.Name:gsub("%s+", ""))}UI`, 45, function(dt: number)
             if not menuVisible or not gameTabActive then
                 accumulator = 0
                 return
             end
             if forceRender then
-                accumulator = REFRESH_INTERVAL
+                accumulator = CONFIG.REFRESH_INTERVAL
             else
                 accumulator += dt
             end
-            if accumulator < REFRESH_INTERVAL then return end
+            if accumulator < CONFIG.REFRESH_INTERVAL then return end
             accumulator, forceRender = 0, false
             paint()
         end)
         scope:Add(job)
         scope:Spawn(function()
-            task.wait(0.1)
+            task.wait(CONFIG.FIRST_PAINT_DELAY)
             if not scope:IsDisposed() then paint() end
         end)
     end

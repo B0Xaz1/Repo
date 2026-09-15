@@ -1,4 +1,4 @@
---!nonstrict
+--!strict
 return function(services: any, tab: any): any
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
@@ -13,7 +13,7 @@ return function(services: any, tab: any): any
     toggle(esp, "Enable ESP", "ESP.Enabled", nil)
     for _, entry in ipairs({ { "Boxes", "Box" }, { "Names", "Name" }, { "Health bars", "Health" }, { "Distance", "Distance" }, { "Equipped tools", "Tool" },
         { "Backpack contents", "Backpack" }, { "Tracers", "Tracers" }, { "Skeleton", "Skeleton" }, { "Head dots", "HeadDot" }, { "Look direction", "LookDir" }, { "Hide teammates", "TeamCheck" } }) do
-        toggle(esp, entry[1], "ESP." .. entry[2], nil)
+        toggle(esp, entry[1], `ESP.{entry[2]}`, nil)
     end
     local espStyle = section:Create(tab.LeftCol, "ESP style")
     slider(espStyle, "ESP distance limit", "ESP.MaxDist", 50, 10000, 50, " studs", nil)
@@ -36,7 +36,7 @@ return function(services: any, tab: any): any
     local performance = section:Create(tab.RightCol, "Performance")
     for _, entry in ipairs({ { "Remove textures", "NoTextures" }, { "Simple materials", "LowMaterials" }, { "Disable shadows", "NoShadows" },
         { "Disable particles", "NoParticles" }, { "Optimize terrain", "OptimizeTerrain" }, { "Disable post-processing", "NoPostProcessing" } }) do
-        toggle(performance, entry[1], "Performance." .. entry[2], nil)
+        toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
     end
     slider(performance, "FPS cap - 0 uncaps", "Performance.FpsCap", 0, 360, 15, " FPS", nil)
     section:Info(performance, if environment:HasFpsCap() then "FPS-cap wrapper available. Unload always requests an uncapped limit." else "FPS cap is unsupported by this executor. Other optimizations remain available.")

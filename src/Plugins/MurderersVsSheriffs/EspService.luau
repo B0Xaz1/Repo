@@ -1,29 +1,38 @@
---!nonstrict
--- MVS DUELS enemy overlay: pooled 2D boxes, health bars, and uppercase names projected
--- from each opponent's bounding box, throttled to ~30 fps like the reference overlay.
--- The pool is allocated once; only the on-screen subset is positioned every frame.
+--!strict
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local CONFIG = table.freeze({
+    DISPLAY_ORDER = 100000,
+    MIN_BOX_WIDTH = 12,
+    MIN_BOX_HEIGHT = 24,
+    HEALTH_BAR_WIDTH = 3,
+    HEALTH_BAR_OFFSET = 6,
+    NAME_OFFSET_Y = 15,
+    NAME_HEIGHT = 14,
+    HEALTH_HUE_SPAN = 0.33,
+    OUTLINE_THICKNESS = 3,
+})
+
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
 
     local Duel = Duel or {}
     local manifest = Duel.Manifest
     local config = manifest.Esp
-    local scope = Disposer:CreateChild(manifest.Name .. ".Esp")
+    local scope = Disposer:CreateChild(`{manifest.Name}.Esp`)
 
     local Esp = { _gui = nil, _pool = {}, _visible = 0 }
 
-    -- Boxes are ScreenGui frames so they survive character respawns and never touch the
-    -- world; the gui itself is owned by the plugin scope.
     local function createGui(): ScreenGui
         local gui = Instance.new("ScreenGui")
         gui.Name = config.GuiName
         gui.ResetOnSpawn = false
         gui.IgnoreGuiInset = true
-        gui.DisplayOrder = 100000
+        gui.DisplayOrder = CONFIG.DISPLAY_ORDER
         gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         gui.Enabled = false
         return gui
@@ -31,16 +40,16 @@ return function(services: any, Duel: any?): any
 
     local function createVisual(index: number, parent: Instance): any
         local outline = Instance.new("Frame")
-        outline.Name = "Outline" .. index
+        outline.Name = `Outline{index}`
         outline.BackgroundTransparency = 1
         outline.BorderColor3 = config.Outline
-        outline.BorderSizePixel = 3
+        outline.BorderSizePixel = CONFIG.OUTLINE_THICKNESS
         outline.Visible = false
         outline.ZIndex = 10
         outline.Parent = parent
 
         local box = Instance.new("Frame")
-        box.Name = "Box" .. index
+        box.Name = `Box{index}`
         box.BackgroundTransparency = 1
         box.BorderColor3 = config.Accent
         box.BorderSizePixel = 1
@@ -49,7 +58,7 @@ return function(services: any, Duel: any?): any
         box.Parent = parent
 
         local healthBack = Instance.new("Frame")
-        healthBack.Name = "HealthBack" .. index
+        healthBack.Name = `HealthBack{index}`
         healthBack.BackgroundColor3 = config.Outline
         healthBack.BorderSizePixel = 0
         healthBack.Visible = false
@@ -57,7 +66,7 @@ return function(services: any, Duel: any?): any
         healthBack.Parent = parent
 
         local health = Instance.new("Frame")
-        health.Name = "Health" .. index
+        health.Name = `Health{index}`
         health.BackgroundColor3 = config.Accent
         health.BorderSizePixel = 0
         health.Visible = false
@@ -65,7 +74,7 @@ return function(services: any, Duel: any?): any
         health.Parent = parent
 
         local name = Instance.new("TextLabel")
-        name.Name = "Name" .. index
+        name.Name = `Name{index}`
         name.BackgroundTransparency = 1
         name.Text = ""
         name.TextColor3 = config.Text
@@ -88,8 +97,6 @@ return function(services: any, Duel: any?): any
         visual.Name.Visible = false
     end
 
-    -- Eight-corner bounding box projected through the camera; identical math to the
-    -- reference script, including the off-screen reject and the minimum box size.
     local function projectBounds(character: Model, camera: Camera): (number?, number?, number?, number?)
         local ok, cf, size = pcall(function() return character:GetBoundingBox() end)
         if not ok or not cf or not size then return nil, nil, nil, nil end
@@ -112,7 +119,7 @@ return function(services: any, Duel: any?): any
         if not onScreen or minX == math.huge then return nil, nil, nil, nil end
         local viewport = camera.ViewportSize
         if maxX < 0 or minX > viewport.X or maxY < 0 or minY > viewport.Y then return nil, nil, nil, nil end
-        return math.floor(minX), math.floor(minY), math.max(12, math.floor(maxX - minX)), math.max(24, math.floor(maxY - minY))
+        return math.floor(minX), math.floor(minY), math.max(CONFIG.MIN_BOX_WIDTH, math.floor(maxX - minX)), math.max(CONFIG.MIN_BOX_HEIGHT, math.floor(maxY - minY))
     end
 
     local function drawVisual(visual: any, x: number, y: number, width: number, height: number, humanoid: Humanoid, displayName: string)
@@ -123,22 +130,22 @@ return function(services: any, Duel: any?): any
         visual.Box.Position = UDim2.fromOffset(x, y)
         visual.Box.Size = UDim2.fromOffset(width, height)
         visual.Box.Visible = true
-        visual.HealthBack.Position = UDim2.fromOffset(x - 6, y)
-        visual.HealthBack.Size = UDim2.fromOffset(3, height)
+        visual.HealthBack.Position = UDim2.fromOffset(x - CONFIG.HEALTH_BAR_OFFSET, y)
+        visual.HealthBack.Size = UDim2.fromOffset(CONFIG.HEALTH_BAR_WIDTH, height)
         visual.HealthBack.Visible = true
-        visual.Health.Position = UDim2.fromOffset(x - 6, y + height * (1 - ratio))
-        visual.Health.Size = UDim2.fromOffset(3, math.max(1, height * ratio))
-        visual.Health.BackgroundColor3 = Color3.fromHSV(ratio * 0.33, 0.85, 0.95)
+        visual.Health.Position = UDim2.fromOffset(x - CONFIG.HEALTH_BAR_OFFSET, y + height * (1 - ratio))
+        visual.Health.Size = UDim2.fromOffset(CONFIG.HEALTH_BAR_WIDTH, math.max(1, height * ratio))
+        visual.Health.BackgroundColor3 = Color3.fromHSV(ratio * CONFIG.HEALTH_HUE_SPAN, 0.85, 0.95)
         visual.Health.Visible = true
         visual.Name.Text = string.upper(displayName)
-        visual.Name.Position = UDim2.fromOffset(x, y - 15)
-        visual.Name.Size = UDim2.fromOffset(width, 14)
+        visual.Name.Position = UDim2.fromOffset(x, y - CONFIG.NAME_OFFSET_Y)
+        visual.Name.Size = UDim2.fromOffset(width, CONFIG.NAME_HEIGHT)
         visual.Name.Visible = true
     end
 
     local function paint()
         local used = 0
-        local camera = workspace.CurrentCamera
+        local camera = Workspace.CurrentCamera
         if StateStore:Get("Game.MvSEsp") == true and LocalPlayer.Team ~= nil and LocalPlayer:GetAttribute(manifest.Match.Attribute) ~= nil and camera then
             for _, enemy in ipairs(Duel.Targets:GetOpponents()) do
                 if used >= #Esp._pool then break end
@@ -169,15 +176,12 @@ return function(services: any, Duel: any?): any
             if not self._gui then return end
             local enabled = StateStore:Get("Game.MvSEsp") == true
             if self._gui.Enabled ~= enabled then self._gui.Enabled = enabled end
-            local ok, err = pcall(paint)
-            if not ok then warn("[B0Xaz][" .. manifest.Name .. ":Esp] " .. tostring(err)) end
+            pcall(paint)
         end))
-        -- The overlay renders nothing while the gui is disabled, but the pool positions are
-        -- still fresh the moment the toggle flips; paint once for an immediate response.
+
         pcall(paint)
     end
 
-    -- Status line for the Game tab.
     function Esp:GetCounts(): any
         return { Enabled = StateStore:Get("Game.MvSEsp") == true, Visible = self._visible, Pool = #self._pool }
     end

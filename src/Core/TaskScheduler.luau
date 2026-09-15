@@ -19,8 +19,8 @@ return function(disposer: any): any
             -- The breaker only clears Enabled; an observer re-enabling it requests a retry.
             if job.CircuitOpen and job.Enabled then job.CircuitOpen, job.Strikes = false, 0 end
             if job.Enabled and job.Connected then
-                pcall(job.Callback, dt)
-                if ok then
+                local ran = pcall(job.Callback, dt)
+                if ran then
                     job.Strikes = 0
                 else
                     job.Strikes += 1

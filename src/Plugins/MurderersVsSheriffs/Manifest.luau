@@ -7,7 +7,7 @@ return function(_services: any?): any
     local manifest = {
         Name = "Murderers VS Sheriffs DUELS",
         PlaceIds = { 12355337193 },
-        UniverseIds = {},
+        UniverseIds = { 4348829796 },
         TagPrefix = "B0XazMvSDuels",
 
         -- Enemy scope: both players must share the same Match attribute value and sit on

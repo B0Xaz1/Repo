@@ -30,35 +30,61 @@ return function(services: any, Duel: any?): any
         _lastStatusMessage = "Ready",
     }
 
-    -- Exact mode strand positions provided
+    -- Exact mode strand positions with +2 studs Y elevation
     local QUEUE_POSITIONS: { [string]: { Vector3 } } = queueConfig.Positions or {
         ["1v1"] = {
-            Vector3.new(56.9468994140625, -95.15959167480469, -203.5184783935547),
-            Vector3.new(27.4266357421875, -95.15959167480469, -203.4810028076172),
+            Vector3.new(56.9468994140625, -93.15959167480469, -203.5184783935547),
+            Vector3.new(27.4266357421875, -93.15959167480469, -203.4810028076172),
         },
         ["2v2"] = {
-            Vector3.new(56.784793853759766, -95.17820739746094, -189.26991271972656),
-            Vector3.new(27.93301010131836, -95.17820739746094, -189.24061584472656),
+            Vector3.new(56.784793853759766, -93.17820739746094, -189.26991271972656),
+            Vector3.new(27.93301010131836, -93.17820739746094, -189.24061584472656),
         },
         ["3v3"] = {
-            Vector3.new(56.6617431640625, -95.03361511230469, -173.23150634765625),
-            Vector3.new(28.4437255859375, -95.03361511230469, -173.20989990234375),
+            Vector3.new(56.6617431640625, -93.03361511230469, -173.23150634765625),
+            Vector3.new(28.4437255859375, -93.03361511230469, -173.20989990234375),
         },
         ["4v4"] = {
-            Vector3.new(56.58056640625, -94.84336853027344, -155.25958251953125),
-            Vector3.new(28.959228515625, -94.84336853027344, -155.24517822265625),
+            Vector3.new(56.58056640625, -92.84336853027344, -155.25958251953125),
+            Vector3.new(28.959228515625, -92.84336853027344, -155.24517822265625),
         },
     }
 
     local LEEWAY: number = queueConfig.Leeway or 1.0
 
-    -- Resolves Workspace.Lobby.Environment.Pier
+    -- Resolves Workspace.Lobby.Environment.Pier case-insensitively
     local function getPierFolder(): Instance?
         local pierPath = queueConfig.PierPath or { "Lobby", "Environment", "Pier" }
         local node: any = workspace
-        for _, name in ipairs(pierPath) do
-            node = node and node:FindFirstChild(name)
+
+        for _, targetName in ipairs(pierPath) do
+            if not node then break end
+            local nextNode = node:FindFirstChild(targetName)
+            if not nextNode then
+                local lowerTarget = targetName:lower()
+                for _, child in ipairs(node:GetChildren()) do
+                    if child.Name:lower() == lowerTarget then
+                        nextNode = child
+                        break
+                    end
+                end
+            end
+            node = nextNode
         end
+
+        -- Direct search fallback if not located via strict path
+        if not node then
+            local lobby = workspace:FindFirstChild("Lobby")
+            if lobby then
+                for _, desc in ipairs(lobby:GetDescendants()) do
+                    if desc.Name:lower() == "pier" then
+                        node = desc
+                        break
+                    end
+                end
+            end
+        end
+
         return node
     end
 
@@ -80,7 +106,7 @@ return function(services: any, Duel: any?): any
 
         -- 2. Raycast downwards from HumanoidRootPart to see if touching any part inside Pier
         local origin = root.Position
-        local direction = Vector3.new(0, -6, 0)
+        local direction = Vector3.new(0, -10, 0)
         local params = RaycastParams.new()
         params.FilterType = Enum.RaycastFilterType.Exclude
         params.FilterDescendantsInstances = { char }
@@ -94,8 +120,7 @@ return function(services: any, Duel: any?): any
             for _, child in ipairs(pier:GetDescendants()) do
                 if child:IsA("BasePart") then
                     local diff = (child.Position - root.Position)
-                    -- Check if within part bounding box with 3 stud margin
-                    local halfSize = child.Size * 0.5 + Vector3.new(3, 4, 3)
+                    local halfSize = child.Size * 0.5 + Vector3.new(4, 8, 4)
                     if math.abs(diff.X) <= halfSize.X and math.abs(diff.Y) <= halfSize.Y and math.abs(diff.Z) <= halfSize.Z then
                         return true
                     end
@@ -132,14 +157,15 @@ return function(services: any, Duel: any?): any
                 local char = player.Character
                 local root = char and char:FindFirstChild("HumanoidRootPart")
                 if root then
+                    -- 3D Euclidean distance
                     local dist = (root.Position - pos).Magnitude
                     if dist <= threshold then
                         return true
                     end
-                    -- Also check flat horizontal distance
+                    -- Horizontal distance with vertical cylinder tolerance
                     local horizDist = Vector2.new(root.Position.X - pos.X, root.Position.Z - pos.Z).Magnitude
                     local vertDist = math.abs(root.Position.Y - pos.Y)
-                    if horizDist <= threshold and vertDist <= 3.0 then
+                    if horizDist <= threshold and vertDist <= 4.0 then
                         return true
                     end
                 end
@@ -161,7 +187,7 @@ return function(services: any, Duel: any?): any
         end
     end
 
-    -- Teleport player to the destination
+    -- Move/Teleport player reliably to the destination
     function AutoQueue:TeleportToQueue(mode: string): (boolean, string)
         local char = LocalPlayer and LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -178,8 +204,13 @@ return function(services: any, Duel: any?): any
             return true, self._lastStatusMessage
         end
 
+        -- Multiple teleport approaches for robust executor compatibility
         pcall(function()
-            root.CFrame = CFrame.new(targetPos)
+            if char.PivotTo then
+                char:PivotTo(CFrame.new(targetPos))
+            else
+                root.CFrame = CFrame.new(targetPos)
+            end
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
         end)
@@ -217,7 +248,6 @@ return function(services: any, Duel: any?): any
         -- Primary mechanism: send player to the specified duel strand position
         local success, msg = self:TeleportToQueue(mode)
         if success then
-            -- Also ping any remote if present in background
             task.spawn(tryQueueRemote, mode)
             return true, msg
         end
@@ -249,12 +279,11 @@ return function(services: any, Duel: any?): any
             return
         end
 
-        -- In lobby: if enabled and not currently holding a strand, state is Active/Queued
+        -- In lobby: if enabled, mark active
         if AutoQueue._state == "Idle" then
             AutoQueue._state = "Active"
         end
 
-        -- Check Pier presence: trigger when on Pier parts, or continuously while auto-queue is enabled in lobby
         local onPier = AutoQueue:IsOnPier()
         local mode = tostring(StateStore:Get("Game.MvSQueueMode") or AutoQueue._selectedMode or "1v1")
         local bestPos, strandIdx = AutoQueue:GetBestPosition(mode)
@@ -263,14 +292,24 @@ return function(services: any, Duel: any?): any
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
 
-        -- If on Pier and not yet standing on the chosen strand, or periodic interval elapsed
+        -- If player is on Pier and not on target position, move immediately!
+        if onPier and distToTarget > LEEWAY then
+            if now - AutoQueue._lastAttempt >= 0.5 then
+                AutoQueue._lastAttempt = now
+                AutoQueue._state = "Queued"
+                AutoQueue._queueAttempts += 1
+                task.spawn(function()
+                    AutoQueue:TriggerQueue()
+                end)
+            end
+            return
+        end
+
+        -- Periodic lobby queue check
         local delay = tonumber(StateStore:Get("Game.MvSQueueDelay")) or 3.0
         if delay < 0.5 then delay = 0.5 end
 
-        local needsMove = onPier and distToTarget > LEEWAY
-        local timeElapsed = (now - AutoQueue._lastAttempt) >= delay
-
-        if needsMove or timeElapsed then
+        if now - AutoQueue._lastAttempt >= delay then
             AutoQueue._lastAttempt = now
             AutoQueue._state = "Queued"
             AutoQueue._queueAttempts += 1

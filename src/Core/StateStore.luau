@@ -45,6 +45,7 @@ local DEFAULT_SETTINGS: any = {
         -- MVS Duels
         MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
         MvSRevolver = false, MvSGunCooldown = 2.55,
+        MvSGunAttributeCooldown = 0.0,
         MvSAutoEquip = false,
         MvSAutoQueue = false, MvSQueueMode = "1v1", MvSQueueDelay = 3.0,
         -- Locations

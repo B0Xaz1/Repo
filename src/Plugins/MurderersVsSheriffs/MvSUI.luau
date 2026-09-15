@@ -53,7 +53,8 @@ return function(services: any, Duel: any?): any
         slider(combatSec, "Knife reengage delay", "Game.MvSKnifeCooldown", 0.15, 1.5, 0.05, "s")
         toggle(combatSec, "Fast aim revolver", "Game.MvSRevolver")
         slider(combatSec, "Revolver reengage delay", "Game.MvSGunCooldown", 0.5, 5, 0.05, "s")
-        toggle(combatSec, "Spam equip tools (1 & 2)", "Game.MvSAutoEquip")
+        slider(combatSec, "Gun Cooldown attribute", "Game.MvSGunAttributeCooldown", 0.0, 3.0, 0.05, "s")
+        toggle(combatSec, "Auto equip active weapon", "Game.MvSAutoEquip")
         labels.combat = createInfoLabel(combatSec, "Drivers: ...")
         textbox:CreateButton(combatSec, "Stop combat drivers", function()
             StateStore:Set("Game.MvSKnife", false)
@@ -61,7 +62,7 @@ return function(services: any, Duel: any?): any
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Spam equip tools' equips slots 1 & 2 alternately via humanoid without intercepting your keyboard inputs so auto-kill triggers immediately upon spawning into a duel.")
+        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' detects whether Knife or Revolver is enabled and equips that specific tool (KnifeTool or GunTool tag) automatically without touching your keyboard. The 'Gun Cooldown attribute' slider updates the tool's Cooldown attribute directly.")
 
         ------------------------------------------------------------------
         -- 2. Player ESP (right)

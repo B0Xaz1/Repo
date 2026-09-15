@@ -120,7 +120,7 @@ return function(services: any, Duel: any?): any
         return math.max(value, minimum)
     end
 
-    -- Equips slot 1 and slot 2 tools from Backpack without overriding user hardware inputs
+    -- Equips the matching tool (KnifeTool or GunTool) based on which combat toggle is enabled
     local function processAutoEquip(now: number)
         if StateStore:Get("Game.MvSAutoEquip") ~= true then return end
         if now - Attack._lastEquipSwap < 0.1 then return end
@@ -130,28 +130,54 @@ return function(services: any, Duel: any?): any
         local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
         if not char or not hum or not backpack then return end
 
-        local tools = {}
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                table.insert(tools, item)
+        local useKnife = StateStore:Get("Game.MvSKnife") == true
+        local useGun = StateStore:Get("Game.MvSRevolver") == true
+
+        -- If neither is active, or both, prioritize whichever weapon toggle is on
+        local function findToolByTag(tag: string, animField: string, needle: string): Tool?
+            -- 1. Check if already equipped
+            for _, item in ipairs(char:GetChildren()) do
+                if item:IsA("Tool") and (toolMatches(item, tag, animField, needle)) then
+                    return item
+                end
             end
-        end
-        for _, item in ipairs(char:GetChildren()) do
-            if item:IsA("Tool") then
-                table.insert(tools, item)
+            -- 2. Check Backpack
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") and (toolMatches(item, tag, animField, needle)) then
+                    return item
+                end
             end
+            return nil
         end
 
-        if #tools == 0 then return end
+        local targetTool: Tool? = nil
+        if useKnife then
+            targetTool = findToolByTag(knifeConfig.Tag, knifeConfig.ActivatedField, knifeConfig.ActivatedNeedle)
+        elseif useGun then
+            targetTool = findToolByTag(gunConfig.Tag, gunConfig.ActivatedField, gunConfig.ActivatedNeedle)
+        else
+            -- If user has auto equip on but no combat driver selected yet, find either tool
+            targetTool = findToolByTag(knifeConfig.Tag, knifeConfig.ActivatedField, knifeConfig.ActivatedNeedle)
+                or findToolByTag(gunConfig.Tag, gunConfig.ActivatedField, gunConfig.ActivatedNeedle)
+        end
 
-        Attack._lastEquipSwap = now
-        local targetIndex = Attack._equipSlot
-        Attack._equipSlot = if Attack._equipSlot == 1 then 2 else 1
-
-        local toolToEquip = tools[targetIndex] or tools[1]
-        if toolToEquip and toolToEquip.Parent ~= char then
+        if targetTool and targetTool.Parent ~= char then
+            Attack._lastEquipSwap = now
             pcall(function()
-                hum:EquipTool(toolToEquip)
+                hum:EquipTool(targetTool)
+            end)
+        end
+    end
+
+    -- Updates the Gun's "Cooldown" attribute according to Game.MvSGunAttributeCooldown setting
+    local function syncGunAttributeCooldown(gun: Tool?)
+        if not gun then return end
+        local targetVal = tonumber(StateStore:Get("Game.MvSGunAttributeCooldown"))
+        if targetVal and targetVal >= 0 then
+            pcall(function()
+                if gun:GetAttribute(gunConfig.CooldownAttribute) ~= targetVal then
+                    gun:SetAttribute(gunConfig.CooldownAttribute, targetVal)
+                end
             end)
         end
     end
@@ -175,6 +201,9 @@ return function(services: any, Duel: any?): any
         end
 
         local gun = getGun()
+        if gun then
+            syncGunAttributeCooldown(gun)
+        end
         if StateStore:Get("Game.MvSRevolver") == true and not Attack._gunBusy and Attack._gunRemote and gun and now >= Attack._gunNextShot then
             local cooldown = currentCooldown("Game.MvSGunCooldown", gunConfig.DefaultCooldown, gunConfig.MinCooldown)
             for _, target in ipairs(targets) do

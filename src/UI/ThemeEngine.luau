@@ -114,16 +114,22 @@ return function(services: any): any
         end
     end
 
-    local function applyFromState(force: boolean?)
+    local function applyFromState(force: boolean?, refreshUnboundInstances: boolean?)
         local palette = table.clone(presets[state:Get("Theme.ActivePreset")] or presets.Midnight)
         local overrides = state:Get("Theme.CustomTokens") or {}
         for token, color in pairs(overrides) do if palette[token] and typeof(color) == "Color3" then palette[token] = color end end
-        local previous, changed = ThemeEngine._palette, force == true
-        for _, token in ipairs(CONFIG.TOKEN_NAMES) do if previous[token] ~= palette[token] then changed = true; break end end
+        local previous, changed, changedTokens = ThemeEngine._palette, false, {}
+        for _, token in ipairs(CONFIG.TOKEN_NAMES) do
+            if previous[token] ~= palette[token] then changed, changedTokens[token] = true, true end
+        end
+        if force == true and not changed then
+            for _, token in ipairs(CONFIG.TOKEN_NAMES) do changedTokens[token] = true end
+            changed = true
+        end
         if not changed then return end
         ThemeEngine._palette = palette
-        ThemeEngine:UpdateAllBindings()
-        refreshUnbound(previous)
+        ThemeEngine:UpdateAllBindings(changedTokens)
+        if refreshUnboundInstances ~= false then refreshUnbound(previous) end
         bus:Publish("ThemeChanged")
     end
 
@@ -163,9 +169,10 @@ return function(services: any): any
         applyFromState(true)
     end
 
-    function ThemeEngine:UpdateAllBindings()
+    function ThemeEngine:UpdateAllBindings(tokens: { [string]: boolean }?)
         for instance, properties in pairs(self._bindings) do
             for property, token in pairs(properties) do
+                if tokens and not tokens[token] then continue end
                 local applied = pcall(function() applyInstance(instance, property, token) end)
                 if not applied then self._bindings[instance] = nil; break end
             end
@@ -176,7 +183,7 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         scope:Add(state:Observe("Theme.ActivePreset", function() applyFromState(true) end))
-        scope:Add(state:Observe("Theme.CustomTokens", function() applyFromState(true) end))
+        scope:Add(state:Observe("Theme.CustomTokens", function() applyFromState(true, false) end))
         applyFromState(true)
     end
 

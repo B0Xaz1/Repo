@@ -8,17 +8,21 @@ local CONFIG = table.freeze({
     FIELD_HEIGHT = 112,
     OPEN_ROW_HEIGHT = 158,
     HUE_STOPS = 6,
+    DRAG_UPDATE_INTERVAL = 1 / 30,
 })
 
 return function(services: any): any
-    local dom, theme, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment")
+    local dom, theme = services:Get("DOM"), services:Get("ThemeEngine")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Color picker capture")
     local ColorPicker = { _active = nil }
-    local function drag(event: InputObject)
+    local function drag(event: InputObject, force: boolean?)
         local active = ColorPicker._active
         if not active or active.Handle.Scope:IsDisposed() then return end
-        local handle, field, position = active.Handle, active.Field, environment:GetPointerLocation(event)
+        local now = os.clock()
+        if not force and now - active.LastUpdate < CONFIG.DRAG_UPDATE_INTERVAL then return end
+        active.LastUpdate = now
+        local handle, field, position = active.Handle, active.Field, Vector2.new(event.Position.X, event.Position.Y)
         local x = math.clamp((position.X - field.AbsolutePosition.X) / math.max(field.AbsoluteSize.X, 1), 0, 1)
         local y = math.clamp((position.Y - field.AbsolutePosition.Y) / math.max(field.AbsoluteSize.Y, 1), 0, 1)
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
@@ -79,7 +83,7 @@ return function(services: any): any
         end)
         for field, mode in pairs({ [square] = "SV", [hue] = "Hue" }) do owner:Connect(field.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            ColorPicker._active = { Handle = handle, Field = field, Mode = mode }; drag(event)
+            ColorPicker._active = { Handle = handle, Field = field, Mode = mode, LastUpdate = 0 }; drag(event, true)
         end) end
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(close)
         return handle

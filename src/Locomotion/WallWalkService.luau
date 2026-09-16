@@ -106,9 +106,12 @@ return function(services: any): any
             local walkForce = if delta.Magnitude > 0.01 then delta.Unit * math.min(10000, CONFIG.FORCE_SCALE * root.AssemblyMass * delta.Magnitude / math.max(dt * 60, 1)) else Vector3.zero
             self._force.Force = walkForce + Workspace.Gravity * root.AssemblyMass * (Vector3.yAxis - self._gravityUp)
             self._gyro.CFrame = CFrame.lookAt(Vector3.zero, if worldMove.Magnitude > 0.01 then worldMove else forward, self._gravityUp)
-            if self._lastPart and self._lastPart.Parent and self._lastPart ~= Workspace.Terrain then root.CFrame = self._lastPartCFrame:ToWorldSpace(root.CFrame) end
             local params = RaycastParams.new(); params.FilterType, params.FilterDescendantsInstances = Enum.RaycastFilterType.Exclude, { assets.Character }
             local surface = Workspace:Raycast(self._collider.Position, -self._gravityUp * 1.1, params)
+            if surface and self._lastPart == surface.Instance and self._lastPart.Parent then
+                local offset = self._lastPartCFrame:ToObjectSpace(root.CFrame)
+                root.CFrame = surface.Instance.CFrame:ToWorldSpace(offset)
+            end
             self._lastPart, self._lastPartCFrame = if surface then surface.Instance else Workspace.Terrain, if surface then surface.Instance.CFrame else CFrame.identity
         end)
         local function sync(value: boolean) job.Enabled = value == true; if not value then self:Stop() end end

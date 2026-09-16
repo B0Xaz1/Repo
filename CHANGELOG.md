@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.4.5 — 2026-09-15
+
+Game-plugin switch hotfix.
+
+- **Fixed (critical):** turning off **Enable game plugin** in the Game tab killed the whole
+  menu, not just that tab. `PluginManager` hands a plugin a service container whose
+  `Disposer` resolves to the plugin's lifetime scope, and `InitializeAll()` activates the
+  plugin *before* `UIEngine` builds any tab — so the shared UI components (`Section`,
+  `Toggle`, `Slider`, `Keybind`, `Textbox`, `Dropdown`) were first instantiated through
+  that plugin-scoped container. The loader cached modules by path alone, so every later
+  tab received that same instance and **every** control in the suite was parented to the
+  plugin's disposer scope. Disabling the plugin disposed that scope and took all of those
+  controls with it: state observers, input connections, and theme bindings were severed
+  for all seven tabs, the switch itself went inert so the adapter could never be mounted
+  again without a full reload, and it all happened silently — no error, no toast. Modules
+  are now cached per service container, so the root container keeps its own instances of
+  the shared components and only the plugin's own controls die with the plugin.
+- **Fixed:** one click on the switch rebuilt the Game tab twice — once from the
+  `Settings.PluginEnabled` observer and once from the control's callback — discarding the
+  panel it had just built. `SetEnabled` now ignores a request for the state it is already in.
+- **Fixed:** the Game tab kept advertising the matched adapter after it was switched off
+  (`Active adapter: Prison Life` with no adapter running) and the Universal Mode panel never
+  said why. The disabled state now reports `Universal Mode` and the panel names the adapter
+  the switch would mount.
+
 ## 2.4.4 — 2026-09-15
 
 Boot failure visibility hotfix.

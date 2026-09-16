@@ -26,13 +26,19 @@ return function(services: any): any
         local x = math.clamp((position.X - field.AbsolutePosition.X) / math.max(field.AbsoluteSize.X, 1), 0, 1)
         local y = math.clamp((position.Y - field.AbsolutePosition.Y) / math.max(field.AbsoluteSize.Y, 1), 0, 1)
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
-        handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness))
+        handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness), true)
     end
     scope:ConnectImmediate(UIS.InputChanged, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event) end
     end)
     scope:Connect(UIS.InputEnded, function(event: InputObject)
-        if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then ColorPicker._active = nil end
+        if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
+        local active = ColorPicker._active
+        if active then
+            drag(event, true)
+            active.Handle:Set(active.Handle:Get())
+            ColorPicker._active = nil
+        end
     end)
     function ColorPicker:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
         local row, text, owner = section:Control(parent, label, CONFIG.ROW_HEIGHT)

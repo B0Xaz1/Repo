@@ -4,7 +4,7 @@ local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
     OBJECTS_ASSET = "rbxassetid://17267177523",
-    HIP_HEIGHT_OFFSET = 1,
+    HIP_HEIGHT_OFFSET = 0.5,
     RAY_LENGTH = 25,
     FEELER_LENGTH = 4,
     FEELER_RADIUS = 3.5,
@@ -88,8 +88,11 @@ return function(services: any): any
                 if not collider or not floor or not gyro or not force then self:Stop(); return end
                 self._active, self._collider, self._floor, self._gyro, self._force = true, collider, floor, gyro, force
                 changes:SetProperty(humanoid, "AutoRotate", false)
+                changes:SetProperty(humanoid, "PlatformStand", false)
                 changes:SetProperty(humanoid, "HipHeight", humanoid.HipHeight + CONFIG.HIP_HEIGHT_OFFSET)
             end
+            local originalHipHeight = changes:GetOriginal(humanoid, "HipHeight")
+            if typeof(originalHipHeight) == "number" then changes:SetProperty(humanoid, "HipHeight", originalHipHeight + CONFIG.HIP_HEIGHT_OFFSET) end
             local normal = findSurface(assets.Character, root, self._collider, self._gravityUp)
             self._gravityUp = self._gravityUp:Lerp(normal, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit
             local camera = Workspace.CurrentCamera
@@ -101,6 +104,7 @@ return function(services: any): any
             local move = humanoid.MoveDirection
             local worldMove = right * move:Dot(right) + forward * move:Dot(forward)
             if worldMove.Magnitude > 1 then worldMove = worldMove.Unit end
+            humanoid:Move(worldMove, false)
             local velocity = root.AssemblyLinearVelocity
             local tangent = velocity - velocity:Dot(self._gravityUp) * self._gravityUp
             local delta = worldMove * humanoid.WalkSpeed - tangent
@@ -125,7 +129,8 @@ return function(services: any): any
             local velocity = root.AssemblyLinearVelocity
             local tangent = velocity - velocity:Dot(self._gravityUp) * self._gravityUp
             local jumpSpeed = if humanoid.UseJumpPower then humanoid.JumpPower else math.sqrt(math.max(0, 2 * Workspace.Gravity * humanoid.JumpHeight))
-            root.AssemblyLinearVelocity = tangent + self._gravityUp * jumpSpeed * 1.2
+            root.AssemblyLinearVelocity = tangent
+            root:ApplyImpulse(self._gravityUp * root.AssemblyMass * jumpSpeed * 1.2)
             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end)
         scope:Add(tracker:OnLocalCharacterRespawn(function() self:Stop() end))

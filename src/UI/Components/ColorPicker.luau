@@ -8,7 +8,7 @@ local CONFIG = table.freeze({
     FIELD_HEIGHT = 112,
     OPEN_ROW_HEIGHT = 158,
     HUE_STOPS = 6,
-    DRAG_UPDATE_INTERVAL = 1 / 30,
+    DRAG_UPDATE_INTERVAL = 1 / 20,
 })
 
 return function(services: any): any
@@ -26,7 +26,10 @@ return function(services: any): any
         local x = math.clamp((position.X - field.AbsolutePosition.X) / math.max(field.AbsoluteSize.X, 1), 0, 1)
         local y = math.clamp((position.Y - field.AbsolutePosition.Y) / math.max(field.AbsoluteSize.Y, 1), 0, 1)
         if active.Mode == "Hue" then handle._hue = y else handle._saturation, handle._brightness = x, 1 - y end
-        handle:Set(Color3.fromHSV(handle._hue, handle._saturation, handle._brightness), true)
+        local value = Color3.fromHSV(handle._hue, handle._saturation, handle._brightness)
+        active.Value = value
+        active.Marker.Position = UDim2.fromScale(handle._saturation, 1 - handle._brightness)
+        active.Square.BackgroundColor3, active.Swatch.BackgroundColor3 = Color3.fromHSV(handle._hue, 1, 1), value
     end
     scope:ConnectImmediate(UIS.InputChanged, function(event: InputObject)
         if event.UserInputType == Enum.UserInputType.MouseMovement or event.UserInputType == Enum.UserInputType.Touch then drag(event) end
@@ -36,7 +39,7 @@ return function(services: any): any
         local active = ColorPicker._active
         if active then
             drag(event, true)
-            active.Handle:Set(active.Handle:Get())
+            if active.Value then active.Handle:Set(active.Value) end
             ColorPicker._active = nil
         end
     end)
@@ -89,7 +92,7 @@ return function(services: any): any
         end)
         for field, mode in pairs({ [square] = "SV", [hue] = "Hue" }) do owner:Connect(field.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            ColorPicker._active = { Handle = handle, Field = field, Mode = mode, LastUpdate = 0 }; drag(event, true)
+            ColorPicker._active = { Handle = handle, Field = field, Mode = mode, LastUpdate = 0, Marker = marker, Square = square, Swatch = swatch }; drag(event, true)
         end) end
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(close)
         return handle

@@ -1,5 +1,6 @@
 --!strict
 local Workspace = game:GetService("Workspace")
+local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
     OBJECTS_ASSET = "rbxassetid://17267177523",
@@ -29,7 +30,7 @@ return function(services: any): any
         local sphere, floor = sphereTemplate:Clone(), floorTemplate:Clone()
         sphere.Parent, floor.Parent = character, character
         owner:Add(sphere); owner:Add(floor)
-        local height = humanoid.HipHeight + CONFIG.HIP_HEIGHT_OFFSET
+        local height = humanoid.HipHeight + 0.05
         local weld = Instance.new("Weld"); weld.C0, weld.Part0, weld.Part1, weld.Parent = CFrame.new(0, -height, 0.1), root, sphere, sphere; owner:Add(weld)
         local floorWeld = Instance.new("Weld"); floorWeld.C0, floorWeld.Part0, floorWeld.Part1, floorWeld.Parent = CFrame.new(0, -(height + 1.5), 0), root, floor, floor; owner:Add(floorWeld)
         local gyro = gyroTemplate:Clone(); gyro.CFrame, gyro.Parent = root.CFrame, root; owner:Add(gyro)
@@ -87,7 +88,7 @@ return function(services: any): any
                 if not collider or not floor or not gyro or not force then self:Stop(); return end
                 self._active, self._collider, self._floor, self._gyro, self._force = true, collider, floor, gyro, force
                 changes:SetProperty(humanoid, "AutoRotate", false)
-                changes:SetProperty(humanoid, "PlatformStand", true)
+                changes:SetProperty(humanoid, "HipHeight", humanoid.HipHeight + CONFIG.HIP_HEIGHT_OFFSET)
             end
             local normal = findSurface(assets.Character, root, self._collider, self._gravityUp)
             self._gravityUp = self._gravityUp:Lerp(normal, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit
@@ -116,6 +117,17 @@ return function(services: any): any
         end)
         local function sync(value: boolean) job.Enabled = value == true; if not value then self:Stop() end end
         scope:Add(state:Observe("Movement.WallWalkEnabled", sync)); sync(state:Peek("Movement.WallWalkEnabled") == true)
+        scope:Connect(UIS.JumpRequest, function()
+            if not state:Peek("Movement.WallWalkEnabled") or not self._active then return end
+            local assets = tracker:GetLocalAssets()
+            if not assets or assets.Humanoid.Health <= 0 then return end
+            local root, humanoid = assets.RootPart, assets.Humanoid
+            local velocity = root.AssemblyLinearVelocity
+            local tangent = velocity - velocity:Dot(self._gravityUp) * self._gravityUp
+            local jumpSpeed = if humanoid.UseJumpPower then humanoid.JumpPower else math.sqrt(math.max(0, 2 * Workspace.Gravity * humanoid.JumpHeight))
+            root.AssemblyLinearVelocity = tangent + self._gravityUp * jumpSpeed * 1.2
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end)
         scope:Add(tracker:OnLocalCharacterRespawn(function() self:Stop() end))
     end
 

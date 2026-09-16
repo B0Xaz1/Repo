@@ -15,6 +15,14 @@ return function(services: any): any
         if #CommandService._history > 20 then table.remove(CommandService._history) end
     end
 
+    local function parseOnOff(args: { string }, defaultValue: boolean): boolean
+        if #args == 0 then return not defaultValue end
+        local value = tostring(args[1]):lower()
+        if value == "on" or value == "true" or value == "1" then return true end
+        if value == "off" or value == "false" or value == "0" then return false end
+        return not defaultValue
+    end
+
     local function makeOutput(source: string?, text: string): string
         local prefix = if type(source) == "string" and source ~= "" then source else "menu"
         return `{prefix}: {text}`
@@ -129,6 +137,15 @@ return function(services: any): any
         return self:HandleChat(text)
     end
 
+    local function safeHandleChat(text: string): boolean
+        if type(text) ~= "string" then return false end
+        local trimmed = text:match("^%s*(.-)%s*$")
+        if trimmed == "" then return false end
+        if trimmed:sub(1, 1) ~= "/" and trimmed:sub(1, 1) ~= "!" then return false end
+        CommandService:Execute(trimmed, "chat")
+        return true
+    end
+
     function CommandService:BuildDefaultCommands()
         self:Register("help", "Utility", "Lists available commands and examples.", "/help", function(_raw: string, args: { string }, source: string)
             local names = {}
@@ -154,24 +171,32 @@ return function(services: any): any
 
         self:Register("fly", "Movement", "Toggle flight mode.", "/fly [on|off]", function(_raw: string, args: { string }, _source: string)
             local enabled = state:Get("Movement.FlyEnabled") == true
-            local desired = if #args > 0 then args[1]:lower() == "on" or args[1]:lower() == "true" or args[1]:lower() == "1" else not enabled
+            local desired = parseOnOff(args, enabled)
             local ok, message = state:Set("Movement.FlyEnabled", desired)
             return ok, if ok then if desired then "Flight enabled" else "Flight disabled" else message or "Flight toggle failed"
         end)
-        self:Alias("fly", "unfly")
-        self:Alias("fly", "togglefly")
+        self:Register("unfly", "Movement", "Disable flight instantly.", "/unfly", function(_raw: string, _args: { string }, _source: string)
+            local ok, message = state:Set("Movement.FlyEnabled", false)
+            return ok, if ok then "Flight disabled" else message or "Flight disable failed"
+        end)
+        self:Register("togglefly", "Movement", "Toggle flight mode.", "/togglefly", function(_raw: string, _args: { string }, _source: string)
+            local enabled = state:Get("Movement.FlyEnabled") == true
+            local ok, message = state:Set("Movement.FlyEnabled", not enabled)
+            return ok, if ok then if not enabled then "Flight enabled" else "Flight disabled" else message or "Flight toggle failed"
+        end)
 
         self:Register("esp", "Visuals", "Toggle the ESP overlay.", "/esp [on|off]", function(_raw: string, args: { string }, _source: string)
             local enabled = state:Get("ESP.Enabled") == true
-            local desired = if #args > 0 then args[1]:lower() == "on" or args[1]:lower() == "true" or args[1]:lower() == "1" else not enabled
+            local desired = parseOnOff(args, enabled)
             local ok, message = state:Set("ESP.Enabled", desired)
             return ok, if ok then if desired then "ESP enabled" else "ESP disabled" else message or "ESP toggle failed"
         end)
 
-        self:Register("menu", "Utility", "Toggle the B0Xaz menu.", "/menu", function(_raw: string, _args: { string }, _source: string)
+        self:Register("menu", "Utility", "Toggle the B0Xaz menu.", "/menu [on|off]", function(_raw: string, args: { string }, _source: string)
             local visible = state:Get("Settings.MenuVisible") ~= false
-            local ok, message = state:Set("Settings.MenuVisible", not visible)
-            return ok, if ok then if not visible then "Menu opened" else "Menu hidden" else message or "Menu toggle failed"
+            local desired = parseOnOff(args, visible)
+            local ok, message = state:Set("Settings.MenuVisible", desired)
+            return ok, if ok then if desired then "Menu opened" else "Menu hidden" else message or "Menu toggle failed"
         end)
 
         self:Register("status", "Utility", "Print key feature states.", "/status", function(_raw: string, _args: { string }, _source: string)
@@ -186,7 +211,7 @@ return function(services: any): any
 
         self:Register("fullbright", "Visuals", "Toggle fullbright mode.", "/fullbright [on|off]", function(_raw: string, args: { string }, _source: string)
             local enabled = state:Get("Visuals.Fullbright") == true
-            local desired = if #args > 0 then args[1]:lower() == "on" or args[1]:lower() == "true" or args[1]:lower() == "1" else not enabled
+            local desired = parseOnOff(args, enabled)
             local ok, message = state:Set("Visuals.Fullbright", desired)
             return ok, if ok then if desired then "Fullbright enabled" else "Fullbright disabled" else message or "Fullbright toggle failed"
         end)
@@ -312,10 +337,22 @@ return function(services: any): any
         end
 
         local textChat = game:GetService("TextChatService")
-        if textChat and type(textChat.OnIncomingMessage) == "function" then
-            scope:Connect(textChat.OnIncomingMessage, function(message: any)
-                self:HandleIncomingChatMessage(message)
-            end)
+        if textChat then
+            if type(textChat.OnIncomingMessage) == "function" then
+                scope:Connect(textChat.OnIncomingMessage, function(message: any)
+                    self:HandleIncomingChatMessage(message)
+                end)
+            end
+            if type(textChat.MessageReceived) == "function" then
+                scope:Connect(textChat.MessageReceived, function(message: any)
+                    if type(message) == "table" then
+                        local text = if type(message.Text) == "string" then message.Text else if type(message.Message) == "string" then message.Message else nil
+                        safeHandleChat(text)
+                    elseif type(message) == "string" then
+                        safeHandleChat(message)
+                    end
+                end)
+            end
         end
     end
 

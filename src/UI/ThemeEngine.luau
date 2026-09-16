@@ -12,9 +12,9 @@ local CONFIG = table.freeze({
     COLOR_PROPERTIES = { "BackgroundColor3", "TextColor3", "ImageColor3", "Color", "ScrollBarImageColor3", "PlaceholderColor3" },
     PRESET_SPECS = {
         Midnight = {
-            Bg = Color3.fromRGB(12, 12, 14), Panel = Color3.fromRGB(18, 18, 22), Elem = Color3.fromRGB(26, 26, 30), ElemHover = Color3.fromRGB(36, 36, 42),
-            Side = Color3.fromRGB(10, 10, 12), Accent = Color3.fromRGB(0, 220, 235), Text = Color3.fromRGB(236, 236, 240), TextDim = Color3.fromRGB(160, 166, 174),
-            TextMuted = Color3.fromRGB(112, 116, 124), Border = Color3.fromRGB(38, 42, 50), BorderDim = Color3.fromRGB(30, 32, 38), ToggleOff = Color3.fromRGB(36, 36, 42),
+            Bg = Color3.fromRGB(4, 4, 6), Panel = Color3.fromRGB(9, 9, 12), Elem = Color3.fromRGB(15, 15, 19), ElemHover = Color3.fromRGB(24, 24, 29),
+            Side = Color3.fromRGB(2, 2, 3), Accent = Color3.fromRGB(0, 220, 235), Text = Color3.fromRGB(236, 236, 240), TextDim = Color3.fromRGB(160, 166, 174),
+            TextMuted = Color3.fromRGB(112, 116, 124), Border = Color3.fromRGB(28, 31, 38), BorderDim = Color3.fromRGB(20, 22, 27), ToggleOff = Color3.fromRGB(24, 24, 29),
         },
         Graphite = {
             Bg = Color3.fromRGB(28, 28, 30), Panel = Color3.fromRGB(38, 38, 42), Elem = Color3.fromRGB(50, 50, 56), ElemHover = Color3.fromRGB(64, 64, 72),

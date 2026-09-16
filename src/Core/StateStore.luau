@@ -24,7 +24,7 @@ local CONFIG = deepFreeze({
             Speed = 0, JumpPower = 0, InfJump = false,
             FlyEnabled = false, FlySpeed = 50, FlyKeybind = Enum.KeyCode.F,
             MobileFlyUp = false, MobileFlyDown = false, SprintEnabled = false, SprintSpeed = 28,
-            CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false,
+            CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false, NoClip = false,
         },
         ESP = {
             Enabled = false, Box = true, Name = true, Health = true, Distance = true,
@@ -58,7 +58,7 @@ local CONFIG = deepFreeze({
             StopAutomationOnRespawn = true,
         },
         Settings = {
-            UIScale = 1, MenuVisible = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
+            UIScale = 1, MenuVisible = true, ShowMenuIcon = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
             CompactMenu = false, PluginEnabled = true,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,

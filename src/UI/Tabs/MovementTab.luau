@@ -18,6 +18,7 @@ return function(services: any, tab: any): any
     toggle(humanoid, "Shift to sprint", "Movement.SprintEnabled", nil)
     slider(humanoid, "Sprint speed", "Movement.SprintSpeed", 1, 200, 1, "", nil)
     toggle(humanoid, "Infinite air jump", "Movement.InfJump", nil)
+    toggle(humanoid, "No clip", "Movement.NoClip", nil)
     local touch = section:Create(tab.LeftCol, "Touch fling", "Movement")
     toggle(touch, "Enable touch fling", "Movement.TouchFling", nil)
     section:Info(touch, "Walk into other players. Pulses root velocity between physics steps; the server may reject it.")

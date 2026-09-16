@@ -349,8 +349,13 @@ return function(services: any): any
         theme:BindToken(dom:CreateStroke(reopen, theme:GetToken("Border")), "Color", "Border")
         dom:Create("UICorner", { Parent = reopen, CornerRadius = UDim.new(0, 3) })
         scope:Connect(reopen.Activated, function() state:Set("Settings.MenuVisible", not state:Get("Settings.MenuVisible")) end)
-        local function updateVisibility(value: boolean) main.Visible = value; reopen.Visible = not value or environment:IsMobile(); if not value then UIEngine:CloseAllDropdownsExcept(nil) end end
-        scope:Add(state:Observe("Settings.MenuVisible", updateVisibility)); updateVisibility(state:Get("Settings.MenuVisible"))
+        local function updateVisibility(value: boolean)
+            main.Visible = value
+            reopen.Visible = state:Get("Settings.ShowMenuIcon") == true and (not value or environment:IsMobile())
+            if not value then UIEngine:CloseAllDropdownsExcept(nil) end
+        end
+        scope:Add(state:Observe("Settings.MenuVisible", updateVisibility)); scope:Add(state:Observe("Settings.ShowMenuIcon", function() updateVisibility(state:Get("Settings.MenuVisible")) end))
+        updateVisibility(state:Get("Settings.MenuVisible"))
         scope:Add(state:Observe("Settings.UIScale", resize))
         local function bindViewport()
             scope:Unbind("Viewport")

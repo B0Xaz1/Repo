@@ -37,6 +37,7 @@ return function(services: any, tab: any): any
     local interface = section:Create(tab.LeftCol, "Interface & lifecycle", "Settings")
     slider(interface, "UI scale", "Settings.UIScale", 0.6, 1.5, 0.05, "x")
     toggle(interface, "Compact menu mode", "Settings.CompactMenu")
+    toggle(interface, "Show menu button", "Settings.ShowMenuIcon")
     keybind(interface, "Menu hotkey", "Settings.MenuKeybind")
     keybind(interface, "Quick unload hotkey", "Settings.UnloadKeybind")
     section:Info(interface, "Click a bind to record. Escape cancels and unbinds. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")

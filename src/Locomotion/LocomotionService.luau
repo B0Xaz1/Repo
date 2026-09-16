@@ -33,6 +33,7 @@ return function(services: any): any
     local environment, filter, bus = services:Get("Environment"), services:Get("TargetFilter"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("LocomotionService")
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
+    local noClipChanges = scope:CreateChild("No clip")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
         _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _initialized = false }
@@ -132,10 +133,10 @@ return function(services: any): any
     local function update(dt: number)
         local config = state:Peek("Movement")
         local fov = state:Peek("Camera.FOV")
-        if not LocomotionService._flingTarget and not config.CFrameSpeed and config.Speed <= 0 and config.JumpPower <= 0
+        if not LocomotionService._flingTarget and not config.CFrameSpeed and not config.NoClip and config.Speed <= 0 and config.JumpPower <= 0
             and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
             if LocomotionService._applied then
-                characterChanges:RestoreProperties(); positionChanges:ReleaseProperties()
+            characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties()
                 worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
                 LocomotionService._applied = false
             end
@@ -144,11 +145,18 @@ return function(services: any): any
         LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
-            characterChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
+            characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
-        elseif not assets then characterChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
+        elseif not assets then characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
         if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
+            if config.NoClip then
+                for _, descendant in ipairs(humanoid.Parent:GetDescendants()) do
+                    if descendant:IsA("BasePart") then noClipChanges:SetProperty(descendant, "CanCollide", false, true) end
+                end
+            else
+                noClipChanges:RestoreProperties()
+            end
             local sprint = config.SprintEnabled and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and UIS:IsKeyDown(Enum.KeyCode.LeftShift)
             local speed = if sprint then config.SprintSpeed else config.Speed
             if speed > 0 then characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, CONFIG.SPEED_MIN, CONFIG.SPEED_MAX)) else characterChanges:RestoreProperty(humanoid, "WalkSpeed") end

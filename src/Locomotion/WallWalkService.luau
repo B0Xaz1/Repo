@@ -1,35 +1,63 @@
 --!strict
-local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    RAY_DISTANCE = 4,
-    GRAVITY_FORCE = 196.2,
-    ORIENTATION_RESPONSIVENESS = 35,
+    HIP_HEIGHT_OFFSET = 1,
+    RAY_LENGTH = 25,
+    FEELER_LENGTH = 4,
+    FEELER_RADIUS = 3.5,
+    DOWN_RAYS = 16,
+    FEELER_RAYS = 8,
+    TRANSITION = 0.15,
+    FORCE_SCALE = 200 / 3,
 })
 
 return function(services: any): any
     local state, tracker, scheduler = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("TaskScheduler")
     local scope = services:Get("Disposer"):CreateChild("WallWalkService")
     local changes = scope:CreateChild("Wall walk properties")
-    local WallWalkService = { _active = false, _root = nil, _walkScope = nil, _attachment = nil, _orientation = nil, _force = nil, _initialized = false }
+    local WallWalkService = { _active = false, _root = nil, _walkScope = nil, _collider = nil, _gyro = nil, _force = nil,
+        _gravityUp = Vector3.yAxis, _initialized = false }
+
+    local function makeCollider(character: Model, root: BasePart, humanoid: Humanoid): BasePart
+        local collider = Instance.new("Part")
+        collider.Name, collider.Shape, collider.Size, collider.Transparency = "B0XazWallWalkCollider", Enum.PartType.Ball, Vector3.new(2, 2, 2), 1
+        collider.CanCollide, collider.CanTouch, collider.CanQuery, collider.Massless = true, true, true, true
+        collider.Parent = character
+        local weld = Instance.new("Weld")
+        weld.C0, weld.Part0, weld.Part1, weld.Parent = CFrame.new(0, -(humanoid.HipHeight + CONFIG.HIP_HEIGHT_OFFSET), 0), root, collider, collider
+        weld.Parent = collider
+        return collider
+    end
 
     function WallWalkService:Stop()
         self._active, self._root = false, nil
         if self._walkScope then self._walkScope:Dispose(); self._walkScope = nil end
-        self._attachment, self._orientation, self._force = nil, nil, nil
+        self._collider, self._gyro, self._force = nil, nil, nil
+        self._gravityUp = Vector3.yAxis
         changes:RestoreProperties()
     end
 
-    local function findSurface(character: Model, root: BasePart): Vector3?
-        local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = { character }
-        local directions = { root.CFrame.UpVector, -root.CFrame.UpVector, root.CFrame.RightVector, -root.CFrame.RightVector,
-            root.CFrame.LookVector, -root.CFrame.LookVector }
-        for _, direction in ipairs(directions) do
-            local hit = Workspace:Raycast(root.Position, direction * CONFIG.RAY_DISTANCE, params)
-            if hit and math.abs(hit.Normal.Y) < 0.92 then return hit.Normal end
+    local function findSurface(character: Model, root: BasePart, oldUp: Vector3): Vector3
+        local params = RaycastParams.new(); params.FilterType, params.FilterDescendantsInstances = Enum.RaycastFilterType.Exclude, { character }
+        local origin = root.Position + oldUp * 0.35
+        local radial = if math.abs(root.CFrame.LookVector:Dot(oldUp)) < 0.999 then root.CFrame.LookVector:Cross(oldUp) else root.CFrame.RightVector:Cross(oldUp)
+        local normal, hits = Vector3.zero, 0
+        local center = Workspace:Raycast(origin, -oldUp * CONFIG.RAY_LENGTH, params)
+        if center then normal += center.Normal; hits += 1 end
+        for index = 1, CONFIG.DOWN_RAYS do
+            local angle = math.pi * 2 * ((index - 1) / CONFIG.DOWN_RAYS)
+            local offset = CFrame.fromAxisAngle(oldUp, angle) * radial
+            local result = Workspace:Raycast(origin + offset * 2.5, (-oldUp * 3 + offset).Unit * CONFIG.RAY_LENGTH, params)
+            if result then normal += result.Normal; hits += 1 end
         end
-        return nil
+        for index = 1, CONFIG.FEELER_RAYS do
+            local angle = math.pi * 2 * ((index - 1) / CONFIG.FEELER_RAYS)
+            local offset = CFrame.fromAxisAngle(oldUp, angle) * radial
+            local result = Workspace:Raycast(origin + offset * 2, (offset * CONFIG.FEELER_RADIUS - oldUp * 3).Unit * CONFIG.FEELER_LENGTH, params)
+            if result then normal += result.Normal * 2; hits += 1 end
+        end
+        return if hits > 0 and normal.Magnitude > 0 then normal.Unit else oldUp
     end
 
     function WallWalkService:Initialize()
@@ -41,24 +69,35 @@ return function(services: any): any
             if not assets or assets.Humanoid.Health <= 0 then self:Stop(); return end
             local root, humanoid = assets.RootPart, assets.Humanoid
             if self._root ~= root then self:Stop(); self._root = root end
-            local normal = findSurface(assets.Character, root)
-            if not normal then self:Stop(); return end
             if not self._active then
                 self._active = true
                 self._walkScope = scope:CreateChild("Wall walk cycle")
                 local owner = self._walkScope
-                local attachment = Instance.new("Attachment"); attachment.Name, attachment.Parent = "B0XazWallWalkAttachment", root; owner:Add(attachment)
-                local orientation = Instance.new("AlignOrientation"); orientation.Name, orientation.Mode, orientation.Responsiveness = "B0XazWallWalkOrientation", Enum.OrientationAlignmentMode.OneAttachment, CONFIG.ORIENTATION_RESPONSIVENESS
-                orientation.Attachment0, orientation.Parent = attachment, root; owner:Add(orientation)
-                local force = Instance.new("VectorForce"); force.Name, force.RelativeTo, force.Attachment0, force.Parent = "B0XazWallWalkGravity", Enum.ActuatorRelativeTo.World, attachment, root; owner:Add(force)
-                self._attachment, self._orientation, self._force = attachment, orientation, force
+                local collider = makeCollider(assets.Character, root, humanoid); owner:Add(collider)
+                local gyro = Instance.new("BodyGyro"); gyro.Name, gyro.MaxTorque, gyro.P, gyro.D, gyro.CFrame, gyro.Parent = "B0XazWallWalkGyro", Vector3.new(math.huge, math.huge, math.huge), 90000, 900, root.CFrame, root; owner:Add(gyro)
+                local force = Instance.new("VectorForce"); force.Name, force.RelativeTo, force.ApplyAtCenterOfMass, force.Parent = "B0XazWallWalkForce", Enum.ActuatorRelativeTo.World, true, root; owner:Add(force)
+                force.Attachment0 = if humanoid.RigType == Enum.HumanoidRigType.R15 then root:FindFirstChild("RootRigAttachment") else root:FindFirstChild("RootAttachment")
+                if not force.Attachment0 then self:Stop(); return end
+                self._collider, self._gyro, self._force = collider, gyro, force
                 changes:SetProperty(humanoid, "AutoRotate", false)
+                changes:SetProperty(humanoid, "PlatformStand", true)
             end
-            local forward = humanoid.MoveDirection
-            local tangent = forward - normal * forward:Dot(normal)
-            local look = if tangent.Magnitude > 0.01 then tangent.Unit else root.CFrame.LookVector
-            self._orientation.CFrame = CFrame.lookAt(Vector3.zero, look, normal)
-            self._force.Force = (Vector3.yAxis - normal) * root.AssemblyMass * CONFIG.GRAVITY_FORCE
+            local normal = findSurface(assets.Character, root, self._gravityUp)
+            self._gravityUp = self._gravityUp:Lerp(normal, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit
+            local camera = Workspace.CurrentCamera
+            local forward = (camera and camera.CFrame.LookVector or root.CFrame.LookVector) - self._gravityUp * (camera and camera.CFrame.LookVector or root.CFrame.LookVector):Dot(self._gravityUp)
+            if forward.Magnitude < 0.01 then forward = root.CFrame.LookVector - self._gravityUp * root.CFrame.LookVector:Dot(self._gravityUp) end
+            forward = forward.Unit
+            local right = forward:Cross(self._gravityUp).Unit
+            local move = humanoid.MoveDirection
+            local worldMove = right * move:Dot(right) + forward * move:Dot(forward)
+            if worldMove.Magnitude > 1 then worldMove = worldMove.Unit end
+            local velocity = root.AssemblyLinearVelocity
+            local tangent = velocity - velocity:Dot(self._gravityUp) * self._gravityUp
+            local delta = worldMove * humanoid.WalkSpeed - tangent
+            local walkForce = if delta.Magnitude > 0.01 then delta.Unit * math.min(10000, CONFIG.FORCE_SCALE * root.AssemblyMass * delta.Magnitude / math.max(dt * 60, 1)) else Vector3.zero
+            self._force.Force = walkForce + Workspace.Gravity * root.AssemblyMass * (Vector3.yAxis - self._gravityUp)
+            self._gyro.CFrame = CFrame.lookAt(Vector3.zero, if worldMove.Magnitude > 0.01 then worldMove else forward, self._gravityUp)
         end)
         local function sync(value: boolean) job.Enabled = value == true; if not value then self:Stop() end end
         scope:Add(state:Observe("Movement.WallWalkEnabled", sync)); sync(state:Peek("Movement.WallWalkEnabled") == true)

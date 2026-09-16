@@ -110,7 +110,7 @@ return function(services: any): any
     function HotkeyService:Panic(): (boolean, string)
         local disabled = {
             "Aimbot.Enabled", "Aimbot.Triggerbot.Enabled", "ESP.Enabled", "Chams.Enabled", "Movement.FlyEnabled",
-            "Movement.FreecamEnabled", "Movement.WallWalkEnabled", "Movement.NoClip", "Movement.CFrameSpeed", "Movement.TouchFling",
+            "Movement.FreecamEnabled", "Movement.WallWalkEnabled", "Movement.NoClip", "Movement.CFrameSpeed", "Movement.TouchFling", "Movement.TouchTeleportEnabled",
             "Extras.Hitbox.Enabled", "Extras.SpinBot.Enabled", "Extras.AntiFling.Enabled", "Visuals.Fullbright", "Settings.TpToMouse",
         }
         for _, path in ipairs(disabled) do state:Set(path, false) end

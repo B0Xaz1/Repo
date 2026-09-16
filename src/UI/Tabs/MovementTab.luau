@@ -70,6 +70,8 @@ return function(services: any, tab: any): any
     textbox:CreateButton(travel, "Save current position", function() return movement:SaveBookmark(name.Box.Text) end)
     textbox:CreateButton(travel, "Go to bookmark", function() return movement:GoToBookmark(selected:Get() or "") end)
     textbox:CreateButton(travel, "Delete bookmark", function() return movement:DeleteBookmark(selected:Get() or "") end)
+    toggle(travel, "Return on touch", "Movement.TouchTeleportEnabled", nil)
+    textbox:CreateButton(travel, "Set touch return spot", function() return movement:SetTouchTeleportSpot() end)
     scope:Add(services:Get("EventBus"):Subscribe("BookmarksChanged", function() selected:Refresh(movement:ListBookmarks(), true) end))
     section:Info(travel, "Bookmarks are session-only. Teleports clear assembly velocity and temporarily suppress anti-fling.")
     local mouse = section:Create(tab.RightCol, "Click teleport", "Settings")

@@ -26,6 +26,7 @@ local CONFIG = table.freeze({
     TOUCH_FLING_IDLE_WAIT = 0.25,
     TOUCH_FLING_BOOST = 10000,
     TOUCH_FLING_OFFSET = 0.1,
+    TOUCH_TELEPORT_DEBOUNCE = 0.35,
 })
 
 return function(services: any): any
@@ -35,8 +36,9 @@ return function(services: any): any
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
     local noClipChanges = scope:CreateChild("No clip")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
+    local touchTeleportScope = scope:CreateChild("Touch teleport")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
-        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _initialized = false }
+        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0, _initialized = false }
 
     local function suppress(duration: number)
         state:SetTransient("AntiFlingSuppressUntil", math.max(state:GetTransient("AntiFlingSuppressUntil") or 0, os.clock() + duration))
@@ -64,6 +66,41 @@ return function(services: any): any
         if typeof(target) ~= "CFrame" then return false, "Teleport requires a CFrame or Vector3" end
         teleportRoot(positionChanges, assets.RootPart, target)
         return true, "Teleported"
+    end
+
+    function LocomotionService:SetTouchTeleportSpot(): (boolean, string)
+        local assets = tracker:GetLocalAssets()
+        if not assets then return false, "Your character is not ready" end
+        self._touchTeleportTarget = assets.RootPart.CFrame
+        return true, "Touch teleport destination saved"
+    end
+
+    local function bindTouchTeleport(character: Model)
+        touchTeleportScope:Dispose()
+        touchTeleportScope = scope:CreateChild("Touch teleport")
+        for _, descendant in ipairs(character:GetDescendants()) do
+            if descendant:IsA("BasePart") then
+                touchTeleportScope:ConnectImmediate(descendant.Touched, function(hit: BasePart)
+                    if not state:Peek("Movement.TouchTeleportEnabled") or not hit or hit:IsDescendantOf(character) then return end
+                    local target = LocomotionService._touchTeleportTarget
+                    local assets = tracker:GetLocalAssets()
+                    if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
+                    LocomotionService._lastTouchTeleport = os.clock()
+                    teleportRoot(positionChanges, assets.RootPart, target)
+                end)
+            end
+        end
+        touchTeleportScope:ConnectImmediate(character.DescendantAdded, function(descendant: Instance)
+            if not descendant:IsA("BasePart") then return end
+            touchTeleportScope:ConnectImmediate(descendant.Touched, function(hit: BasePart)
+                if not state:Peek("Movement.TouchTeleportEnabled") or not hit or hit:IsDescendantOf(character) then return end
+                local target = LocomotionService._touchTeleportTarget
+                local assets = tracker:GetLocalAssets()
+                if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
+                LocomotionService._lastTouchTeleport = os.clock()
+                teleportRoot(positionChanges, assets.RootPart, target)
+            end)
+        end)
     end
 
     function LocomotionService:TeleportToPlayer(player: Player): (boolean, string)
@@ -238,7 +275,13 @@ return function(services: any): any
             if processed or not environment:IsMobile() or not state:Get("Settings.TpToMouse") or state:GetTransient("IsBindingKey") then return end
             LocomotionService:TeleportToScreen(point - environment:GetGuiInset())
         end)
-        scope:Add(tracker:OnLocalCharacterRespawn(function() stopFling() end))
+        scope:Add(tracker:OnLocalCharacterRespawn(function(assets: any)
+            stopFling()
+            self._touchTeleportTarget = assets.RootPart.CFrame
+            bindTouchTeleport(assets.Character)
+        end))
+        local assets = tracker:GetLocalAssets()
+        if assets then self._touchTeleportTarget = assets.RootPart.CFrame; bindTouchTeleport(assets.Character) end
         scope:Add(state:Observe("Movement.Fling", function(value: boolean) if not value then stopFling() end end))
     end
 
@@ -257,6 +300,7 @@ return function(services: any): any
             if humanoid.Parent and humanoid.Health > 0 then pcall(function() humanoid:ChangeState(original) end) end
         end
         table.clear(LocomotionService._bookmarks); table.clear(LocomotionService._jumpStates)
+        touchTeleportScope:Dispose()
     end)
     return LocomotionService
 end

@@ -24,7 +24,7 @@ local CONFIG = deepFreeze({
             Speed = 0, JumpPower = 0, InfJump = false,
             FlyEnabled = false, FlySpeed = 50, FlyKeybind = Enum.KeyCode.F,
             MobileFlyUp = false, MobileFlyDown = false, SprintEnabled = false, SprintSpeed = 28,
-            CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false, NoClip = false,
+            CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false, TouchTeleportEnabled = false, NoClip = false,
             FreecamEnabled = false, FreecamSpeed = 32, WallWalkEnabled = false,
         },
         ESP = {

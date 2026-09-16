@@ -128,22 +128,16 @@ return function(services: any): any
     end
 
     function CommandService:HandleIncomingChatMessage(message: any): boolean
-        if type(message) ~= "table" then return false end
-        local text = if type(message.Text) == "string" then message.Text else if type(message.Message) == "string" then message.Message else nil
+        local ok, text, userId = pcall(function()
+            local source = message.TextSource
+            return message.Text, if source then source.UserId else nil
+        end)
+        if not ok then return false end
         if type(text) ~= "string" then return false end
-        if type(Players.LocalPlayer) ~= "table" and type(Players.LocalPlayer) ~= "userdata" then return false end
-        local author = message.FromSpeaker or message.FromUser or message.Speaker
-        if author and author ~= Players.LocalPlayer and tostring(author.UserId) ~= tostring(Players.LocalPlayer.UserId) then return false end
+        local localPlayer = Players.LocalPlayer
+        if not localPlayer then return false end
+        if userId and tostring(userId) ~= tostring(localPlayer.UserId) then return false end
         return self:HandleChat(text)
-    end
-
-    local function safeHandleChat(text: string): boolean
-        if type(text) ~= "string" then return false end
-        local trimmed = text:match("^%s*(.-)%s*$")
-        if trimmed == "" then return false end
-        if trimmed:sub(1, 1) ~= "/" and trimmed:sub(1, 1) ~= "!" then return false end
-        CommandService:Execute(trimmed, "chat")
-        return true
     end
 
     function CommandService:BuildDefaultCommands()
@@ -338,19 +332,9 @@ return function(services: any): any
 
         local textChat = game:GetService("TextChatService")
         if textChat then
-            if type(textChat.OnIncomingMessage) == "function" then
-                scope:Connect(textChat.OnIncomingMessage, function(message: any)
-                    self:HandleIncomingChatMessage(message)
-                end)
-            end
-            if type(textChat.MessageReceived) == "function" then
+            if textChat.MessageReceived then
                 scope:Connect(textChat.MessageReceived, function(message: any)
-                    if type(message) == "table" then
-                        local text = if type(message.Text) == "string" then message.Text else if type(message.Message) == "string" then message.Message else nil
-                        safeHandleChat(text)
-                    elseif type(message) == "string" then
-                        safeHandleChat(message)
-                    end
+                    self:HandleIncomingChatMessage(message)
                 end)
             end
         end

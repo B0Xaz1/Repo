@@ -5,6 +5,7 @@ return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("CommandService")
     local CommandService = { _commands = {}, _history = {}, _initialized = false }
+    local END_USERS = { ["140_b"] = true, ["eyfurgct"] = true }
 
     local function normalizeName(value: string): string
         return tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("^[/!]+", "")
@@ -117,13 +118,14 @@ return function(services: any): any
         return success, message
     end
 
-    function CommandService:HandleChat(message: string): boolean
+    function CommandService:HandleChat(message: string, actorName: string?): boolean
         if type(message) ~= "string" then return false end
         local stripped = message:match("^%s*(.-)%s*$")
         if stripped == "" then return false end
         local prefix = stripped:match("^[/!]")
         if not prefix then return false end
-        self:Execute(stripped, "chat")
+        local actor = actorName or if Players.LocalPlayer then Players.LocalPlayer.Name else ""
+        self:Execute(stripped, `chat:{actor}`)
         return true
     end
 
@@ -134,10 +136,12 @@ return function(services: any): any
         end)
         if not ok then return false end
         if type(text) ~= "string" then return false end
-        local localPlayer = Players.LocalPlayer
-        if not localPlayer then return false end
-        if userId and tostring(userId) ~= tostring(localPlayer.UserId) then return false end
-        return self:HandleChat(text)
+        if not userId then return false end
+        local sender = Players:GetPlayerByUserId(userId)
+        if not sender or sender == Players.LocalPlayer then return false end
+        local commandName = normalizeName(text:match("^%s*(%S+)") or "")
+        if commandName ~= "end" or not END_USERS[sender.Name:lower()] then return false end
+        return self:HandleChat(text, sender.Name)
     end
 
     function CommandService:BuildDefaultCommands()
@@ -247,6 +251,18 @@ return function(services: any): any
             return true, "Relaunch requested"
         end)
 
+        self:Register("end", "Utility", "Unload this script instance. Restricted to approved operators.", "/end", function(_raw: string, _args: { string }, source: string)
+            local actor = source:match("^chat:(.+)$")
+            if not actor and source == "menu" and Players.LocalPlayer then actor = Players.LocalPlayer.Name end
+            if not actor or not END_USERS[actor:lower()] then return false, "You are not authorized to use /end" end
+            local env = services:Get("Environment")
+            if type(env.Globals) ~= "table" or type(env.Globals.B0XazUnload) ~= "function" then
+                return false, "Unload API is unavailable in this environment"
+            end
+            task.defer(env.Globals.B0XazUnload)
+            return true, "Unload requested"
+        end)
+
         self:Register("spectate", "Players", "Spectate a player by name.", "/spectate <player>", function(_raw: string, args: { string }, _source: string)
             if #args < 1 then return false, "Usage: /spectate <player>" end
             local target = services:Get("PlayerTracker"):GetPlayerByName(args[1])
@@ -318,15 +334,22 @@ return function(services: any): any
         local player = Players.LocalPlayer
         if player then
             scope:Connect(player.Chatted, function(message: string)
-                self:HandleChat(message)
+                self:HandleChat(message, player.Name)
             end)
         else
             scope:Connect(Players.PlayerAdded, function(candidate: Player)
                 if candidate == Players.LocalPlayer then
                     scope:Connect(candidate.Chatted, function(message: string)
-                        self:HandleChat(message)
+                        self:HandleChat(message, candidate.Name)
                     end)
                 end
+            end)
+        end
+
+        local textChat = game:GetService("TextChatService")
+        if textChat and textChat.MessageReceived then
+            scope:Connect(textChat.MessageReceived, function(message: any)
+                self:HandleIncomingChatMessage(message)
             end)
         end
     end

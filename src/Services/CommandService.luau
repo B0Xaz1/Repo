@@ -7,7 +7,7 @@ return function(services: any): any
     local CommandService = { _commands = {}, _history = {}, _initialized = false }
 
     local function normalizeName(value: string): string
-        return tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        return tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("^[/!]+", "")
     end
 
     local function pushHistory(entry: string)
@@ -70,7 +70,7 @@ return function(services: any): any
 
         local parts = {}
         for token in raw:gmatch("%S+") do table.insert(parts, token) end
-        local commandName = parts[1]
+        local commandName = normalizeName(parts[1])
         local arguments = {}
         for index = 2, #parts do table.insert(arguments, parts[index]) end
         local command = self:Find(commandName)
@@ -119,6 +119,16 @@ return function(services: any): any
         return true
     end
 
+    function CommandService:HandleIncomingChatMessage(message: any): boolean
+        if type(message) ~= "table" then return false end
+        local text = if type(message.Text) == "string" then message.Text else if type(message.Message) == "string" then message.Message else nil
+        if type(text) ~= "string" then return false end
+        if type(Players.LocalPlayer) ~= "table" and type(Players.LocalPlayer) ~= "userdata" then return false end
+        local author = message.FromSpeaker or message.FromUser or message.Speaker
+        if author and author ~= Players.LocalPlayer and tostring(author.UserId) ~= tostring(Players.LocalPlayer.UserId) then return false end
+        return self:HandleChat(text)
+    end
+
     function CommandService:BuildDefaultCommands()
         self:Register("help", "Utility", "Lists available commands and examples.", "/help", function(_raw: string, args: { string }, source: string)
             local names = {}
@@ -148,6 +158,8 @@ return function(services: any): any
             local ok, message = state:Set("Movement.FlyEnabled", desired)
             return ok, if ok then if desired then "Flight enabled" else "Flight disabled" else message or "Flight toggle failed"
         end)
+        self:Alias("fly", "unfly")
+        self:Alias("fly", "togglefly")
 
         self:Register("esp", "Visuals", "Toggle the ESP overlay.", "/esp [on|off]", function(_raw: string, args: { string }, _source: string)
             local enabled = state:Get("ESP.Enabled") == true
@@ -296,6 +308,13 @@ return function(services: any): any
                         self:HandleChat(message)
                     end)
                 end
+            end)
+        end
+
+        local textChat = game:GetService("TextChatService")
+        if textChat and type(textChat.OnIncomingMessage) == "function" then
+            scope:Connect(textChat.OnIncomingMessage, function(message: any)
+                self:HandleIncomingChatMessage(message)
             end)
         end
     end

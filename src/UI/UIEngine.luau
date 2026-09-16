@@ -23,8 +23,8 @@ local CONFIG = table.freeze({
     TABS = {
         { Name = "Combat", Path = "src/UI/Tabs/CombatTab.luau" }, { Name = "Visuals", Path = "src/UI/Tabs/VisualsTab.luau" },
         { Name = "Movement", Path = "src/UI/Tabs/MovementTab.luau" }, { Name = "Players", Path = "src/UI/Tabs/PlayersTab.luau" },
-        { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" }, { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" },
-        { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau" },
+        { Name = "Game", Path = "src/UI/Tabs/GameTab.luau" }, { Name = "Commands", Path = "src/UI/Tabs/CommandsTab.luau" },
+        { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau" }, { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau" },
     },
 })
 

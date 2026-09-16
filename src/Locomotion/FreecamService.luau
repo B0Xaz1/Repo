@@ -10,14 +10,29 @@ local CONFIG = table.freeze({
 })
 
 return function(services: any): any
-    local state, scheduler = services:Get("StateStore"), services:Get("TaskScheduler")
+    local state, scheduler, tracker = services:Get("StateStore"), services:Get("TaskScheduler"), services:Get("PlayerTracker")
     local scope = services:Get("Disposer"):CreateChild("FreecamService")
-    local cameraChanges = scope:CreateChild("Freecam camera")
+    local cameraChanges, characterChanges = scope:CreateChild("Freecam camera"), scope:CreateChild("Freecam character")
     local FreecamService = { _active = false, _yaw = 0, _pitch = 0, _position = Vector3.zero, _initialized = false }
 
     function FreecamService:Stop()
         self._active = false
+        characterChanges:RestoreProperties()
         cameraChanges:RestoreProperties()
+    end
+
+    local function freezeCharacter()
+        local assets = tracker:GetLocalAssets()
+        if not assets then
+            characterChanges:RestoreProperties()
+            return
+        end
+        characterChanges:SetProperty(assets.Humanoid, "WalkSpeed", 0)
+        characterChanges:SetProperty(assets.Humanoid, "JumpPower", 0)
+        characterChanges:SetProperty(assets.Humanoid, "AutoRotate", false)
+        characterChanges:SetProperty(assets.RootPart, "Anchored", true)
+        characterChanges:SetProperty(assets.RootPart, "AssemblyLinearVelocity", Vector3.zero)
+        characterChanges:SetProperty(assets.RootPart, "AssemblyAngularVelocity", Vector3.zero)
     end
 
     function FreecamService:Start(): (boolean, string)
@@ -27,6 +42,7 @@ return function(services: any): any
         local x, y, _z = camera.CFrame:ToOrientation()
         self._yaw, self._pitch, self._position = y, math.clamp(x, -CONFIG.PITCH_LIMIT, CONFIG.PITCH_LIMIT), camera.CFrame.Position
         cameraChanges:SetProperty(camera, "CameraType", Enum.CameraType.Scriptable)
+        cameraChanges:SetProperty(UIS, "MouseBehavior", Enum.MouseBehavior.LockCenter)
         self._active = true
         return true, "Freecam enabled"
     end
@@ -40,6 +56,7 @@ return function(services: any): any
             if not camera then FreecamService:Stop(); return end
             if not self._active then self:Start() end
             if not self._active then return end
+            freezeCharacter()
             local delta = UIS:GetMouseDelta()
             self._yaw -= delta.X * CONFIG.MOUSE_SENSITIVITY
             self._pitch = math.clamp(self._pitch - delta.Y * CONFIG.MOUSE_SENSITIVITY, -CONFIG.PITCH_LIMIT, CONFIG.PITCH_LIMIT)

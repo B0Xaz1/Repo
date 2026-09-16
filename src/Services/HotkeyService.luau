@@ -11,7 +11,7 @@ local CONFIG = table.freeze({
     SERVER_LIST_URL = "https://games.roblox.com/v1/games/",
     SERVER_LIST_LIMIT = 100,
     BIND_TARGETS = {
-        { Key = "Fly", Label = "Flight", Path = "Movement.FlyEnabled" },
+        { Key = "Fly", Label = "Flight", Path = "Movement.FlyEnabled" }, { Key = "Freecam", Label = "Freecam", Path = "Movement.FreecamEnabled" },
         { Key = "Fullbright", Label = "Fullbright", Path = "Visuals.Fullbright" },
         { Key = "ESP", Label = "ESP", Path = "ESP.Enabled" }, { Key = "Chams", Label = "Chams", Path = "Chams.Enabled" },
         { Key = "Hitboxes", Label = "Hitboxes", Path = "Extras.Hitbox.Enabled" },

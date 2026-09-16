@@ -16,24 +16,13 @@ return function(services: any): any
     local state, tracker, scheduler = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("TaskScheduler")
     local scope = services:Get("Disposer"):CreateChild("WallWalkService")
     local changes = scope:CreateChild("Wall walk properties")
-    local WallWalkService = { _active = false, _root = nil, _walkScope = nil, _collider = nil, _gyro = nil, _force = nil,
+    local WallWalkService = { _active = false, _root = nil, _walkScope = nil, _gyro = nil, _force = nil,
         _gravityUp = Vector3.yAxis, _initialized = false }
-
-    local function makeCollider(character: Model, root: BasePart, humanoid: Humanoid): BasePart
-        local collider = Instance.new("Part")
-        collider.Name, collider.Shape, collider.Size, collider.Transparency = "B0XazWallWalkCollider", Enum.PartType.Ball, Vector3.new(2, 2, 2), 1
-        collider.CanCollide, collider.CanTouch, collider.CanQuery, collider.Massless = true, true, true, true
-        collider.Parent = character
-        local weld = Instance.new("Weld")
-        weld.C0, weld.Part0, weld.Part1, weld.Parent = CFrame.new(0, -(humanoid.HipHeight + CONFIG.HIP_HEIGHT_OFFSET), 0), root, collider, collider
-        weld.Parent = collider
-        return collider
-    end
 
     function WallWalkService:Stop()
         self._active, self._root = false, nil
         if self._walkScope then self._walkScope:Dispose(); self._walkScope = nil end
-        self._collider, self._gyro, self._force = nil, nil, nil
+        self._gyro, self._force = nil, nil
         self._gravityUp = Vector3.yAxis
         changes:RestoreProperties()
     end
@@ -73,14 +62,13 @@ return function(services: any): any
                 self._active = true
                 self._walkScope = scope:CreateChild("Wall walk cycle")
                 local owner = self._walkScope
-                local collider = makeCollider(assets.Character, root, humanoid); owner:Add(collider)
                 local gyro = Instance.new("BodyGyro"); gyro.Name, gyro.MaxTorque, gyro.P, gyro.D, gyro.CFrame, gyro.Parent = "B0XazWallWalkGyro", Vector3.new(math.huge, math.huge, math.huge), 90000, 900, root.CFrame, root; owner:Add(gyro)
                 local force = Instance.new("VectorForce"); force.Name, force.RelativeTo, force.ApplyAtCenterOfMass, force.Parent = "B0XazWallWalkForce", Enum.ActuatorRelativeTo.World, true, root; owner:Add(force)
                 force.Attachment0 = if humanoid.RigType == Enum.HumanoidRigType.R15 then root:FindFirstChild("RootRigAttachment") else root:FindFirstChild("RootAttachment")
                 if not force.Attachment0 then self:Stop(); return end
-                self._collider, self._gyro, self._force = collider, gyro, force
+                self._gyro, self._force = gyro, force
                 changes:SetProperty(humanoid, "AutoRotate", false)
-                changes:SetProperty(humanoid, "PlatformStand", true)
+                changes:SetProperty(humanoid, "HipHeight", humanoid.HipHeight + CONFIG.HIP_HEIGHT_OFFSET)
             end
             local normal = findSurface(assets.Character, root, self._gravityUp)
             self._gravityUp = self._gravityUp:Lerp(normal, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit

@@ -65,7 +65,9 @@ return function(services: any, tab: any): any
             theme:BindToken(usage, "TextColor3", "TextMuted")
             local run = dom:Create("TextButton", { Parent = body, BorderSizePixel = 0, Position = UDim2.new(1, -62, 0, 12), Size = UDim2.fromOffset(52, 22), Text = "Run", Font = Enum.Font.GothamMedium, TextSize = 11, AutoButtonColor = false })
             section:StyleButton(run, scope)
-            scope:Connect(run.Activated, function() input.Text = entry.Name; input:CaptureFocus(); end)
+            scope:Connect(run.Activated, function()
+                commandService:Execute(entry.Name, "menu")
+            end)
             scope:Connect(row.Activated, function()
                 detailText:Set(`{entry.Name}\nCategory: {entry.Category}\nUsage: {entry.Usage}\n{entry.Description}`)
                 input.Text = entry.Name

@@ -315,26 +315,27 @@ return function(services: any): any
         self._initialized = true
         self:BuildDefaultCommands()
 
-        local player = Players.LocalPlayer
-        if player then
-            scope:Connect(player.Chatted, function(message: string)
-                self:HandleChat(message)
-            end)
-        else
-            scope:Connect(Players.PlayerAdded, function(candidate: Player)
-                if candidate == Players.LocalPlayer then
-                    scope:Connect(candidate.Chatted, function(message: string)
-                        self:HandleChat(message)
-                    end)
-                end
-            end)
-        end
-
         local textChat = game:GetService("TextChatService")
-        if textChat then
+        local useTextChat = textChat and textChat.ChatVersion == Enum.ChatVersion.TextChatService
+        if useTextChat then
             if textChat.MessageReceived then
                 scope:Connect(textChat.MessageReceived, function(message: any)
                     self:HandleIncomingChatMessage(message)
+                end)
+            end
+        else
+            local player = Players.LocalPlayer
+            if player then
+                scope:Connect(player.Chatted, function(message: string)
+                    self:HandleChat(message)
+                end)
+            else
+                scope:Connect(Players.PlayerAdded, function(candidate: Player)
+                    if candidate == Players.LocalPlayer then
+                        scope:Connect(candidate.Chatted, function(message: string)
+                            self:HandleChat(message)
+                        end)
+                    end
                 end)
             end
         end

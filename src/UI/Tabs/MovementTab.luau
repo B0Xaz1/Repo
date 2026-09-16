@@ -33,7 +33,7 @@ return function(services: any, tab: any): any
     toggle(camera, "Enable freecam", "Movement.FreecamEnabled", nil)
     slider(camera, "Freecam speed", "Movement.FreecamSpeed", 1, 300, 1, " studs/s", nil)
     keybind(camera, "Freecam hotkey", "Settings.Binds.Freecam", nil)
-    section:Info(camera, "WASD moves freely through the world. Mouse looks around; Space and Shift move vertically. Toggle freecam off to restore the camera and character.")
+    section:Info(camera, "WASD moves freely through the world. Mouse looks around; Space ascends, Ctrl descends, and Shift adds 50 studs/s. Toggle freecam off to restore the camera and character.")
     toggle(flight, "Enable flight", "Movement.FlyEnabled", nil)
     slider(flight, "Flight speed", "Movement.FlySpeed", 1, 300, 1, " studs/s", nil)
     keybind(flight, "Flight hotkey", "Settings.Binds.Fly", nil)
@@ -64,7 +64,7 @@ return function(services: any, tab: any): any
     holdButton(flight, "Mobile: hold ascend", "MobileFlyUpHeld")
     holdButton(flight, "Mobile: hold descend", "MobileFlyDownHeld")
     section:Info(flight, if environment:IsMobile() then "Use the movement thumbstick, toggles, or hold buttons. Release a hold button to stop vertical movement. Flight re-engages after a respawn."
-        else "WASD follows the camera. Space ascends; Shift descends. Flight pauses while typing.")
+        else "WASD follows the camera. Space ascends; Ctrl descends; Shift adds 50 studs/s. Flight pauses while typing.")
     local travel = section:Create(tab.RightCol, "Position bookmarks")
     local name = textbox(travel, "Bookmark name", "Home")
     local selected = dropdown(travel, "Saved position", nil, movement:ListBookmarks())

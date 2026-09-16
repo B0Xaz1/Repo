@@ -37,7 +37,7 @@ You can instead paste the contents of `loader.luau` directly. The selected ref m
 - **F:** toggle flight.
 - **Right mouse:** activate aim correction when enabled; hold/toggle behavior is configurable.
 - **Ctrl + click:** teleport when enabled; touch uses a world tap.
-- Flight: **WASD**, **Space** up, and **Left Shift** down. Touch uses the thumbstick plus up/down toggles.
+- Flight: **WASD**, **Space** up, **Ctrl** down, and **Shift** adds 50 studs/s. Touch uses the thumbstick plus up/down toggles.
 
 Hotkeys ignore focused textboxes and active key capture. Escape while recording a bind cancels and unbinds it.
 

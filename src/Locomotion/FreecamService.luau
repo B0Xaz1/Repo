@@ -5,6 +5,7 @@ local Workspace = game:GetService("Workspace")
 local CONFIG = table.freeze({
     SPEED_MIN = 1,
     SPEED_MAX = 300,
+    SPEED_BOOST = 50,
     MOUSE_SENSITIVITY = 0.003,
     PITCH_LIMIT = math.rad(89),
 })
@@ -68,10 +69,12 @@ return function(services: any): any
                 if UIS:IsKeyDown(Enum.KeyCode.D) then direction += rotation.RightVector end
                 if UIS:IsKeyDown(Enum.KeyCode.A) then direction -= rotation.RightVector end
                 if UIS:IsKeyDown(Enum.KeyCode.Space) then direction += Vector3.yAxis end
-                if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then direction -= Vector3.yAxis end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl) then direction -= Vector3.yAxis end
             end
             if direction.Magnitude > 1 then direction = direction.Unit end
-            self._position += direction * math.clamp(state:Peek("Movement.FreecamSpeed"), CONFIG.SPEED_MIN, CONFIG.SPEED_MAX) * math.min(dt, 0.1)
+            local speed = math.clamp(state:Peek("Movement.FreecamSpeed"), CONFIG.SPEED_MIN, CONFIG.SPEED_MAX)
+            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift) then speed += CONFIG.SPEED_BOOST end
+            self._position += direction * speed * math.min(dt, 0.1)
             camera.CFrame = CFrame.new(self._position) * rotation
         end)
         local function sync(value: boolean) job.Enabled = value == true; if not value then self:Stop() end end

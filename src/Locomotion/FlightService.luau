@@ -5,6 +5,7 @@ local Workspace = game:GetService("Workspace")
 local CONFIG = table.freeze({
     FLY_SPEED_MIN = 1,
     FLY_SPEED_MAX = 300,
+    SPEED_BOOST = 50,
     GYRO_P = 90000,
     GYRO_D = 900,
     ANTI_FLING_SUPPRESS = 0.5,
@@ -87,11 +88,13 @@ return function(services: any): any
                     if UIS:IsKeyDown(Enum.KeyCode.D) then direction += camera.CFrame.RightVector end
                     if UIS:IsKeyDown(Enum.KeyCode.A) then direction -= camera.CFrame.RightVector end
                     if UIS:IsKeyDown(Enum.KeyCode.Space) then direction += Vector3.yAxis end
-                    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then direction -= Vector3.yAxis end
+                    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl) then direction -= Vector3.yAxis end
                 end
             end
             if direction.Magnitude > 1 then direction = direction.Unit end
-            FlightService._velocity.VectorVelocity = direction * math.clamp(state:Get("Movement.FlySpeed"), CONFIG.FLY_SPEED_MIN, CONFIG.FLY_SPEED_MAX)
+            local speed = math.clamp(state:Get("Movement.FlySpeed"), CONFIG.FLY_SPEED_MIN, CONFIG.FLY_SPEED_MAX)
+            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift) then speed += CONFIG.SPEED_BOOST end
+            FlightService._velocity.VectorVelocity = direction * speed
             FlightService._gyro.CFrame = camera.CFrame
             FlightService._flightScope:SetProperty(assets.Humanoid, "PlatformStand", true)
             FlightService._flightScope:SetProperty(assets.Humanoid, "AutoRotate", false)

@@ -39,6 +39,7 @@ return function(services: any, tab: any): any
     toggle(interface, "Compact menu mode", "Settings.CompactMenu")
     toggle(interface, "Show menu button", "Settings.ShowMenuIcon")
     keybind(interface, "Menu hotkey", "Settings.MenuKeybind")
+    keybind(interface, "Panic key", "Settings.Binds.Panic")
     keybind(interface, "Quick unload hotkey", "Settings.UnloadKeybind")
     section:Info(interface, "Click a bind to record. Escape cancels and unbinds. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")
     local hotkeys = section:Create(tab.RightCol, "Feature hotkeys", "Settings")

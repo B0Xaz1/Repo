@@ -183,6 +183,19 @@ return function(services: any): any
             return ok, if ok then if not enabled then "Flight enabled" else "Flight disabled" else message or "Flight toggle failed"
         end)
 
+        self:Register("freecam", "Movement", "Toggle free camera mode.", "/freecam [on|off]", function(_raw: string, args: { string }, _source: string)
+            local enabled = state:Get("Movement.FreecamEnabled") == true
+            local desired = parseOnOff(args, enabled)
+            local ok, message = state:Set("Movement.FreecamEnabled", desired)
+            return ok, if ok then if desired then "Freecam enabled" else "Freecam disabled" else message or "Freecam toggle failed"
+        end)
+        self:Register("wallwalk", "Movement", "Toggle wall-walk mode.", "/wallwalk [on|off]", function(_raw: string, args: { string }, _source: string)
+            local enabled = state:Get("Movement.WallWalkEnabled") == true
+            local desired = parseOnOff(args, enabled)
+            local ok, message = state:Set("Movement.WallWalkEnabled", desired)
+            return ok, if ok then if desired then "Wall-walk enabled" else "Wall-walk disabled" else message or "Wall-walk toggle failed"
+        end)
+
         self:Register("esp", "Visuals", "Toggle the ESP overlay.", "/esp [on|off]", function(_raw: string, args: { string }, _source: string)
             local enabled = state:Get("ESP.Enabled") == true
             local desired = parseOnOff(args, enabled)
@@ -195,6 +208,10 @@ return function(services: any): any
             local desired = parseOnOff(args, visible)
             local ok, message = state:Set("Settings.MenuVisible", desired)
             return ok, if ok then if desired then "Menu opened" else "Menu hidden" else message or "Menu toggle failed"
+        end)
+
+        self:Register("panic", "Utility", "Disable active features and restore movement controls.", "/panic", function(_raw: string, _args: { string }, _source: string)
+            return services:Get("HotkeyService"):Panic()
         end)
 
         self:Register("status", "Utility", "Print key feature states.", "/status", function(_raw: string, _args: { string }, _source: string)

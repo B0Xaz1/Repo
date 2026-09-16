@@ -250,6 +250,7 @@ local booted, bootError = pcall(function()
         { "DrawingPool", "src/Visuals/DrawingPool.luau" }, { "TargetFilter", "src/Combat/TargetFilter.luau" },
         { "ESPController", "src/Visuals/ESPController.luau" }, { "OverlayController", "src/Visuals/OverlayController.luau" },
         { "LocomotionService", "src/Locomotion/LocomotionService.luau" }, { "FlightService", "src/Locomotion/FlightService.luau" },
+        { "FreecamService", "src/Locomotion/FreecamService.luau" }, { "WallWalkService", "src/Locomotion/WallWalkService.luau" },
         { "ExtrasService", "src/Services/ExtrasService.luau" }, { "AimbotService", "src/Combat/AimbotService.luau" },
         { "TriggerbotService", "src/Combat/TriggerbotService.luau" }, { "PluginManager", "src/Plugins/PluginManager.luau" },
         { "ThemeEngine", "src/UI/ThemeEngine.luau" }, { "UIEngine", "src/UI/UIEngine.luau" },

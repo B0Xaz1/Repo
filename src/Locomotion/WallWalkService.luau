@@ -1,15 +1,20 @@
 --!strict
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
     OBJECTS_ASSET = "rbxassetid://17267177523",
     HIP_HEIGHT_OFFSET = 0.5,
     RAY_LENGTH = 25,
-    FEELER_LENGTH = 4,
+    FEELER_LENGTH = 2,
     FEELER_RADIUS = 3.5,
-    DOWN_RAYS = 16,
-    FEELER_RAYS = 8,
+    FEELER_START_OFFSET = 2,
+    FEELER_APEX_OFFSET = 1,
+    DOWN_RAYS = 24,
+    FEELER_RAYS = 9,
+    FEELER_WEIGHTING = 8,
     TRANSITION = 0.15,
     FORCE_SCALE = 200 / 3,
 })
@@ -66,10 +71,27 @@ return function(services: any): any
         for index = 1, CONFIG.FEELER_RAYS do
             local angle = math.pi * 2 * ((index - 1) / CONFIG.FEELER_RAYS)
             local offset = CFrame.fromAxisAngle(oldUp, angle) * radial
-            local result = Workspace:Raycast(origin + offset * 2, (offset * CONFIG.FEELER_RADIUS - oldUp * 3).Unit * CONFIG.FEELER_LENGTH, params)
-            if result then normal += result.Normal * 2; hits += 1 end
+            local direction = (CONFIG.FEELER_RADIUS * offset - oldUp * 3).Unit
+            local result = Workspace:Raycast(origin + oldUp * CONFIG.FEELER_APEX_OFFSET + CONFIG.FEELER_START_OFFSET * direction,
+                direction * CONFIG.FEELER_LENGTH, params)
+            if result then normal += result.Normal * CONFIG.FEELER_WEIGHTING; hits += CONFIG.FEELER_WEIGHTING end
         end
         return if hits > 0 and normal.Magnitude > 0 then normal.Unit else oldUp
+    end
+
+    local function getMoveInput(humanoid: Humanoid): Vector2
+        local camera = Workspace.CurrentCamera
+        local move = humanoid.MoveDirection
+        if move.Magnitude > 0.01 and camera then
+            return Vector2.new(move:Dot(camera.CFrame.RightVector), -move:Dot(camera.CFrame.LookVector))
+        end
+        if UIS:GetFocusedTextBox() then return Vector2.zero end
+        local input = Vector2.zero
+        if UIS:IsKeyDown(Enum.KeyCode.W) then input += Vector2.new(0, -1) end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then input += Vector2.new(0, 1) end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then input += Vector2.new(1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then input += Vector2.new(-1, 0) end
+        return if input.Magnitude > 1 then input.Unit else input
     end
 
     function WallWalkService:Initialize()
@@ -97,12 +119,13 @@ return function(services: any): any
             self._gravityUp = self._gravityUp:Lerp(normal, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit
             local camera = Workspace.CurrentCamera
             local cameraForward = camera and camera.CFrame.LookVector or root.CFrame.LookVector
-            local forward = cameraForward - self._gravityUp * cameraForward:Dot(self._gravityUp)
-            if forward.Magnitude < 0.01 then forward = root.CFrame.LookVector - self._gravityUp * root.CFrame.LookVector:Dot(self._gravityUp) end
-            forward = forward.Unit
-            local right = forward:Cross(self._gravityUp).Unit
-            local move = humanoid.MoveDirection
-            local worldMove = right * move:Dot(right) + forward * move:Dot(forward)
+            local cameraUp = camera and camera.CFrame.UpVector or Vector3.yAxis
+            local cameraDot = cameraForward:Dot(self._gravityUp)
+            local cameraBasis = if math.abs(cameraDot) > 0.5 then -math.sign(cameraDot) * cameraUp else cameraForward
+            local left = cameraBasis:Cross(-self._gravityUp).Unit
+            local forward = -left:Cross(self._gravityUp).Unit
+            local move = getMoveInput(humanoid)
+            local worldMove = forward * move.Y - left * move.X
             if worldMove.Magnitude > 1 then worldMove = worldMove.Unit end
             humanoid:Move(worldMove, false)
             local velocity = root.AssemblyLinearVelocity

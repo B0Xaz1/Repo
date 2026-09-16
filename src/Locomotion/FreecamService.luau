@@ -31,9 +31,6 @@ return function(services: any): any
         characterChanges:SetProperty(assets.Humanoid, "WalkSpeed", 0)
         characterChanges:SetProperty(assets.Humanoid, "JumpPower", 0)
         characterChanges:SetProperty(assets.Humanoid, "AutoRotate", false)
-        characterChanges:SetProperty(assets.RootPart, "Anchored", true)
-        characterChanges:SetProperty(assets.RootPart, "AssemblyLinearVelocity", Vector3.zero)
-        characterChanges:SetProperty(assets.RootPart, "AssemblyAngularVelocity", Vector3.zero)
     end
 
     function FreecamService:Start(): (boolean, string)

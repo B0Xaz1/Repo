@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
-    VERSION = "2.4.4",
+    VERSION = "2.4.5",
     NOT_FOUND_BODY = "404" .. ": Not Found",
     DEFAULT_REF = "main",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
@@ -107,6 +107,19 @@ end
 local sourceCache, compiledCache, initializedCache = {}, {}, {}
 local loading, initializing, failed = {}, {}, {}
 
+-- A module instance belongs to the service container that first loaded it.
+-- Containers advertise a stable `ContainerId`; anything else falls back to its
+-- identity, so a plugin's scoped container can never hand its own (short-lived)
+-- instance of a shared module back to the rest of the suite.
+local function scopeOf(container: any): string
+    if type(container) == "table" then
+        local id = rawget(container, "ContainerId")
+        if type(id) == "string" and id ~= "" then return id end
+        return `instance:{tostring(container)}`
+    end
+    return "bare"
+end
+
 local function normalize(path: string): string
     path = path:gsub("\\", "/"):gsub("[?#].*$", "")
     local before = ""
@@ -141,6 +154,7 @@ end
 
 local function requireModule(rawPath: string, ...: any): any
     local path, argumentCount = normalize(rawPath), select("#", ...)
+    local key = if argumentCount > 0 then `{path}@{scopeOf((select(1, ...)))}` else path
     assertAlive()
     local currentThread = coroutine.running()
     while loading[path] do
@@ -164,17 +178,17 @@ local function requireModule(rawPath: string, ...: any): any
         compiledCache[path] = result
     end
     if argumentCount == 0 then return compiledCache[path] end
-    while initializing[path] do
-        assert(initializing[path] ~= currentThread, `Circular factory dependency '{path}'`)
+    while initializing[key] do
+        assert(initializing[key] ~= currentThread, `Circular factory dependency '{path}'`)
         task.wait(); assertAlive()
     end
-    if initializedCache[path] then return initializedCache[path].Value end
-    initializing[path] = currentThread
+    if initializedCache[key] then return initializedCache[key].Value end
+    initializing[key] = currentThread
     local ok, value = pcall(compiledCache[path], ...)
-    initializing[path] = nil
+    initializing[key] = nil
     assertAlive()
     if not ok then error(`Init Error in '{path}': {tostring(value)}`, 0) end
-    initializedCache[path] = { Value = value }
+    initializedCache[key] = { Value = value }
     return value
 end
 
@@ -210,6 +224,7 @@ local booted, bootError = pcall(function()
     local scheduler = step(function() return requireModule("src/Core/TaskScheduler.luau", master) end)
     local services = step(function() return requireModule("src/Core/ServiceContainer.luau", master) end)
     services.Version = CONFIG.VERSION
+    services.ContainerId = "root"
     services:Register("Disposer", master)
     services:Register("Environment", environment)
     services:Register("EventBus", bus)

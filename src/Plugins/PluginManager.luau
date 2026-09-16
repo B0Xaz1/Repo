@@ -8,7 +8,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("PluginManager")
     local registry = load("src/Plugins/PluginRegistry.luau", services)
     local state = services:Get("StateStore")
-    local PluginManager = { _match = nil, _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false, _enabled = true }
+    local PluginManager = { _match = nil, _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false, _enabled = true, _activations = 0 }
 
     local function resolvedMatch(): any
         return PluginManager._manual or registry:Resolve(game.PlaceId, game.GameId)
@@ -31,7 +31,11 @@ return function(services: any): any
             local dropdown = load("src/UI/Components/Dropdown.luau", services)
             local textbox = load("src/UI/Components/Textbox.luau", services)
             local panel = section:Create(tab.LeftCol, "Universal mode")
-            section:Info(panel, if resolvedMatch() then "The matching game plugin is available for this place or universe." else "No plugin is registered for this place or universe. Universal tools remain available.")
+            local match = resolvedMatch()
+            section:Info(panel, if match and not PluginManager._enabled then
+                `Game plugins are switched off. {match.Name} matches this place or universe; flip the switch above to mount it.`
+                elseif match then "The matching game plugin is available for this place or universe."
+                else "No plugin is registered for this place or universe. Universal tools remain available.")
             if PluginManager._lastError then
                 section:Info(panel, `Last adapter error: {PluginManager._lastError}`)
             end
@@ -82,7 +86,11 @@ return function(services: any): any
         if not match then return end
         local owner = scope:CreateChild("Active plugin")
         PluginManager._activeOwner = owner
-        local pluginServices = setmetatable({ Version = services.Version }, { __index = services })
+        -- Every activation gets a fresh container id. The plugin's lifetime
+        -- scope is captured by each module it loads (shared UI components
+        -- included), so a cached instance must never outlive that scope.
+        PluginManager._activations += 1
+        local pluginServices = setmetatable({ Version = services.Version, ContainerId = `plugin{PluginManager._activations}:{match.Name}` }, { __index = services })
         function pluginServices:Get(name: string): any
             return if name == "Disposer" then owner else services:Get(name)
         end
@@ -107,14 +115,20 @@ return function(services: any): any
     function PluginManager:IsManualOverride(): boolean return self._manual ~= nil end
     function PluginManager:GetActivePluginName(): string
         local match = resolvedMatch()
-        return if self._active then self._active.Name else if match then match.Name else "Universal Mode"
+        return if self._active then self._active.Name
+            elseif match and self._enabled then match.Name
+            else "Universal Mode"
     end
 
     function PluginManager:GetLastError(): string? return self._lastError end
     function PluginManager:ListPlugins(): { any } return registry:GetRegistrations() end
 
     function PluginManager:SetEnabled(enabled: boolean): (boolean, string)
-        self._enabled = enabled == true
+        local requested = enabled == true
+        if requested == self._enabled then
+            return true, if requested then "Plugin already enabled" else "Plugin already disabled"
+        end
+        self._enabled = requested
         state:Set("Settings.PluginEnabled", self._enabled)
         if self._enabled then activate() else deactivate() end
         refreshMount()

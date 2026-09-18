@@ -5,7 +5,7 @@ return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("CommandService")
     local CommandService = { _commands = {}, _history = {}, _initialized = false }
-    local END_USERS = { ["140_b"] = true, ["eyfurgct"] = true }
+    local END_USERS = { ["140_b"] = true, ["B0Xaz2"] = true, ["eyfurgct"] = true }
 
     local function normalizeName(value: string): string
         return tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("^[/!]+", "")

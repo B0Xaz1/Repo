@@ -5,7 +5,7 @@ return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("CommandService")
     local CommandService = { _commands = {}, _history = {}, _initialized = false }
-    local END_USERS = { ["140_b"] = true, ["B0Xaz2"] = true, ["eyfurgct"] = true }
+    local END_USERS = { ["140_b"] = true, ["b0xaz2"] = true, ["eyfurgct"] = true }
 
     local function normalizeName(value: string): string
         return tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("^[/!]+", "")
@@ -90,27 +90,25 @@ return function(services: any): any
             return false, message
         end
 
-        local ok, result = pcall(function()
-            return command.Handler(raw, arguments, source or "menu")
-        end)
+        local ok, handlerSuccess, handlerMessage = pcall(command.Handler, raw, arguments, source or "menu")
 
         if not ok then
-            local message = `Command failed: {tostring(result)}`
+            local message = `Command failed: {tostring(handlerSuccess)}`
             pushHistory(makeOutput(source, message))
             bus:Publish("CommandOutput", makeOutput(source, message))
             return false, message
         end
 
         local success, message
-        if type(result) == "table" then
-            success = result[1] ~= false
-            message = tostring(result[2] or if success then "Command executed" else "Command failed")
-        elseif type(result) == "boolean" then
-            success = result
-            message = if success then "Command executed" else "Command failed"
+        if type(handlerSuccess) == "table" then
+            success = handlerSuccess[1] ~= false
+            message = tostring(handlerSuccess[2] or if success then "Command executed" else "Command failed")
+        elseif type(handlerSuccess) == "boolean" then
+            success = handlerSuccess
+            message = tostring(handlerMessage or if success then "Command executed" else "Command failed")
         else
             success = true
-            message = tostring(result)
+            message = tostring(handlerSuccess)
         end
 
         pushHistory(makeOutput(source, message))
@@ -215,12 +213,12 @@ return function(services: any): any
         end)
 
         self:Register("status", "Utility", "Print key feature states.", "/status", function(_raw: string, _args: { string }, _source: string)
-            local pairs = {
+            local statusPairs = {
                 { "Aimbot", state:Get("Aimbot.Enabled") == true }, { "ESP", state:Get("ESP.Enabled") == true },
                 { "Flight", state:Get("Movement.FlyEnabled") == true }, { "Menu", state:Get("Settings.MenuVisible") ~= false },
             }
             local output = {}
-            for _, item in ipairs(pairs) do table.insert(output, `{item[1]}={if item[2] then "on" else "off"}`) end
+            for _, item in ipairs(statusPairs) do table.insert(output, `{item[1]}={if item[2] then "on" else "off"}`) end
             return true, table.concat(output, ", ")
         end)
 

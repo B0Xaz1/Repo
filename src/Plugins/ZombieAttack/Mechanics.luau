@@ -10,6 +10,7 @@ return function(services: any): any
             ZombieAuraPart = manifest.Aim.Parts[1],
             ZombieAuraRange = manifest.Aura.DefaultRange,
             ZombieAutoEquip = false,
+            ZombieFarm = false,
         },
     })
 
@@ -20,6 +21,7 @@ return function(services: any): any
 
     Aura.Targets = use("TargetService")
     Aura.KillAura = use("KillAuraService")
+    Aura.AutoFarm = use("AutoFarmService")
     Aura.AutoEquip = use("AutoEquipService")
     Aura.UI = load("src/Plugins/ZombieAttack/ZombieAttackUI.luau", services, Aura)
 
@@ -34,9 +36,10 @@ return function(services: any): any
         end
 
         Aura.KillAura:Initialize()
+        Aura.AutoFarm:Initialize()
         Aura.AutoEquip:Initialize()
 
-        EventBus:Publish("Notify", manifest.Name, `Command center ready. Kill aura and auto equip are off until you switch them on.`)
+        EventBus:Publish("Notify", manifest.Name, `Command center ready. Kill aura, auto farm, and auto equip are off until you switch them on.`)
     end
 
     function Plugin:BuildUI(tab: any)
@@ -46,7 +49,9 @@ return function(services: any): any
     function Plugin:Destroy()
         StateStore:Set("Game.ZombieAura", false)
         StateStore:Set("Game.ZombieAutoEquip", false)
+        StateStore:Set("Game.ZombieFarm", false)
         Aura.KillAura:Destroy()
+        Aura.AutoFarm:Destroy()
         Aura.AutoEquip:Destroy()
         Aura.UI:Destroy()
         scope:Dispose()

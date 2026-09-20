@@ -1,7 +1,4 @@
---!strict
 local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
@@ -136,6 +133,8 @@ return function(services: any): any
             self._gyro.CFrame = CFrame.lookAt(Vector3.zero, if worldMove.Magnitude > 0.01 then worldMove else forward, self._gravityUp)
             local params = RaycastParams.new(); params.FilterType, params.FilterDescendantsInstances = Enum.RaycastFilterType.Exclude, { assets.Character }
             local surface = Workspace:Raycast(self._collider.Position, -self._gravityUp * 1.1, params)
+            -- While the same surface stays underfoot the character rides its CFrame, so rotating
+            -- geometry carries them along instead of sliding off
             if surface and self._lastPart == surface.Instance and self._lastPart.Parent then
                 local offset = self._lastPartCFrame:ToObjectSpace(root.CFrame)
                 root.CFrame = surface.Instance.CFrame:ToWorldSpace(offset)

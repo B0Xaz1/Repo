@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 
 local CONFIG = table.freeze({
@@ -30,6 +29,7 @@ local ticket = {}
 globals.B0XazLoaderBusy = ticket
 globals.B0XazRef, globals.B0XazBaseURL = branch, baseUrl
 
+-- A later loader run replaces the ticket, which cancels this run at its next checkpoint
 local function isCancelled(): boolean
     return globals.B0XazLoaderBusy ~= ticket
 end

@@ -1,4 +1,3 @@
---!strict
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 
@@ -48,6 +47,7 @@ return function(services: any): any
             or object:IsA("Smoke") or object:IsA("Fire") or object:IsA("Sparkles")) then
             cacheWrite(OptimizerService._particleCache, object, "Enabled", false)
         end
+        -- The suite's own post effects are skipped; it owns and restores those itself
         if performance.NoPostProcessing and object:IsA("PostEffect") and not object.Name:match(CONFIG.OWNED_EFFECT_PREFIX) then
             cacheWrite(OptimizerService._postFxCache, object, "Enabled", false)
         end
@@ -63,6 +63,7 @@ return function(services: any): any
         for _, cache in ipairs({ self._textureCache, self._materialCache, self._shadowCache, self._particleCache, self._postFxCache, self._terrainDefaults }) do table.clear(cache) end
     end
 
+    -- Chunked so a full pass cannot stall a frame, and aborted as soon as a newer pass starts
     function OptimizerService:Apply()
         self:RestoreAll()
         local revision = self._revision

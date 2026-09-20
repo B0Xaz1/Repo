@@ -1,4 +1,3 @@
---!strict
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({

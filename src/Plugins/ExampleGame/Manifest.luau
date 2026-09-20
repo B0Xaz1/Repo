@@ -1,5 +1,3 @@
---!strict
-
 return function(_services: any?): any
     local CONFIG = {
         Name = "Example Game", PlaceIds = {}, UniverseIds = {},

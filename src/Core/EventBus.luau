@@ -1,11 +1,10 @@
---!strict
 export type Connection = { Connected: boolean, Disconnect: (Connection) -> () }
 
 return function(disposer: any): any
     local EventBus = { _lists = {}, _scope = disposer:CreateChild("EventBus") }
 
     function EventBus:Subscribe(name: string, callback: (...any) -> ()): Connection
-        assert(type(name) == "string" and type(callback) == "function", "Invalid event subscription")
+        assert(type(name) == "string" and type(callback) == "function")
         local list = self._lists[name]
         if not list then list = { Head = nil, Tail = nil }; self._lists[name] = list end
         local node: any = { Connected = true, Callback = callback, Previous = list.Tail, Next = nil }

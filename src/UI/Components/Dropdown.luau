@@ -1,4 +1,3 @@
---!strict
 local CONFIG = table.freeze({
     CLOSED_HEIGHT = 38,
     MAX_VISIBLE_OPTIONS = 7,
@@ -58,6 +57,8 @@ return function(services: any): any
             local nextText = tostring(value or "No options")
             if button.Text ~= nextText then button.Text = nextText end
         end
+        -- The option buttons are rebuilt only when the list itself changed; the joined signature
+        -- is the cheap way to detect that without comparing tables
         function handle:Refresh(nextOptions: { any }, preserveSelection: boolean?)
             local parts = table.create(#nextOptions)
             for index, option in ipairs(nextOptions) do parts[index] = tostring(option) end

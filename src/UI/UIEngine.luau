@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
@@ -191,6 +190,8 @@ return function(services: any): any
 
     function UIEngine:Notify(title: string, message: string, duration: number?, color: Color3?)
         if scope:IsDisposed() then return end
+        -- Notifications raised while the window is still building are queued: the toast list
+        -- does not exist yet, and dropping them would hide early plugin failures
         if not self._toastRoot then
             table.insert(self._pending, { title, message, duration, color })
             if #self._pending > CONFIG.MAX_PENDING_TOASTS then table.remove(self._pending, 1) end
@@ -280,6 +281,7 @@ return function(services: any): any
         theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(search, 0, 8)
         scope:Connect(search:GetPropertyChangedSignal("Text"), function()
+            -- The sequence stamp drops the result of a debounce that a newer keystroke replaced
             UIEngine._searchSeq += 1
             local sequence, query = UIEngine._searchSeq, search.Text
             task.defer(function() task.wait(CONFIG.SEARCH_DEBOUNCE);

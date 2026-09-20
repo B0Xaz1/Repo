@@ -1,5 +1,3 @@
---!strict
-
 local CONFIG = table.freeze({
     DEFAULT_GAME_SETTINGS = {
         NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,

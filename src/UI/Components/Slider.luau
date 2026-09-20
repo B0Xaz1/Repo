@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
@@ -32,7 +31,7 @@ return function(services: any): any
     end
 
     function Slider:Create(parent: Instance, label: string, defaultOrPath: any, minimum: number, maximum: number, step: number?, suffix: string?, callback: any?): any
-        assert(maximum > minimum, "Slider needs an increasing range")
+        assert(maximum > minimum)
         local increment = math.max(step or 1, CONFIG.MIN_INCREMENT)
         local row, text, owner = section:Control(parent, label, 30)
         text.Size, text.Position = UDim2.new(0.58, 0, 0, 14), UDim2.fromOffset(0, 0)

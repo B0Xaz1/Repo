@@ -1,5 +1,3 @@
---!strict
-
 return function(services: any): any
     local load = services:Get("Require")
     local StateStore, EventBus = services:Get("StateStore"), services:Get("EventBus")

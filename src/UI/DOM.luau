@@ -1,4 +1,3 @@
---!strict
 local HttpService = game:GetService("HttpService")
 
 return function(services: any): any
@@ -8,6 +7,7 @@ return function(services: any): any
     function DOM:Create(className: string, properties: any?, children: { Instance }?): any
         local instance = Instance.new(className)
         local props = properties or {}
+        -- Parent is applied last so the instance only mounts once every property is set
         local ok, err = pcall(function()
             for property, value in pairs(props) do if property ~= "Parent" then instance[property] = value end end
             for _, child in ipairs(children or {}) do child.Parent = instance end

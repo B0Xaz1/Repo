@@ -1,4 +1,3 @@
---!strict
 return function(services: any): any
     local dom, theme, state, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore"), services:Get("EventBus")
     local disposer = services:Get("Disposer")
@@ -67,6 +66,7 @@ return function(services: any): any
         owner:Connect(button.MouseLeave, function() theme:BindToken(button, "BackgroundColor3", normal) end)
     end
     function Section:Bind(handle: any, defaultOrPath: any, callback: any?, literal: boolean?): any
+        -- A string argument names a state path unless the caller marks it as a literal value
         local path = if type(defaultOrPath) == "string" and not literal then defaultOrPath else nil
         handle.Path = path
         handle.Row:SetAttribute("StatePath", path)

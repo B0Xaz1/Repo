@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -152,6 +151,7 @@ return function(services: any): any
             cameraChanges:ReleaseProperties()
             local remaining = screen - point
             local delta = correction(remaining, alpha, dt, config)
+            -- Relative mouse input only moves whole pixels, so the sub-pixel rest is carried forward
             local remainder = AimbotService._remainder
             if remaining.X * remainder.X < 0 then remainder = Vector2.new(0, remainder.Y) end
             if remaining.Y * remainder.Y < 0 then remainder = Vector2.new(remainder.X, 0) end

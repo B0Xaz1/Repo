@@ -1,4 +1,3 @@
---!strict
 export type Container = {
     Register: (Container, string, any) -> any,
     Get: (Container, string) -> any,
@@ -11,7 +10,7 @@ return function(disposer: any?): any
     local ServiceContainer = { _instances = {}, _order = {}, _initialized = {}, _destroyed = false }
 
     function ServiceContainer:Register(name: string, instance: any): any
-        assert(not self._destroyed, "Container is destroyed")
+        assert(not self._destroyed)
         assert(instance ~= nil, `Cannot register nil service '{name}'`)
         if self._instances[name] == nil then table.insert(self._order, name) end
         self._instances[name] = instance

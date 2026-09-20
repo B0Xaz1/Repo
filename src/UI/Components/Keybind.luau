@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
@@ -26,6 +25,8 @@ return function(services: any): any
             end
             if value then handle:Set(value) else handle:Set(handle:Get(), true) end
         end
+        -- The flag is cleared after a settle delay, so the captured press cannot also be read as
+        -- a feature hotkey by the services watching for it
         scope:Delay(CONFIG.CAPTURE_SETTLE_DELAY, function() if not Keybind._active then state:SetTransient("IsBindingKey", false) end end)
     end
 

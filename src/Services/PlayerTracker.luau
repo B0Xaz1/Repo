@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
@@ -47,6 +46,7 @@ return function(services: any): any
         PlayerTracker._versions[player] = (PlayerTracker._versions[player] or 0) + 1
         local version = PlayerTracker._versions[player]
         PlayerTracker._registry[player] = nil
+        -- The version stamp lets a slow resolve from a previous character drop its stale result
         local assets = resolve(player, true)
         if assets and version == PlayerTracker._versions[player] and player.Character == character and PlayerTracker._players[player] then
             PlayerTracker._registry[player] = assets

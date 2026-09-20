@@ -1,4 +1,3 @@
---!strict
 local RunService = game:GetService("RunService")
 
 local CONFIG = table.freeze({
@@ -15,6 +14,7 @@ return function(disposer: any): any
     local function run(pipeline: string, dt: number)
         if scope:IsDisposed() then return end
         for _, job in ipairs(TaskScheduler._pipelines[pipeline]) do
+            -- Re-enabling a job clears its strike history, so the breaker only counts consecutive failures
             if job.CircuitOpen and job.Enabled then job.CircuitOpen, job.Strikes = false, 0 end
             if job.Enabled and job.Connected then
                 local ran, jobError = pcall(job.Callback, dt)

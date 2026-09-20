@@ -1,4 +1,3 @@
---!strict
 local CONFIG = table.freeze({
     REFRESH_INTERVAL = 0.5,
     MAX_INVENTORY_LINES = 10,

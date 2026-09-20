@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 return function(services: any, tab: any): any
     local load = services:Get("Require")

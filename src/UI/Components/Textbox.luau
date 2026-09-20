@@ -1,4 +1,3 @@
---!strict
 return function(services: any): any
     local dom, theme, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("EventBus")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)

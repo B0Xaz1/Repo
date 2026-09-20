@@ -1,4 +1,3 @@
---!strict
 export type IGamePlugin = {
     Name: string, Initialize: (IGamePlugin, any) -> (), BuildUI: (IGamePlugin, any) -> (), Destroy: (IGamePlugin) -> (),
 }
@@ -8,7 +7,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("PluginManager")
     local registry = load("src/Plugins/PluginRegistry.luau", services)
     local state = services:Get("StateStore")
-    local PluginManager = { _match = nil, _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false, _enabled = true, _activations = 0 }
+    local PluginManager = { _manual = nil, _active = nil, _activeOwner = nil, _mount = nil, _lastError = nil, _initialized = false, _enabled = true, _activations = 0 }
 
     local function resolvedMatch(): any
         return PluginManager._manual or registry:Resolve(game.PlaceId, game.GameId)
@@ -86,9 +85,8 @@ return function(services: any): any
         if not match then return end
         local owner = scope:CreateChild("Active plugin")
         PluginManager._activeOwner = owner
-        -- Every activation gets a fresh container id. The plugin's lifetime
-        -- scope is captured by each module it loads (shared UI components
-        -- included), so a cached instance must never outlive that scope.
+        -- Each activation gets a fresh container id, so no module instance cached from an earlier
+        -- activation can outlive the scope that owned it
         PluginManager._activations += 1
         local pluginServices = setmetatable({ Version = services.Version, ContainerId = `plugin{PluginManager._activations}:{match.Name}` }, { __index = services })
         function pluginServices:Get(name: string): any
@@ -140,7 +138,6 @@ return function(services: any): any
         self._manual = registration
         self._lastError = nil
         deactivate()
-        PluginManager._match = resolvedMatch()
         activate()
         refreshMount()
         bus:Publish("PluginChanged", PluginManager:GetActivePluginName())
@@ -167,7 +164,6 @@ return function(services: any): any
         scope:Add(state:Observe("Settings.PluginEnabled", function(value: boolean)
             if value ~= PluginManager._enabled then PluginManager:SetEnabled(value) end
         end))
-        PluginManager._match = resolvedMatch()
         activate()
         bus:Publish("PluginChanged", PluginManager:GetActivePluginName())
     end

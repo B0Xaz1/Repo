@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
@@ -78,28 +77,19 @@ return function(services: any): any
     local function bindTouchTeleport(character: Model)
         touchTeleportScope:Dispose()
         touchTeleportScope = scope:CreateChild("Touch teleport")
+        local function onTouched(hit: BasePart)
+            if not state:Peek("Movement.TouchTeleportEnabled") or not hit or hit:IsDescendantOf(character) then return end
+            local target = LocomotionService._touchTeleportTarget
+            local assets = tracker:GetLocalAssets()
+            if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
+            LocomotionService._lastTouchTeleport = os.clock()
+            teleportRoot(positionChanges, assets.RootPart, target)
+        end
         for _, descendant in ipairs(character:GetDescendants()) do
-            if descendant:IsA("BasePart") then
-                touchTeleportScope:ConnectImmediate(descendant.Touched, function(hit: BasePart)
-                    if not state:Peek("Movement.TouchTeleportEnabled") or not hit or hit:IsDescendantOf(character) then return end
-                    local target = LocomotionService._touchTeleportTarget
-                    local assets = tracker:GetLocalAssets()
-                    if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
-                    LocomotionService._lastTouchTeleport = os.clock()
-                    teleportRoot(positionChanges, assets.RootPart, target)
-                end)
-            end
+            if descendant:IsA("BasePart") then touchTeleportScope:ConnectImmediate(descendant.Touched, onTouched) end
         end
         touchTeleportScope:ConnectImmediate(character.DescendantAdded, function(descendant: Instance)
-            if not descendant:IsA("BasePart") then return end
-            touchTeleportScope:ConnectImmediate(descendant.Touched, function(hit: BasePart)
-                if not state:Peek("Movement.TouchTeleportEnabled") or not hit or hit:IsDescendantOf(character) then return end
-                local target = LocomotionService._touchTeleportTarget
-                local assets = tracker:GetLocalAssets()
-                if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
-                LocomotionService._lastTouchTeleport = os.clock()
-                teleportRoot(positionChanges, assets.RootPart, target)
-            end)
+            if descendant:IsA("BasePart") then touchTeleportScope:ConnectImmediate(descendant.Touched, onTouched) end
         end)
     end
 
@@ -173,7 +163,7 @@ return function(services: any): any
         if not LocomotionService._flingTarget and not config.CFrameSpeed and not config.NoClip and config.Speed <= 0 and config.JumpPower <= 0
             and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
             if LocomotionService._applied then
-            characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties()
+                characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties()
                 worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
                 LocomotionService._applied = false
             end
@@ -224,6 +214,8 @@ return function(services: any): any
         end
     end
 
+    -- A touch fling crosses three engine phases in one cycle: boost, restore, then a lift offset
+    -- that alternates each pass; the loop bails out whenever the state flag drops
     local function touchFlingLoop()
         local liftOffset = CONFIG.TOUCH_FLING_OFFSET
         while not scope:IsDisposed() do

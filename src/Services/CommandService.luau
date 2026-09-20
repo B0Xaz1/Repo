@@ -1,10 +1,10 @@
---!strict
 local Players = game:GetService("Players")
 
 return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("CommandService")
     local CommandService = { _commands = {}, _history = {}, _initialized = false }
+    -- /end only answers to these accounts, whether it comes from the menu or from chat
     local END_USERS = { ["140_b"] = true, ["b0xaz2"] = true, ["eyfurgct"] = true }
 
     local function normalizeName(value: string): string
@@ -144,7 +144,6 @@ return function(services: any): any
 
     function CommandService:BuildDefaultCommands()
         self:Register("help", "Utility", "Lists available commands and examples.", "/help", function(_raw: string, args: { string }, source: string)
-            local names = {}
             local byCategory = {}
             for _, entry in ipairs(self:GetCommandList()) do
                 local key = tostring(entry.Category)

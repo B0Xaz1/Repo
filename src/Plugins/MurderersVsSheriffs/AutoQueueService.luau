@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -221,7 +220,6 @@ return function(services: any, Duel: any?): any
         local targetPos, strandIndex, isFull = self:GetBestPosition(mode)
 
         if isFull or not targetPos or not strandIndex then
-            local maxPerStrand = CONFIG.MODE_CAPACITY[mode] or 1
             local fullMsg = `no available {mode} left`
             self._lastStatusMessage = fullMsg
             if EventBus then

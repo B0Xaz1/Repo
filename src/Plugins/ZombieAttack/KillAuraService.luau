@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -25,16 +24,15 @@ return function(services: any, Aura: any?): any
         _shots = 0,
         _misses = 0,
         _lastTarget = "none",
-        _lastWeapon = "none",
     }
 
     local function isRemote(node: Instance?): boolean
         return node ~= nil and (node:IsA("RemoteEvent") or node:IsA("RemoteFunction"))
     end
 
-    -- `ReplicatedStorage.Gun` is the documented path. The named sweep is the fallback for
-    -- places that nest or rename it, and it is throttled so a missing remote costs one
-    -- scan every few seconds instead of one per frame.
+    -- `ReplicatedStorage.Gun` is the documented path; the named sweep is the fallback for
+    -- places that nest or rename it, throttled so a missing remote costs one scan every
+    -- few seconds instead of one per frame
     local function getRemote(now: number): Instance?
         local cached = KillAura._remote
         if cached and cached.Parent and isRemote(cached) then return cached end
@@ -73,7 +71,7 @@ return function(services: any, Aura: any?): any
         return nil
     end
 
-    -- Mirrors the standalone script: equipped tool first, then anything in the backpack.
+    -- Equipped tool first, then the backpack, matching the original script
     local function getWeaponName(): string?
         local character = LocalPlayer.Character
         if character then
@@ -147,7 +145,6 @@ return function(services: any, Aura: any?): any
 
         KillAura._shots += 1
         KillAura._lastTarget = if target.Model then target.Model.Name else "unknown"
-        KillAura._lastWeapon = weaponName
         return true, weaponName
     end
 
@@ -158,8 +155,8 @@ return function(services: any, Aura: any?): any
         local target = Aura.Targets and Aura.Targets:GetNearest(currentPart(), currentRange())
         if not target then return end
 
-        -- Gating on the attempt (not on success) keeps a weaponless loop from spinning at
-        -- frame rate; the original only advanced its timer after a successful shot.
+        -- Gating on the attempt rather than the result keeps a weaponless loop from spinning
+        -- at frame rate; the original only advanced its timer after a successful shot
         KillAura._lastShot = now
         fireAt(target, now)
     end
@@ -172,7 +169,7 @@ return function(services: any, Aura: any?): any
 
     function KillAura:Reset(_reason: string?)
         self._lastShot = -math.huge
-        self._lastTarget, self._lastWeapon = "none", "none"
+        self._lastTarget = "none"
     end
 
     function KillAura:GetStatus(): any

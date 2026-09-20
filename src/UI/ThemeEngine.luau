@@ -1,4 +1,3 @@
---!strict
 local CONFIG = table.freeze({
     ATTRIBUTE_PREFIX = "B0XazTheme_",
     ACCENT_DARK_BLEND = 0.4,
@@ -86,6 +85,8 @@ return function(services: any): any
         pcall(function() instance:SetAttribute(CONFIG.ATTRIBUTE_PREFIX .. property, token) end)
     end
 
+    -- Instances that were colored by the previous palette but never bound are re-tagged by
+    -- matching their old color, so a preset change still reaches them
     local function refreshUnbound(previous: any)
         local reverse = {}
         for _, token in ipairs(CONFIG.TOKEN_NAMES) do
@@ -158,7 +159,7 @@ return function(services: any): any
     end
 
     function ThemeEngine:UpdateToken(name: string, color: Color3)
-        assert(self._palette[name] and typeof(color) == "Color3", "Invalid theme token update")
+        assert(self._palette[name] and typeof(color) == "Color3")
         local overrides = state:Get("Theme.CustomTokens")
         overrides[name] = color
         if name == "Accent" then

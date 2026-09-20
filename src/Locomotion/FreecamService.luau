@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 

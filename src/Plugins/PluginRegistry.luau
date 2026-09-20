@@ -27,6 +27,14 @@ local CONFIG = table.freeze({
             Description = "Match-scoped enemy ESP plus knife killer and fast aim revolver drivers",
             PlaceIds = { 12355337193 }, UniverseIds = { 4348829796 },
         },
+        {
+            -- Root place plus the Hardmode place in the same game; no universe id is
+            -- registered because it could not be confirmed without an authenticated call.
+            Name = "Zombie Attack",
+            PluginModule = "src/Plugins/ZombieAttack/Mechanics.luau",
+            Description = "Zombie Attack kill aura: rate-gated shots at the nearest live zombie through the game's own gun remote",
+            PlaceIds = { 1240123653, 1632210982 }, UniverseIds = {},
+        },
     },
 })
 

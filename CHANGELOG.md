@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.4.6 — 2026-09-20
+
+Zombie Attack adapter.
+
+- **Added:** `src/Plugins/ZombieAttack/` — a kill aura adapter for Zombie Attack by Zombie
+  Attack Official, registered under place `1240123653` plus the `1632210982` Hardmode place
+  in the same game. It is a port of a standalone Rayfield script: `TargetService` scans the
+  game's `enemies` container for live zombie models sorted by distance, `KillAuraService`
+  fires the game's own `ReplicatedStorage.Gun` remote at the nearest one on a rate gate, and
+  `ZombieAttackUI` mounts both columns of the Game tab through the suite's own components.
+  No Rayfield loader, window, tab, or notification call survives, and the script's `_G`
+  settings are now `Game.ZombieAura*` state paths, so they save into profiles, reset with
+  the section, and show up in menu search. The gun payload keeps the original shape exactly:
+  `Normal`, `Direction`, `Name` (equipped tool), `Hit`, `Origin` (HumanoidRootPart + 1.5
+  studs), `Pos`, with the direction still normalized to 1000 studs.
+- **Changed:** the fire-rate timer advances on an attempted shot rather than only a
+  successful one. The standalone script advanced it after success, so a player with no
+  weapon equipped re-scanned every enemy on every frame indefinitely.
+- **Added:** a hit-part fallback chain (`Head` → `UpperTorso` → `Torso` →
+  `HumanoidRootPart`) so an R6 rig without the selected part is still engaged instead of
+  silently skipped; a target range gate defaulting to `0` (unlimited, the original
+  behavior); a bounded named sweep for the gun remote when `ReplicatedStorage.Gun` is
+  absent, throttled to one scan every two seconds; and a miss counter with live status
+  labels, so an aura that is not firing says why instead of looking idle.
+- **Verified:** every `.luau` in the repository parses, and the adapter's modules —
+  manifest, target scan, aura loop, payload builder, and plugin lifecycle — were executed
+  against a stubbed Roblox environment with 61 assertions covering the payload keys and
+  values, the rate gate, the part fallback, the failure paths, container streaming, and
+  teardown.
+
 ## 2.4.5 — 2026-09-15
 
 Game-plugin switch hotfix.

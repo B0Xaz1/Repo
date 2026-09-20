@@ -55,6 +55,7 @@ local CONFIG = deepFreeze({
             MvSGunSpamShoot = false,
             MvSAutoEquip = false,
             MvSAutoQueue = false, MvSQueueMode = "1v1", MvSQueueDelay = 3.0,
+            ZombieAura = false, ZombieAuraRate = 0.1, ZombieAuraPart = "Head", ZombieAuraRange = 0,
             FavoriteLocations = {},
             StopAutomationOnRespawn = true,
         },
@@ -78,6 +79,7 @@ local CONFIG = deepFreeze({
         "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
         "Game.DoorPhase", "Game.FakeMacro",
         "Game.MvSEsp", "Game.MvSKnife", "Game.MvSKnifeSpamThrow", "Game.MvSRevolver", "Game.MvSGunSpamShoot", "Game.MvSAutoEquip", "Game.MvSAutoQueue",
+        "Game.ZombieAura",
     },
 })
 

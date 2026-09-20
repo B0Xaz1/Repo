@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.4.5` · **Default source ref:** `main`
+**Version:** `2.4.6` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -126,6 +126,13 @@ The suite restores cached client-side properties and disposes the resources it o
 Every subsystem is a separate service module behind a frozen manifest, mounted through the PluginManager with an isolated disposer, and torn down in reverse order. The manifest carries the legacy plugin's ground-truth data: 12 map coordinates, the seven-gun set (M9, Remington 870, MP5, AK-47, M4A1, M700, Revolver), and the obstacle containers matched case-insensitively.
 
 Weapon mods honor both gun-stat mechanisms the game has used — instance attributes (`SpreadRadius`/`FireRate`/`AutoFire`/`Range`) on the tool or its children and the `GunStates` ModuleScript table — restoring whichever a gun carries (legacy targets: fire rate 0.001, range 10000). Door phasing and weapon values are reversible at any moment, not only on unload. Locations resolve from CollectionService tags first (`B0XazPrisonLife:<Id>`), then named map objects, then manifest coordinates, so map updates degrade gracefully instead of breaking teleports.
+
+`src/Plugins/ZombieAttack/` is the Zombie Attack (by Zombie Attack Official) adapter, registered under place IDs `1240123653` and `1632210982` (the Hardmode place in the same game). No universe ID is registered, because the place-to-universe mapping could not be confirmed without an authenticated call. It replaces a standalone Rayfield script: the kill aura loop, enemy scan, and gun payload are unchanged, while the UI, settings, and lifetime move onto the suite's own components.
+
+- **Left:** kill aura switch, fire rate (`0.01`–`1`s), target part (`Head`/`UpperTorso`/`Torso`/`HumanoidRootPart`, with a fallback chain for rigs missing the chosen part), and a target range gate where `0` means unlimited.
+- **Right:** live zombie count with the resolved container name, shots fired, last target, the weapon and remote actually in use, plus `Fire once at nearest` and `Stop kill aura`.
+
+Settings live at `Game.ZombieAura*` so they serialize into profiles and appear in menu search. Everything the adapter owns — the heartbeat connection, the label job, and the spawned paint task — hangs off the plugin's disposer scope and is released on unload or when the game plugin switch is turned off.
 
 `src/Plugins/ExampleGame/` remains the opt-in test-place adapter pattern. It is not registered for any live experience.
 

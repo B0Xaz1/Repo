@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.4.7` · **Default source ref:** `main`
+**Version:** `2.4.8` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -129,10 +129,12 @@ Weapon mods honor both gun-stat mechanisms the game has used — instance attrib
 
 `src/Plugins/ZombieAttack/` is the Zombie Attack (by Zombie Attack Official) adapter, registered under place IDs `1240123653` and `1632210982` (the Hardmode place in the same game). No universe ID is registered, because the place-to-universe mapping could not be confirmed without an authenticated call. It replaces a standalone Rayfield script: the kill aura loop, enemy scan, and gun payload are unchanged, while the UI, settings, and lifetime move onto the suite's own components.
 
-- **Left:** kill aura switch, fire rate (`0.01`–`1`s), target part (`Head`/`UpperTorso`/`Torso`/`HumanoidRootPart`, with a fallback chain for rigs missing the chosen part), and a target range gate where `0` means unlimited.
+- **Left:** kill aura switch, fire rate (`0.01`–`1`s), target part (`Head`/`UpperTorso`/`Torso`/`HumanoidRootPart`, with a fallback chain for rigs missing the chosen part), a target range gate where `0` means unlimited, and an auto equip switch with its own status line and `Equip gun now` button.
 - **Right:** live zombie count with the resolved container name, shots fired, last target, the weapon and remote actually in use, plus `Fire once at nearest` and `Stop kill aura`.
 
-Settings live at `Game.ZombieAura*` so they serialize into profiles and appear in menu search. Everything the adapter owns — the heartbeat connection, the label job, and the spawned paint task — hangs off the plugin's disposer scope and is released on unload or when the game plugin switch is turned off.
+Auto equip (`src/Plugins/ZombieAttack/AutoEquipService.luau`) identifies weapons by their controller child rather than by name: a Tool carrying `GunController` is a gun, and the first one found is equipped through `Humanoid:EquipTool`, character before backpack. A gun already in hand is left alone, so the loop never re-triggers an equip animation, and a deliberate unequip is respected for half a second before the tool is taken back. The controller name resolves recursively, then falls back to a bounded case-insensitive walk, so a tool that nests it under a folder or spells it with different casing still counts. Tools carrying `KnifeController` are counted for the status line but never equipped — knives are out of scope here, and reporting the count keeps that naming assumption verifiable in-game instead of assumed. This is also what clears the kill aura's `No weapon equipped` miss without touching the payload the aura sends.
+
+Settings live at `Game.ZombieAura*` and `Game.ZombieAutoEquip` so they serialize into profiles and appear in menu search. Everything the adapter owns — both heartbeat connections, the label job, and the spawned paint task — hangs off the plugin's disposer scope and is released on unload or when the game plugin switch is turned off.
 
 `src/Plugins/ExampleGame/` remains the opt-in test-place adapter pattern. It is not registered for any live experience.
 

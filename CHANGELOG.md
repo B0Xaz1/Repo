@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.4.8 — 2026-09-20
+
+Zombie Attack auto equip.
+
+- **Added:** `src/Plugins/ZombieAttack/AutoEquipService.luau`, mounted behind a new
+  `Game.ZombieAutoEquip` toggle in an Auto Equip section of the Game tab. While it is on, the
+  service equips the first Tool carrying a `GunController` child through `Humanoid:EquipTool`,
+  searching the character before the backpack. Weapons are identified by that controller child
+  rather than by tool name, so a new or renamed gun in the game needs no manifest change.
+- **Added:** a gun already in hand is left alone, which keeps the loop from re-triggering an
+  equip animation every tick, and a swap re-arms on a half-second interval so a server that
+  refuses the equip, or a player who deliberately puts the gun away, is not fought per frame.
+  The whole tick is rate-limited to four scans a second rather than running per frame.
+- **Added:** controller matching resolves the manifest name recursively with
+  `FindFirstChild(name, true)` — no descendant array is allocated — then falls back to a bounded
+  case-insensitive walk, so a tool that nests the controller under a folder or spells it with
+  different casing still counts. Both scans are capped, at 64 tools and 160 nodes per tool.
+- **Added:** knives stay out of scope. A Tool carrying `KnifeController` is counted but never
+  equipped, and the count is surfaced on the section's status line, which makes the naming
+  assumption checkable in-game instead of taken on faith.
+- **Added:** an `Equip gun now` button that runs the same detection and equip path once, with the
+  toggle off, so a player can confirm what the adapter sees before arming the loop. The status
+  line reports the state, guns, knives, swaps, and failures.
+- **Fixed:** the swap throttle now stamps on an attempted equip rather than on every tick that
+  reaches it. Stamping earlier meant a tick with no gun to take consumed the window, so a player
+  who picked one up right after waited out an interval for nothing.
+- **Changed:** the plugin's ready notification and its `Destroy` path cover auto equip alongside
+  the kill aura, and `Game.ZombieAutoEquip` is registered in `GAME_BOOLEAN_FLAGS`, so a tier
+  downgrade switches it off with the other game flags. The kill aura itself is untouched: its
+  payload still reports the tool that is actually equipped, and auto equip is what keeps that
+  tool a gun rather than a knife.
+- **Verified:** all 73 modules pass a structural check (a Luau lexer plus block and bracket
+  balance) that was calibrated to report the 72 pre-existing modules clean before this change.
+  The Luau compiler itself was not reachable from the build environment, so this is not a
+  compiler pass.
+- **Verified:** the new service's control flow was transpiled to plain Lua and executed against a
+  stubbed Roblox API, passing 29 behavioral checks: the off state, gun-over-knife selection,
+  nested and mis-cased controllers, an unrelated tool ignored, the scan and swap windows, a dead
+  character, respawn resets, the manual button, and the tool cap.
+
 ## 2.4.7 — 2026-09-20
 
 Repository hygiene pass.

@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.4.7` · **Default source ref:** `main`
+**Version:** `2.4.9` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -129,10 +129,14 @@ Weapon mods honor both gun-stat mechanisms the game has used — instance attrib
 
 `src/Plugins/ZombieAttack/` is the Zombie Attack (by Zombie Attack Official) adapter, registered under place IDs `1240123653` and `1632210982` (the Hardmode place in the same game). No universe ID is registered, because the place-to-universe mapping could not be confirmed without an authenticated call. It replaces a standalone Rayfield script: the kill aura loop, enemy scan, and gun payload are unchanged, while the UI, settings, and lifetime move onto the suite's own components.
 
-- **Left:** kill aura switch, fire rate (`0.01`–`1`s), target part (`Head`/`UpperTorso`/`Torso`/`HumanoidRootPart`, with a fallback chain for rigs missing the chosen part), and a target range gate where `0` means unlimited.
-- **Right:** live zombie count with the resolved container name, shots fired, last target, the weapon and remote actually in use, plus `Fire once at nearest` and `Stop kill aura`.
+- **Left:** kill aura switch, fire rate (`0.01`–`1`s), target part (`Head`/`UpperTorso`/`Torso`/`HumanoidRootPart`, with a fallback chain for rigs missing the chosen part), a target range gate where `0` means unlimited, and the auto farm switch with its status lines and `Stop auto farm`.
+- **Right:** the auto equip switch with its status line and `Equip gun now`, then live zombie count with the resolved container name, shots fired, last target, the weapon and remote actually in use, plus `Fire once at nearest` and `Stop kill aura`.
 
-Settings live at `Game.ZombieAura*` so they serialize into profiles and appear in menu search. Everything the adapter owns — the heartbeat connection, the label job, and the spawned paint task — hangs off the plugin's disposer scope and is released on unload or when the game plugin switch is turned off.
+Auto farm (`src/Plugins/ZombieAttack/AutoFarmService.luau`) locks the nearest live zombie and holds you two studs above and two studs behind its own facing — behind the zombie's `LookVector` rather than the camera's, so the lock survives it turning. Placement goes through `LocomotionService:Teleport`, which zeroes assembly velocity and suppresses anti-fling, so the hold is firm instead of drifting downward between frames. It stays on that zombie while its health is above zero, and the enemy container is rescanned only when the lock goes stale (dead, despawned, or unparented) — then it takes the next nearest. Shots leave through the kill aura's own remote and payload via `KillAura:FireAtTarget`, so the farm cannot outrun the configured fire rate, and while the farm runs the aura's independent loop stands down instead of alternating targets through the same gate. Target part, range, and fire rate are shared with the kill aura section rather than duplicated. `TargetService` now resolves a body anchor (`Root`) separately from the aim part, since anchoring movement on `Head` would stand you two studs above the skull. Turning the farm off leaves you where it put you; there is no snap-back. One trade-off to know about: that teleport path suppresses anti-fling for 1.5 s per placement, so anti-fling stays suppressed for as long as the farm is holding a position. It is the same suppression any teleport in the suite applies, but continuous rather than one-shot, and it has to be — otherwise anti-fling would read the farm's own placement as an attack and fight it.
+
+Auto equip (`src/Plugins/ZombieAttack/AutoEquipService.luau`) identifies weapons by their controller child rather than by name: a Tool carrying `GunController` is a gun, and the first one found is equipped through `Humanoid:EquipTool`, character before backpack. A gun already in hand is left alone, so the loop never re-triggers an equip animation, and a deliberate unequip is respected for half a second before the tool is taken back. The controller name resolves recursively, then falls back to a bounded case-insensitive walk, so a tool that nests it under a folder or spells it with different casing still counts. Tools carrying `KnifeController` are counted for the status line but never equipped — knives are out of scope here, and reporting the count keeps that naming assumption verifiable in-game instead of assumed. This is also what clears the kill aura's `No weapon equipped` miss without touching the payload the aura sends.
+
+Settings live at `Game.ZombieAura*`, `Game.ZombieAutoEquip`, and `Game.ZombieFarm` so they serialize into profiles and appear in menu search. Everything the adapter owns — the three heartbeat connections, the label job, and the spawned paint task — hangs off the plugin's disposer scope and is released on unload or when the game plugin switch is turned off.
 
 `src/Plugins/ExampleGame/` remains the opt-in test-place adapter pattern. It is not registered for any live experience.
 

@@ -150,6 +150,8 @@ return function(services: any, Aura: any?): any
 
     local function tick(now: number)
         if StateStore:Get("Game.ZombieAura") ~= true then return end
+        -- While the farm runs it owns targeting; firing here too would alternate targets through the same gate
+        if StateStore:Get("Game.ZombieFarm") == true then return end
         if now - KillAura._lastShot < currentRate() then return end
 
         local target = Aura.Targets and Aura.Targets:GetNearest(currentPart(), currentRange())
@@ -165,6 +167,16 @@ return function(services: any, Aura: any?): any
         local target = Aura.Targets and Aura.Targets:GetNearest(currentPart(), currentRange())
         if not target then return false, "No zombie in range" end
         return fireAt(target, os.clock())
+    end
+
+    -- Shares the remote, the payload, and the rate gate, so a second driver cannot outrun the
+    -- configured fire rate. The third result separates "waited for the gate" from "tried and missed"
+    function KillAura:FireAtTarget(target: any): (boolean, string, boolean)
+        local now = os.clock()
+        if now - KillAura._lastShot < currentRate() then return false, "Rate limited", false end
+        KillAura._lastShot = now
+        local ok, message = fireAt(target, now)
+        return ok, message, true
     end
 
     function KillAura:Reset(_reason: string?)

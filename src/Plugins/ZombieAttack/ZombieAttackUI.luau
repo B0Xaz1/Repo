@@ -53,6 +53,31 @@ return function(services: any, Aura: any?): any
         labels.aura = createInfoLabel(auraSec, "Aura: off")
         section:Info(auraSec, `Fires the game's own {manifest.Gun.Remote[#manifest.Gun.Remote]} remote at the nearest live zombie on every tick, gated by the fire rate. The payload keeps the standalone script's shape: Normal, Direction, Name (your equipped tool), Hit, Origin, Pos.`)
 
+        local farmSec = section:Create(tab.LeftCol, "Auto Farm")
+        toggle(farmSec, "Auto farm", "Game.ZombieFarm")
+        labels.farm = createInfoLabel(farmSec, "Farm: off")
+        labels.farmStats = createInfoLabel(farmSec, "Targets: 0")
+        textbox:CreateButton(farmSec, "Stop auto farm", function()
+            StateStore:Set("Game.ZombieFarm", false)
+            if Aura.AutoFarm then Aura.AutoFarm:Reset("user request") end
+            return true, "Auto farm stopped"
+        end)
+        section:Info(farmSec, `Locks the nearest live zombie, holds you {manifest.Farm.UpOffset} studs above and {manifest.Farm.BackOffset} studs behind its facing, and drives the kill aura's own gun payload at it until it dies, then moves on to the next. Target part, range, and fire rate come from the kill aura section. While the farm runs it owns targeting, so the aura loop stands down; leave auto equip on or the shots go out with a knife in hand.`)
+
+        local equipSec = section:Create(tab.RightCol, "Auto Equip")
+        toggle(equipSec, "Auto equip gun", "Game.ZombieAutoEquip")
+        labels.equip = createInfoLabel(equipSec, "Auto equip: off")
+        textbox:CreateButton(equipSec, "Equip gun now", function()
+            if Aura.AutoFarm then
+                local farm = Aura.AutoFarm:GetStatus()
+                setLabel(labels.farm, `Farm: {farm.State}`)
+                setLabel(labels.farmStats, `Targets: {farm.Targets}  Last lock: {math.floor(farm.LockDistance)} studs  Placed: {farm.Placements}  Failed: {farm.Failures}`)
+            end
+            if Aura.AutoEquip then return Aura.AutoEquip:EquipNow() end
+            return false, "Auto equip service is not loaded"
+        end)
+        section:Info(equipSec, `Equips the first Tool carrying a {manifest.Weapons.GunControllers[1]} child, searching your character and then your backpack, and leaves it alone while a gun is already in hand. Tools carrying {manifest.Weapons.KnifeControllers[1]} are counted but never equipped. Turning this on is what clears the kill aura's "No weapon equipped" miss.`)
+
         local statsSec = section:Create(tab.RightCol, "Statistics")
         labels.zombies = createInfoLabel(statsSec, "Live zombies: ...")
         labels.shots = createInfoLabel(statsSec, "Shots: ...")
@@ -84,6 +109,12 @@ return function(services: any, Aura: any?): any
         scope:Add(StateStore:Observe("Game.ZombieAura", function()
             forceRender = true
         end))
+        scope:Add(StateStore:Observe("Game.ZombieAutoEquip", function()
+            forceRender = true
+        end))
+        scope:Add(StateStore:Observe("Game.ZombieFarm", function()
+            forceRender = true
+        end))
 
         local function renderStatus()
             if Aura.Targets then
@@ -97,6 +128,15 @@ return function(services: any, Aura: any?): any
                 setLabel(labels.shots, `Shots fired: {status.Shots}`)
                 setLabel(labels.target, `Last target: {status.Target}`)
                 setLabel(labels.weapon, `Weapon / remote: {status.Weapon}  {status.Remote}`)
+            end
+            if Aura.AutoFarm then
+                local farm = Aura.AutoFarm:GetStatus()
+                setLabel(labels.farm, `Farm: {farm.State}`)
+                setLabel(labels.farmStats, `Targets: {farm.Targets}  Last lock: {math.floor(farm.LockDistance)} studs  Placed: {farm.Placements}  Failed: {farm.Failures}`)
+            end
+            if Aura.AutoEquip then
+                local equip = Aura.AutoEquip:GetStatus()
+                setLabel(labels.equip, `Auto equip: {equip.State}  Guns: {equip.Guns}  Knives: {equip.Knives}  Swaps: {equip.Equips}  Failed: {equip.Failures}`)
             end
         end
 

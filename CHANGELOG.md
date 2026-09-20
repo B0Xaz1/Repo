@@ -1,5 +1,97 @@
 # Changelog
 
+## 2.4.9 — 2026-09-20
+
+Zombie Attack auto farm.
+
+- **Added:** `src/Plugins/ZombieAttack/AutoFarmService.luau`, mounted behind a new
+  `Game.ZombieFarm` toggle in an Auto Farm section of the Game tab. It locks the nearest live
+  zombie, holds the player 2 studs above and 2 studs behind that zombie's own facing, keeps
+  firing at it until it dies, then takes the next nearest one. Both offsets live in
+  `Manifest.Farm` alongside the suite's other engage offsets rather than in the service.
+- **Added:** the hold is measured against the zombie's `LookVector`, not the camera's, so
+  standing behind it stays true as it turns, and the frame is rebuilt every heartbeat so a
+  zombie that walks off is followed rather than left. Placement goes through
+  `LocomotionService:Teleport`, which zeroes assembly velocity and suppresses anti-fling, so
+  the character sits firm instead of sagging between frames. Turning the toggle off stops
+  placing and leaves the player where they were; nothing snaps back. The trade-off is that
+  the teleport path suppresses anti-fling for 1.5 s per placement, so anti-fling stays
+  suppressed for as long as the farm holds a position — continuous rather than one-shot, and
+  unavoidable, since anti-fling would otherwise read the farm's own placement as an attack.
+- **Changed:** target retention is sticky, matching the alive-then-next rule. Staying on a
+  locked zombie costs a three-field validity read (`Model.Parent`, `Root.Parent`,
+  `Humanoid.Health`), and the capped container scan runs only when that read fails — so a
+  dead, despawned, or unparented zombie releases the lock and the next nearest is acquired
+  without rescanning on every frame in between.
+- **Changed:** the farm fires through the kill aura rather than around it. `KillAura` gained a
+  public `FireAtTarget(target)` that shares the existing remote lookup, payload builder, and
+  rate gate, so a second driver cannot outrun the configured fire rate. Its third return value
+  separates "waited for the gate" from "tried and missed", which lets the farm's status line
+  name a real problem (`No weapon equipped`) without reporting the normal rate-limit case.
+- **Changed:** the kill aura's own loop stands down while `Game.ZombieFarm` is on. Both drivers
+  share one rate gate, so leaving the aura looping would have alternated shots between the
+  nearest zombie and the one the farm is standing on. Target part, range, and fire rate stay
+  single-sourced from the kill aura section instead of gaining duplicate controls.
+- **Changed:** `TargetService` resolves a body anchor (`Root`) alongside the aim part and
+  exports it on `ZombieTarget`. The aim part defaults to `Head`, and standing two studs above
+  a head is not standing two studs above a zombie; `Root` prefers `HumanoidRootPart`, falls
+  back to `PrimaryPart`, then to the aim part. The change is additive — the kill aura still
+  aims at `Part` and its payload is unchanged.
+- **Changed:** the Auto Equip section moved to the right column so the Game tab reads as two
+  combat drivers on the left and the support toggle above the statistics on the right.
+- **Verified:** all 74 modules pass the structural check (Luau lexer plus block and bracket
+  balance) that reported the pre-existing modules clean before this change. The Luau compiler
+  was still not reachable from the build environment, so this is not a compiler pass.
+- **Verified:** the farm, the kill aura, and the target service were transpiled to plain Lua
+  and executed against a stubbed Roblox API with working `Vector3`/`CFrame` math — 34 farm
+  checks, 23 aura and target checks, and the 29 auto equip checks re-run unchanged. The farm
+  checks assert the exact placement (a zombie at the origin facing +Z puts the player at
+  `(0, 2, -2)` turned toward it), lock retention across ticks, following a moving zombie,
+  advancing on death, nearest-wins selection, a despawned lock, an empty field, the shared
+  part and range settings, a dead or missing character, the rate-limit and failure reporting,
+  respawn resets, and no snap-back on disable. The aura checks confirm all six payload fields,
+  the `Origin` root-plus-1.5 offset, and the direction still normalized to 1000 studs.
+
+## 2.4.8 — 2026-09-20
+
+Zombie Attack auto equip.
+
+- **Added:** `src/Plugins/ZombieAttack/AutoEquipService.luau`, mounted behind a new
+  `Game.ZombieAutoEquip` toggle in an Auto Equip section of the Game tab. While it is on, the
+  service equips the first Tool carrying a `GunController` child through `Humanoid:EquipTool`,
+  searching the character before the backpack. Weapons are identified by that controller child
+  rather than by tool name, so a new or renamed gun in the game needs no manifest change.
+- **Added:** a gun already in hand is left alone, which keeps the loop from re-triggering an
+  equip animation every tick, and a swap re-arms on a half-second interval so a server that
+  refuses the equip, or a player who deliberately puts the gun away, is not fought per frame.
+  The whole tick is rate-limited to four scans a second rather than running per frame.
+- **Added:** controller matching resolves the manifest name recursively with
+  `FindFirstChild(name, true)` — no descendant array is allocated — then falls back to a bounded
+  case-insensitive walk, so a tool that nests the controller under a folder or spells it with
+  different casing still counts. Both scans are capped, at 64 tools and 160 nodes per tool.
+- **Added:** knives stay out of scope. A Tool carrying `KnifeController` is counted but never
+  equipped, and the count is surfaced on the section's status line, which makes the naming
+  assumption checkable in-game instead of taken on faith.
+- **Added:** an `Equip gun now` button that runs the same detection and equip path once, with the
+  toggle off, so a player can confirm what the adapter sees before arming the loop. The status
+  line reports the state, guns, knives, swaps, and failures.
+- **Fixed:** the swap throttle now stamps on an attempted equip rather than on every tick that
+  reaches it. Stamping earlier meant a tick with no gun to take consumed the window, so a player
+  who picked one up right after waited out an interval for nothing.
+- **Changed:** the plugin's ready notification and its `Destroy` path cover auto equip alongside
+  the kill aura, and `Game.ZombieAutoEquip` is registered in `GAME_BOOLEAN_FLAGS`, so a tier
+  downgrade switches it off with the other game flags. The kill aura itself is untouched: its
+  payload still reports the tool that is actually equipped, and auto equip is what keeps that
+  tool a gun rather than a knife.
+- **Verified:** all 73 modules pass a structural check (a Luau lexer plus block and bracket
+  balance) that was calibrated to report the 72 pre-existing modules clean before this change.
+  The Luau compiler itself was not reachable from the build environment, so this is not a
+  compiler pass.
+- **Verified:** the new service's control flow was transpiled to plain Lua and executed against a
+  stubbed Roblox API, passing 29 behavioral checks: the off state, gun-over-knife selection,
+  nested and mis-cased controllers, an unrelated tool ignored, the scan and swap windows, a dead
+  character, respawn resets, the manual button, and the tool cap.
+
 ## 2.4.7 — 2026-09-20
 
 Repository hygiene pass.

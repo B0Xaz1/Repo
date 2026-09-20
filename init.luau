@@ -2,7 +2,7 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
-    VERSION = "2.4.7",
+    VERSION = "2.4.9",
     NOT_FOUND_BODY = "404" .. ": Not Found",
     DEFAULT_REF = "main",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",

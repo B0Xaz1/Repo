@@ -40,6 +40,19 @@ return function(_services: any?): any
             DirectionMagnitude = 1000,
             Normal = { 1, 0, 0 },
         },
+
+        Farm = {
+            -- Stands the player off the zombie's own facing, matching the suite's engage offsets
+            UpOffset = 2,
+            BackOffset = 2,
+        },
+
+        Weapons = {
+            -- A Tool carrying one of these is a gun; the controller is a script in this game
+            GunControllers = { "GunController" },
+            -- Counted and reported but never equipped, so the knife assumption stays checkable at runtime
+            KnifeControllers = { "KnifeController" },
+        },
     }
 
     local function freezeDeep(value: any): any

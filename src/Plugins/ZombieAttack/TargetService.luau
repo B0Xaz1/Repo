@@ -5,6 +5,7 @@ export type ZombieTarget = {
     Model: Instance,
     Humanoid: Humanoid,
     Part: BasePart,
+    Root: BasePart,
     Distance: number,
 }
 
@@ -60,6 +61,15 @@ return function(_services: any, Aura: any?): any
         return if primary and primary:IsA("BasePart") then primary else nil
     end
 
+    -- The aim part is often a head, so anything that stands the player off the body anchors
+    -- on the root instead rather than two studs above the skull
+    local function resolveRoot(model: Instance, fallback: BasePart): BasePart
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if root and root:IsA("BasePart") then return root end
+        local primary = model.PrimaryPart
+        return if primary and primary:IsA("BasePart") then primary else fallback
+    end
+
     -- Walks the live zombies once; the scan is capped so an oversized container cannot stall a frame
     local function forEachAlive(callback: (model: Instance, humanoid: Humanoid) -> ()): number
         local container = findContainer()
@@ -103,7 +113,7 @@ return function(_services: any, Aura: any?): any
             if not part then return end
             local distance = (part.Position - origin).Magnitude
             if limit > 0 and distance > limit then return end
-            table.insert(list, { Model = model, Humanoid = humanoid, Part = part, Distance = distance })
+            table.insert(list, { Model = model, Humanoid = humanoid, Part = part, Root = resolveRoot(model, part), Distance = distance })
         end)
 
         table.sort(list, function(a: ZombieTarget, b: ZombieTarget): boolean

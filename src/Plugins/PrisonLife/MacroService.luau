@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
@@ -23,7 +22,6 @@ return function(services: any, Prison: any?): any
 
     local MacroService = {
         _running = false,
-        _thread = nil :: thread?,
         _generation = 0,
         _state = "Idle",
         _stopReason = nil :: string?,
@@ -98,7 +96,7 @@ return function(services: any, Prison: any?): any
 
         self._generation += 1
         local generation = self._generation
-        self._thread = scope:Spawn(function()
+        scope:Spawn(function()
             while self._running and self._generation == generation do
                 if not PlayerTracker:IsAlive(Players.LocalPlayer) then
                     self:Stop("died")
@@ -135,7 +133,6 @@ return function(services: any, Prison: any?): any
         self._generation += 1
         self._state = if reason then "Cancelled" else "Idle"
         self._stopReason = reason
-        self._thread = nil
         if StateStore:Peek("Game.FakeMacro") == true then StateStore:Set("Game.FakeMacro", false) end
         publish()
     end

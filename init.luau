@@ -1,9 +1,8 @@
---!strict
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
-    VERSION = "2.4.6",
+    VERSION = "2.4.7",
     NOT_FOUND_BODY = "404" .. ": Not Found",
     DEFAULT_REF = "main",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
@@ -79,6 +78,7 @@ globals.B0XazRunning = globals.B0XazRunning == true
 local base: string = if type(globals.B0XazBaseURL) == "string" then globals.B0XazBaseURL
     else CONFIG.REPOSITORY .. (if type(globals.B0XazRef) == "string" then globals.B0XazRef else CONFIG.DEFAULT_REF)
 base = base:gsub("[?#].*$", ""):gsub("/+$", "")
+-- A base URL may point at the launch script itself; strip every known suffix to reach the repository root
 local changed = true
 while changed do
     changed = false
@@ -107,10 +107,7 @@ end
 local sourceCache, compiledCache, initializedCache = {}, {}, {}
 local loading, initializing, failed = {}, {}, {}
 
--- A module instance belongs to the service container that first loaded it.
--- Containers advertise a stable `ContainerId`; anything else falls back to its
--- identity, so a plugin's scoped container can never hand its own (short-lived)
--- instance of a shared module back to the rest of the suite.
+-- Modules initialize per container, so a plugin's scoped container keys its own instance
 local function scopeOf(container: any): string
     if type(container) == "table" then
         local id = rawget(container, "ContainerId")

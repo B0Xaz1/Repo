@@ -1,4 +1,3 @@
---!strict
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 
@@ -42,7 +41,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("LightingService")
     local modeChanges, fullbrightChanges, materials = scope:CreateChild("Grade"), scope:CreateChild("Fullbright"), scope:CreateChild("Remaster")
     local LightingService = { _original = nil, _effectsScope = nil, _effects = {}, _materialCache = {}, _vignette = nil,
-        _clock = CONFIG.STATIC_DAY_TIME, _elapsed = 0, _mode = "Off", _initialized = false, _modeApplied = {}, _fullbrightApplied = {} }
+        _clock = CONFIG.STATIC_DAY_TIME, _elapsed = 0, _initialized = false, _modeApplied = {}, _fullbrightApplied = {} }
 
     local KEYFRAMES = table.freeze({
         { Hour = 0, Profile = CONFIG.NIGHT }, { Hour = 5, Profile = CONFIG.NIGHT }, { Hour = 7, Profile = CONFIG.DAWN },
@@ -78,6 +77,7 @@ return function(services: any): any
         return profile
     end
 
+    -- The 5 Hz re-assert skips values it already applied, so it does not churn properties
     local function applyProfile(profile: any, owner: any, applied: any)
         snapshot()
         for _, property in ipairs(CONFIG.PROPERTIES) do
@@ -144,7 +144,6 @@ return function(services: any): any
         if LightingService._effectsScope then LightingService._effectsScope:Dispose(); LightingService._effectsScope = nil end
         table.clear(LightingService._effects)
         clearVignette()
-        LightingService._mode = "Off"
     end
 
     local function reconcile()
@@ -164,7 +163,6 @@ return function(services: any): any
         if config.Mode == "Off" then
             restoreMode(); LightingService._original = nil; return
         end
-        LightingService._mode = config.Mode
         local profile = if config.Mode == "Dynamic" then dynamicProfile(LightingService._clock) else table.clone(if config.Mode == "Static Night" then CONFIG.NIGHT else CONFIG.DAY)
         if config.Mode ~= "Dynamic" then profile.ClockTime = config.TimeOfDay end
         profile.Brightness *= math.clamp(config.PresetBrightness, CONFIG.BRIGHTNESS_MIN, CONFIG.BRIGHTNESS_MAX)
@@ -213,6 +211,7 @@ return function(services: any): any
     function LightingService:Initialize()
         if self._initialized then return end
         self._initialized = true
+        -- Coalesces a burst of state changes into one deferred pass, keyed by the flag name
         local function scheduleForward(flag: string, body: () -> ())
             if LightingService[flag] then return end
             LightingService[flag] = true

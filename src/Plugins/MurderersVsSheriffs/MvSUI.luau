@@ -1,4 +1,3 @@
---!strict
 local CONFIG = table.freeze({
     REFRESH_INTERVAL = 0.5,
     FIRST_PAINT_DELAY = 0.1,

@@ -1,4 +1,3 @@
---!strict
 export type Registration = {
     Name: string,
     PluginModule: string,
@@ -28,8 +27,8 @@ local CONFIG = table.freeze({
             PlaceIds = { 12355337193 }, UniverseIds = { 4348829796 },
         },
         {
-            -- Root place plus the Hardmode place in the same game; no universe id is
-            -- registered because it could not be confirmed without an authenticated call.
+            -- Root and Hardmode place ids; no universe id, since it could not be confirmed
+            -- without an authenticated call
             Name = "Zombie Attack",
             PluginModule = "src/Plugins/ZombieAttack/Mechanics.luau",
             Description = "Zombie Attack kill aura: rate-gated shots at the nearest live zombie through the game's own gun remote",

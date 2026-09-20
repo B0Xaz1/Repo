@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
@@ -61,8 +60,7 @@ return function(_services: any, Aura: any?): any
         return if primary and primary:IsA("BasePart") then primary else nil
     end
 
-    -- Walks the live zombies once and hands each one to the callback. `scanned` is capped
-    -- so an oversized container cannot stall a frame.
+    -- Walks the live zombies once; the scan is capped so an oversized container cannot stall a frame
     local function forEachAlive(callback: (model: Instance, humanoid: Humanoid) -> ()): number
         local container = findContainer()
         if not container then return 0 end

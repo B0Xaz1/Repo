@@ -1,4 +1,3 @@
---!strict
 return function(services: any, tab: any): any
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)

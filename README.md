@@ -2,7 +2,7 @@
 
 A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
 
-**Version:** `2.4.6` · **Default source ref:** `main`
+**Version:** `2.4.7` · **Default source ref:** `main`
 
 > Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
 
@@ -16,7 +16,7 @@ The repository is governed by the [B0Xaz Universal Use-Only License](LICENSE). I
 
 ### Prerequisites
 
-1. Publish the selected source ref so it is available from the raw GitHub URL. Local workspace edits are not available to a runtime loader until published.
+1. Publish the selected source ref so it is available from the raw GitHub URL. A runtime loader cannot see unpublished workspace edits.
 2. Use an executor that supports Luau `loadstring` and `game:HttpGet`. Optional executor APIs degrade gracefully when unavailable.
 
 Paste this four-line bootstrap. It downloads `loader.luau`, which owns readiness checks, launch locking, retries, and entry-point execution:
@@ -64,11 +64,11 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
 | Settings | Profiles, validated backups, Default/Legit/Rage presets, launch behavior, JSON import/export, compact mode, scale/hotkeys with conflict checks and reset actions, full theme palettes, and lifecycle actions. |
 
-The window is a charcoal two-column suite: **B0Xaz Universal** in the title bar, version at the bottom-right of the frame, a compact `search...` field on the right, text tabs with a cyan underline, cyan-outlined groupboxes, square checkboxes, stacked dropdowns, and knobless cyan sliders that show `value/max`. In-game labels use ASCII so they render on every executor font. Search is case-insensitive and matches controls, sections, and tab names. Clearing search restores the original parent and layout order for every row. The menu includes six theme presets and 18 live color tokens.
+The window is a charcoal two-column suite: title-bar search, version at the bottom-right, text tabs with a cyan underline, cyan-outlined groupboxes, square checkboxes, stacked dropdowns, and knobless cyan sliders that show `value/max`. Labels stay ASCII so they render on every executor font. Search is case-insensitive, matches controls, sections, and tab names, and restores each row's original parent and layout order when cleared. Six theme presets and 18 live color tokens are included.
 
 ## Settings and profiles
 
-`src/Core/StateStore.luau` is the authoritative default schema. Feature switches ship off; display and filter options retain practical defaults. Speed, jump, gravity, and camera-FOV overrides use **0 = leave the game's value alone** rather than guessing a Roblox default.
+`src/Core/StateStore.luau` is the authoritative default schema. Feature switches ship off; display and filter options keep practical defaults. Speed, jump, gravity, and camera-FOV overrides use **0 = leave the game's value alone** rather than guessing a Roblox default.
 
 Owned runtime files:
 
@@ -99,7 +99,7 @@ Disposer → Environment → EventBus → StateStore → TaskScheduler → Servi
 
 There is no `require()`, Rojo synchronization, package manager, bundler, or application build step. Application source is fetched as `.luau`; its paths are part of the runtime API.
 
-`init.luau` normalizes module paths and uses per-session source, compiled-factory, and initialized-singleton caches. Fetches have cache busters and retries; concurrent requests for a module are single-flight. Every boot stage emits `[B0Xaz][Trace]` diagnostics.
+`init.luau` normalizes module paths and uses per-session source, compiled-factory, and initialized-singleton caches. Fetches have cache busters and retries, and concurrent requests for a module are single-flight. Failures are reported once with the underlying error rather than traced per stage.
 
 Cleanup is centralized through `Disposer` scopes:
 
@@ -107,12 +107,12 @@ Cleanup is centralized through `Disposer` scopes:
 - Children own feature cycles, event subscriptions, tasks, instances, and Drawing objects.
 - Late additions to a disposed scope clean immediately.
 - Property and attribute leases capture originals before the first write and restore them when ownership ends.
-- Scheduler jobs are isolated and disabled after five consecutive failures without interrupting unrelated jobs.
-- Drawings are hidden before removal, camera render bindings are unbound, and optional FPS-cap support is reset to uncapped on unload.
+- Scheduler jobs are isolated and disabled after five consecutive failures, without interrupting unrelated jobs.
+- Drawings are hidden before removal, camera render bindings are unbound, and an optional FPS cap is reset to uncapped on unload.
 
 ### Restoration limits
 
-The suite restores cached client-side properties and disposes the resources it owns. It cannot undo completed server-side effects, fired input, teleports, a destroyed character, or a streamed-out instance. A queued teleport payload may still run after local unload if the executor offers no revocation API.
+The suite restores cached client-side properties and disposes the resources it owns. It cannot undo completed server-side effects, fired input, teleports, a destroyed character, or a streamed-out instance. A queued teleport payload can still run after a local unload when the executor offers no revocation API.
 
 ## Game plugins
 

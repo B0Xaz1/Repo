@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 
 local CONFIG = table.freeze({
@@ -96,6 +95,8 @@ return function(services: any): any
         end
     end
 
+    -- Anti-fling keeps a known-good baseline CFrame and only snaps back once an impulse exceeds
+    -- every plausible cap, which keeps ordinary knockback and jumps untouched
     local function antiFling(dt: number)
         local assets = tracker:GetLocalAssets()
         if not assets then restoreDefence(); ExtrasService._baselineRoot = nil; return end

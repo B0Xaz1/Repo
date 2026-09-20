@@ -1,4 +1,3 @@
---!strict
 local HttpService = game:GetService("HttpService")
 
 local CONFIG = table.freeze({
@@ -18,7 +17,7 @@ return function(services: any): any
 
     local function serialize(value: any, depth: number?): any
         local level = depth or 0
-        assert(level < CONFIG.MAX_NESTING_DEPTH, "Config nesting limit exceeded")
+        assert(level < CONFIG.MAX_NESTING_DEPTH)
         local kind = typeof(value)
         if kind == "Color3" then return { __type = "Color3", r = value.R, g = value.G, b = value.B } end
         if kind == "EnumItem" then return { __type = "EnumItem", enum = (tostring(value.EnumType):gsub("^Enum%.", "")), name = value.Name } end
@@ -30,7 +29,7 @@ return function(services: any): any
 
     local function deserialize(value: any, depth: number?): any
         local level = depth or 0
-        assert(level < CONFIG.MAX_NESTING_DEPTH, "Config nesting limit exceeded")
+        assert(level < CONFIG.MAX_NESTING_DEPTH)
         if type(value) ~= "table" then return value end
         if value.__type == "Color3" then
             for _, key in ipairs({ "r", "g", "b" }) do
@@ -40,7 +39,7 @@ return function(services: any): any
         elseif value.__type == "EnumItem" then
             local name = (tostring(value.enum):gsub("^Enum%.", ""))
             local ok, item = pcall(function() return (Enum :: any)[name][value.name] end)
-            assert(ok and typeof(item) == "EnumItem", "Invalid EnumItem")
+            assert(ok and typeof(item) == "EnumItem")
             return item
         end
         local result = {}
@@ -128,6 +127,7 @@ return function(services: any): any
         local key = builtinKey(name)
         if key then
             local snapshot = buildBuiltin(key)
+            -- A builtin preset only changes gameplay settings; the user's UI settings and theme are kept
             if key ~= "default" then
                 local current = state:GetSettingsSnapshot()
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme

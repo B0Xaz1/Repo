@@ -1,4 +1,3 @@
---!strict
 local RunService = game:GetService("RunService")
 
 local CONFIG = table.freeze({
@@ -60,7 +59,6 @@ return function(services: any): any
         local frame = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5),
             Position = UDim2.new(0.5, 398, 0.5, 8), Size = UDim2.fromOffset(188, 268), Visible = false })
         self.Frame = frame
-        ui._visualsPreview = frame
         theme:BindToken(frame, "BackgroundColor3", "Bg")
         theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Border")), "Color", "Border")
         dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 6) })

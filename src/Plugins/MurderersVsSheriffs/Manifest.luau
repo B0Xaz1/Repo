@@ -1,5 +1,3 @@
---!strict
-
 return function(_services: any?): any
     local CONFIG = {
         Name = "Murderers VS Sheriffs DUELS",

@@ -1,4 +1,3 @@
---!strict
 local Workspace = game:GetService("Workspace")
 local UIS = game:GetService("UserInputService")
 
@@ -35,6 +34,7 @@ return function(services: any): any
             if TriggerbotService._candidate ~= player then TriggerbotService._candidate, TriggerbotService._elapsed = player, 0 end
             TriggerbotService._elapsed += dt
             TriggerbotService._sinceShot += dt
+            -- Two gates: the target has to stay under the crosshair for the delay, and shots stay rate limited
             local delay = math.clamp(config.Delay, 0, CONFIG.DELAY_MAX)
             if TriggerbotService._elapsed < delay or TriggerbotService._sinceShot < math.max(CONFIG.MIN_SHOT_INTERVAL, delay) then return end
             TriggerbotService._sinceShot = 0

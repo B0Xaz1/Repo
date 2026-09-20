@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.4.7 — 2026-09-20
+
+Repository hygiene pass.
+
+- **Changed:** the `--!strict` directive was dropped from all 72 modules, so the suite runs in
+  Luau's default nonstrict mode. Type annotations stay; only the strict-mode checking is gone.
+- **Changed:** comments were reduced to the mechanisms a reader cannot infer from the code.
+  59 lines across 32 files, one or two lines each, placed above what they describe. Nothing that
+  restates a name, a constant, or a literal survives.
+- **Hygiene:** assertion messages that only repeated their own condition were dropped
+  (`assert(type(snapshot) == "table", "Settings snapshot must be a table")`). Messages that name
+  a value, path, or operation — and therefore explain a failure the condition does not — were
+  kept, and every guard still runs.
+- **Removed:** dead code found while reading: an unused `Players` service and a duplicated `UIS`
+  local in `WallWalkService`, an unused `names` table in the `/help` handler, an unused
+  `maxPerStrand` local in `AutoQueueService`, the write-only `_mode`, `_match`, `_thread`,
+  `_lastWeapon`, and `_visualsPreview` fields, and the duplicated touch handler in
+  `LocomotionService`.
+- **Fixed:** misindented blocks in `HotkeyService` and `LocomotionService`.
+- **Fixed (docs):** the README claimed every boot stage emits `[B0Xaz][Trace]` diagnostics. Boot
+  tracing has not existed since 2.4.3.
+- **Verified:** all 72 modules compile and load under the Luau compiler.
+
 ## 2.4.6 — 2026-09-20
 
 Zombie Attack adapter.
@@ -39,14 +62,13 @@ Game-plugin switch hotfix.
   `Disposer` resolves to the plugin's lifetime scope, and `InitializeAll()` activates the
   plugin *before* `UIEngine` builds any tab — so the shared UI components (`Section`,
   `Toggle`, `Slider`, `Keybind`, `Textbox`, `Dropdown`) were first instantiated through
-  that plugin-scoped container. The loader cached modules by path alone, so every later
-  tab received that same instance and **every** control in the suite was parented to the
-  plugin's disposer scope. Disabling the plugin disposed that scope and took all of those
-  controls with it: state observers, input connections, and theme bindings were severed
-  for all seven tabs, the switch itself went inert so the adapter could never be mounted
-  again without a full reload, and it all happened silently — no error, no toast. Modules
-  are now cached per service container, so the root container keeps its own instances of
-  the shared components and only the plugin's own controls die with the plugin.
+  that plugin-scoped container. The loader cached modules by path alone, so every later tab
+  received that same instance and **every** control in the suite hung off the plugin's
+  disposer scope. Disabling the plugin disposed that scope and took the controls with it:
+  state observers, input connections, and theme bindings were severed for all seven tabs,
+  and the switch went inert, so the adapter could never be mounted again without a full
+  reload. Modules are now cached per service container, so the root container keeps its own
+  instances of the shared components and only the plugin's controls die with the plugin.
 - **Fixed:** one click on the switch rebuilt the Game tab twice — once from the
   `Settings.PluginEnabled` observer and once from the control's callback — discarding the
   panel it had just built. `SetEnabled` now ignores a request for the state it is already in.
@@ -133,11 +155,11 @@ Correctness pass from a full code review.
 
 Menu performance pass. The Game tab refresh loop was the primary lag source: it
 re-rendered every dynamic label four times per second whether or not the menu was
-open or the Game tab was even selected, and every `TextLabel` write cascades up
-through the `AutomaticSize` layout chain to the window root. On top of that, the
-armory block was hitting a runtime error each pass (weapon spawns were routed
-through the location resolver, which expects a location `CFrame`), so the render
-aborted with a `warn` every tick — console I/O that executors make expensive.
+open or that tab was selected, and every `TextLabel` write cascades up through the
+`AutomaticSize` layout chain to the window root. The armory block also errored each
+pass (weapon spawns went through the location resolver, which expects a location
+`CFrame`), so the render aborted with a `warn` every tick — console I/O that
+executors make expensive.
 
 - **Fixed:** the Game-tab render loop no longer errors on weapon distances —
   spawn positions are measured directly as `Vector3` (this also means the

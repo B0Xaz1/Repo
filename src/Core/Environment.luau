@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local UIS = game:GetService("UserInputService")
@@ -141,6 +140,7 @@ return function(disposer: any): any
         return ok, if ok then nil else tostring(err)
     end
 
+    -- Candidates are probed by parenting a throwaway folder: some parents reject writes silently
     function Environment:GetSafeGuiParent(): Instance?
         if cachedParent then
             local ok, parent = pcall(function() return cachedParent.Parent end)
@@ -255,6 +255,8 @@ return function(disposer: any): any
 
     function Environment:MouseClick(): boolean
         if click then return pcall(click) end
+        -- Without a native click API the press/release pair is synthesized, and mousePressed
+        -- keeps a delayed release from overlapping the next press
         if not virtualInput or mousePressed then return false end
         local point = UIS:GetMouseLocation()
         local sent = pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0) end)

@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local Stats = game:GetService("Stats")
@@ -30,6 +29,7 @@ return function(services: any): any
         return object
     end
 
+    -- Drawing writes are only issued when a value changed, since every write is an executor call
     local function paint(name: string, properties: any)
         local object = OverlayController._objects[name]
         if not object then return end

@@ -1,4 +1,3 @@
---!strict
 export type Scope = {
     Name: string,
     Add: (Scope, any, string?) -> any,
@@ -130,6 +129,8 @@ return function(): any
         return pcall(function() return object[property] end)
     end
 
+    -- Property writes are leased: Owners is a stack, the top lease wins the write, and a leased
+    -- property can be restored to the value of whoever leased it before
     function methods:SetProperty(object: any, property: string, value: any, dynamic: boolean?): boolean
         if self._disposed or object == nil then return false end
         local journal = self._root._journal

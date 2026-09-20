@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local Teleport = game:GetService("TeleportService")
 local UIS = game:GetService("UserInputService")
@@ -59,6 +58,7 @@ return function(services: any): any
         return nil
     end
 
+    -- Rejoin bootstrap handed to queue-on-teleport; it is emitted as one minified statement
     function HotkeyService:BuildTeleportSource(): string
         local globals = environment.Globals
         return string.format('local g=_G;if type(getgenv)=="function" then local o,v=pcall(getgenv);if o then g=v end end;g.B0XazRef=%q;g.B0XazBaseURL=%q;local d=os.clock()+60;while not game:IsLoaded() or not game:GetService("Players").LocalPlayer do if os.clock()>d then return end;task.wait(.1) end;for a=1,5 do local o,s=pcall(function() return game:HttpGet(%q.."?t="..os.time().."_"..a) end);if o and type(s)=="string" and #s>=10 and not s:find("404"..": Not Found",1,true) then local f=loadstring(s,"@B0XazInit");if f then pcall(f);break end end;task.wait(a*.7) end',
@@ -136,7 +136,7 @@ return function(services: any): any
             if environment:MatchesInput(event, state:Get("Settings.Binds.Panic")) then HotkeyService:Panic(); return end
             if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             for _, entry in ipairs(CONFIG.BIND_TARGETS) do
-            if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
+                if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
                     if entry.Cycle then
                         local index = table.find(entry.Cycle, state:Get(entry.Path)) or 0
                         services:Get("LightingService"):SetMode(entry.Cycle[index % #entry.Cycle + 1])

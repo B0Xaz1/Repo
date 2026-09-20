@@ -1,4 +1,3 @@
---!strict
 local function deepFreeze(value: any): any
     if type(value) ~= "table" then return value end
     for _, child in pairs(value) do deepFreeze(child) end
@@ -162,7 +161,8 @@ return function(eventBus: any, disposer: any): any
     function StateStore:Peek(path: string): any return read(self._settings, path) end
 
     function StateStore:Set(path: string, value: any): (boolean, string?)
-        assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"), "Invalid state path")
+        -- Rejects traversal and empty segments so every path stays inside the settings tree
+        assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"))
         local default = read(CONFIG.DEFAULT_SETTINGS, path)
         if not compatible(value, default) then return false, `Invalid value for {path}` end
         local old = read(self._settings, path)
@@ -245,7 +245,7 @@ return function(eventBus: any, disposer: any): any
     end
 
     function StateStore:LoadSettingsSnapshot(snapshot: any)
-        assert(type(snapshot) == "table", "Settings snapshot must be a table")
+        assert(type(snapshot) == "table")
         local old = self._settings
         self._hydrating = true
         self._settings = merge(CONFIG.DEFAULT_SETTINGS, snapshot)

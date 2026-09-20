@@ -1,4 +1,3 @@
---!strict
 local CONFIG = table.freeze({
     TEXT_DEFAULT_SIZE = 13,
     TEXT_DEFAULT_FONT = 2,
@@ -11,6 +10,7 @@ return function(services: any): any
     local drawing = environment.Drawing
     local DrawingPool = { Available = false, _all = {}, _inUse = {}, _free = { Line = {}, Text = {}, Square = {}, Circle = {} } }
 
+    -- An executor can advertise Drawing.new and still fail, so one throwaway primitive is tested
     if environment.Capabilities.Drawing then
         local probe = nil
         local created = pcall(function() probe = drawing.new("Line"); probe.Visible = false; probe:Remove() end)

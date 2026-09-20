@@ -1,4 +1,3 @@
---!strict
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
@@ -85,6 +84,8 @@ return function(services: any): any
         record.Bones = true
     end
 
+    -- Drawing properties are only written when they change: each write crosses into the executor,
+    -- which costs far more than comparing against the cached value
     local function draw(record: any, name: string, properties: any)
         local object = record.Drawings[name]
         if not object then return end

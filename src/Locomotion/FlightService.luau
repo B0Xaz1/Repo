@@ -1,4 +1,3 @@
---!strict
 local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
@@ -98,6 +97,7 @@ return function(services: any): any
             FlightService._gyro.CFrame = camera.CFrame
             FlightService._flightScope:SetProperty(assets.Humanoid, "PlatformStand", true)
             FlightService._flightScope:SetProperty(assets.Humanoid, "AutoRotate", false)
+            -- Kept fresh each step so the anti-fling guard never fights the flight velocity
             state:SetTransient("AntiFlingSuppressUntil", math.max(state:GetTransient("AntiFlingSuppressUntil") or 0, os.clock() + CONFIG.ANTI_FLING_SUPPRESS))
         end)
         local function syncFlight(value: boolean)

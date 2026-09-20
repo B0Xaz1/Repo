@@ -1,4 +1,3 @@
---!strict
 return function(services: any, tab: any): any
     local load = services:Get("Require")
     local dom, theme, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("EventBus")

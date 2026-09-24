@@ -12,6 +12,7 @@ local CONFIG = table.freeze({
     CAMERA_EPSILON = 0.001,
     SMOOTHNESS_MIN = 1,
     SMOOTHNESS_MAX = 100,
+    MOUSE_MAX_STEP = 200,
     HITPARTS = {
         Head = { "Head" }, Torso = { "UpperTorso", "Torso", "LowerTorso" },
         HumanoidRootPart = { "HumanoidRootPart" }, UpperTorso = { "UpperTorso", "Torso" }, LowerTorso = { "LowerTorso", "Torso" },
@@ -77,6 +78,23 @@ return function(services: any): any
         return Vector2.new(clampAxis(delta.X, errorPixels.X), clampAxis(delta.Y, errorPixels.Y))
     end
 
+    local function stableLookAt(eye: Vector3, target: Vector3, currentUp: Vector3?): CFrame?
+        local offset = target - eye
+        local dist = offset.Magnitude
+        if dist <= CONFIG.CAMERA_EPSILON then return nil end
+        local dir = offset / dist
+        local up = currentUp or Vector3.new(0, 1, 0)
+        -- When the look direction is almost colinear with the up vector, CFrame.lookAt becomes
+        -- unstable and the camera can spin. Pick a fallback axis that is not colinear.
+        if math.abs(dir:Dot(up)) > 0.9995 then
+            up = Vector3.new(0, 0, 1)
+            if math.abs(dir:Dot(up)) > 0.9995 then
+                up = Vector3.new(1, 0, 0)
+            end
+        end
+        return CFrame.lookAt(eye, target, up)
+    end
+
     local function update(dt: number)
         if not state:Peek("Aimbot.Enabled") then
             if AimbotService._target or AimbotService._camera then
@@ -110,6 +128,7 @@ return function(services: any): any
         end
         if not target or not part then AimbotService._lastCursor = point; return end
         local assets = tracker:GetPlayerAssets(target)
+        if not assets or not assets.RootPart then drop(); return end
         local velocity = assets.RootPart.AssemblyLinearVelocity
         local prediction = config.Prediction
         local goal = part.Position + Vector3.new(velocity.X * math.clamp(prediction.Horizontal, 0, 1),
@@ -118,6 +137,9 @@ return function(services: any): any
             local shake = math.clamp(config.ShakeIntensity, 0, CONFIG.SHAKE_MAX)
             goal += Vector3.new(math.noise(AimbotService._time * 10, 5), math.noise(9, AimbotService._time * 10), 0) * shake
         end
+        -- Prevent extreme close targets from causing CFrame.lookAt gimbal lock / spin.
+        -- Lower hitparts (Torso/HRP) are more likely to end up directly under the camera when close.
+        if (goal - camera.CFrame.Position).Magnitude < 2 then drop(); return end
         local projected, visible = camera:WorldToViewportPoint(goal)
         if not visible or projected.Z <= 0 then drop(); return end
         local screen = Vector2.new(projected.X, projected.Y)
@@ -143,8 +165,9 @@ return function(services: any): any
                 local ray = camera:ViewportPointToRay(centre.X + delta.X / alpha, centre.Y + delta.Y / alpha)
                 desired = camera.CFrame.Position + ray.Direction * CONFIG.AIM_RAY_DISTANCE
             end
-            if (desired - camera.CFrame.Position).Magnitude > CONFIG.CAMERA_EPSILON then
-                cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(CFrame.lookAt(camera.CFrame.Position, desired), alpha), true)
+            local look = stableLookAt(camera.CFrame.Position, desired, camera.CFrame.UpVector)
+            if look then
+                cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(look, alpha), true)
             end
             AimbotService._remainder = Vector2.zero
         else
@@ -158,6 +181,10 @@ return function(services: any): any
             local total = delta + remainder
             local x = clampAxis(math.round(total.X), math.sign(remaining.X) * math.floor(math.abs(remaining.X)))
             local y = clampAxis(math.round(total.Y), math.sign(remaining.Y) * math.floor(math.abs(remaining.Y)))
+            -- Clamp per-frame mouse steps to avoid camera spin when the target is far or
+            -- when a lower hitpart (Torso/HRP) sits near the bottom edge of the screen.
+            x = math.clamp(x, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
+            y = math.clamp(y, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
             AimbotService._remainder = Vector2.new(math.clamp(total.X - x, -1, 1), math.clamp(total.Y - y, -1, 1))
             if (x ~= 0 or y ~= 0) and not environment:MouseMove(x, y) then
                 state:Set("Aimbot.UseCamera", true)

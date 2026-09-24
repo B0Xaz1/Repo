@@ -19,6 +19,7 @@ return function(services: any): any
         self._active = false
         characterChanges:RestoreProperties()
         cameraChanges:RestoreProperties()
+        UIS.MouseBehavior = Enum.MouseBehavior.Default
     end
 
     local function freezeCharacter()

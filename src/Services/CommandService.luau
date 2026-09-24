@@ -207,10 +207,6 @@ return function(services: any): any
             return ok, if ok then if desired then "Menu opened" else "Menu hidden" else message or "Menu toggle failed"
         end)
 
-        self:Register("panic", "Utility", "Disable active features and restore movement controls.", "/panic", function(_raw: string, _args: { string }, _source: string)
-            return services:Get("HotkeyService"):Panic()
-        end)
-
         self:Register("status", "Utility", "Print key feature states.", "/status", function(_raw: string, _args: { string }, _source: string)
             local statusPairs = {
                 { "Aimbot", state:Get("Aimbot.Enabled") == true }, { "ESP", state:Get("ESP.Enabled") == true },

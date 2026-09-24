@@ -19,7 +19,7 @@ local CONFIG = table.freeze({
         { Key = "Lighting", Label = "Lighting mode", Path = "Lighting.Mode", Cycle = { "Off", "Static Day", "Static Night", "Dynamic" } },
     },
     BIND_DEFINITIONS = {
-        { Label = "Menu", Path = "Settings.MenuKeybind" }, { Label = "Unload", Path = "Settings.UnloadKeybind" }, { Label = "Panic", Path = "Settings.Binds.Panic" },
+        { Label = "Menu", Path = "Settings.MenuKeybind" }, { Label = "Unload", Path = "Settings.UnloadKeybind" },
         { Label = "Aimbot", Path = "Aimbot.Keybind" }, { Label = "Macro", Path = "Game.FakeMacroKey" },
     },
 })
@@ -107,21 +107,6 @@ return function(services: any): any
         return false, "No open public server was found in the first three pages"
     end
 
-    function HotkeyService:Panic(): (boolean, string)
-        local disabled = {
-            "Aimbot.Enabled", "Aimbot.Triggerbot.Enabled", "ESP.Enabled", "Chams.Enabled", "Movement.FlyEnabled",
-            "Movement.FreecamEnabled", "Movement.WallWalkEnabled", "Movement.NoClip", "Movement.CFrameSpeed", "Movement.TouchFling", "Movement.TouchTeleportEnabled",
-            "Extras.Hitbox.Enabled", "Extras.SpinBot.Enabled", "Extras.AntiFling.Enabled", "Visuals.Fullbright", "Settings.TpToMouse",
-        }
-        for _, path in ipairs(disabled) do state:Set(path, false) end
-        if services:Has("FlightService") then services:Get("FlightService"):Stop() end
-        if services:Has("FreecamService") then services:Get("FreecamService"):Stop() end
-        if services:Has("WallWalkService") then services:Get("WallWalkService"):Stop() end
-        if services:Has("LocomotionService") then services:Get("LocomotionService"):StopFling() end
-        bus:Publish("Notify", "Panic", "Active movement, combat, visual, and utility features disabled")
-        return true, "Panic cleanup complete"
-    end
-
     local function onDisconnect(message: string?)
         if not state:Get("Settings.AutoRejoin") or HotkeyService._rejoining then return end
         if message == "" then return end
@@ -133,7 +118,6 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         scope:Connect(UIS.InputBegan, function(event: InputObject, _processed: boolean)
-            if environment:MatchesInput(event, state:Get("Settings.Binds.Panic")) then HotkeyService:Panic(); return end
             if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             for _, entry in ipairs(CONFIG.BIND_TARGETS) do
                 if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then

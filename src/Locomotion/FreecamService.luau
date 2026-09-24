@@ -40,7 +40,7 @@ return function(services: any): any
         local x, y, _z = camera.CFrame:ToOrientation()
         self._yaw, self._pitch, self._position = y, math.clamp(x, -CONFIG.PITCH_LIMIT, CONFIG.PITCH_LIMIT), camera.CFrame.Position
         cameraChanges:SetProperty(camera, "CameraType", Enum.CameraType.Scriptable)
-        cameraChanges:SetProperty(UIS, "MouseBehavior", Enum.MouseBehavior.LockCenter)
+        cameraChanges:SetProperty(UIS, "MouseBehavior", Enum.MouseBehavior.LockCurrentPosition)
         self._active = true
         return true, "Freecam enabled"
     end

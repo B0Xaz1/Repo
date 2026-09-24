@@ -40,10 +40,13 @@ return function(services: any): any
 
     function Keybind:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
         local row, text, owner = section:Control(parent, label, 22)
-        text.Size = UDim2.new(1, -70, 1, 0)
-        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(1, -64, 0, 1), Size = UDim2.fromOffset(64, 20),
+        text.Size = UDim2.new(1, -110, 1, 0)
+        local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(1, -96, 0, 1), Size = UDim2.fromOffset(64, 20),
             Font = Enum.Font.Gotham, TextSize = 11, Text = "Unbound" })
+        local clear = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.new(1, -32, 0, 1), Size = UDim2.fromOffset(30, 20),
+            Font = Enum.Font.Gotham, TextSize = 10, Text = "X", AutoButtonColor = false })
         section:StyleButton(button, owner)
+        section:StyleButton(clear, owner, "Panel")
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return environment:ParseKeybind(value) or Enum.KeyCode.Unknown end }
         function handle:_Render(value: any)
             local nextText = if Keybind._active == handle then "Press a key..." else environment:FormatKeybindName(value)
@@ -55,6 +58,10 @@ return function(services: any): any
             Keybind._active = handle
             state:SetTransient("IsBindingKey", true)
             handle:Set(handle:Get(), true)
+        end)
+        owner:Connect(clear.Activated, function()
+            if Keybind._active == handle then finishCapture(Enum.KeyCode.Unknown) end
+            handle:Set(Enum.KeyCode.Unknown)
         end)
         owner:Add(function() if Keybind._active == handle then Keybind._active = nil; state:SetTransient("IsBindingKey", false) end end)
         return handle

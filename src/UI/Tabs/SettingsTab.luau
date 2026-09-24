@@ -39,7 +39,7 @@ return function(services: any, tab: any): any
     toggle(interface, "Show menu button", "Settings.ShowMenuIcon")
     keybind(interface, "Menu hotkey", "Settings.MenuKeybind")
     keybind(interface, "Quick unload hotkey", "Settings.UnloadKeybind")
-    section:Info(interface, "Click a bind to record. Escape cancels and unbinds. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")
+    section:Info(interface, "Click a bind to record. Press X to unbind or Escape to cancel. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")
     local hotkeys = section:Create(tab.RightCol, "Feature hotkeys", "Settings")
     for _, target in ipairs(services:Get("HotkeyService"):GetBindTargets()) do
         if target.Key ~= "Menu" then keybind(hotkeys, target.Label, `Settings.Binds.{target.Key}`) end

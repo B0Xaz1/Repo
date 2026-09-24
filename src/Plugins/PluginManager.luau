@@ -30,11 +30,6 @@ return function(services: any): any
             local dropdown = load("src/UI/Components/Dropdown.luau", services)
             local textbox = load("src/UI/Components/Textbox.luau", services)
             local panel = section:Create(tab.LeftCol, "Universal mode")
-            local match = resolvedMatch()
-            section:Info(panel, if match and not PluginManager._enabled then
-                `Game plugins are switched off. {match.Name} matches this place or universe; flip the switch above to mount it.`
-                elseif match then "The matching game plugin is available for this place or universe."
-                else "No plugin is registered for this place or universe. Universal tools remain available.")
             if PluginManager._lastError then
                 section:Info(panel, `Last adapter error: {PluginManager._lastError}`)
             end
@@ -49,7 +44,7 @@ return function(services: any): any
                 textbox:CreateButton(panel, "Use selected plugin", function()
                     return PluginManager:SelectPlugin(byName[picker:Get()])
                 end)
-                section:Info(panel, "Runs the chosen adapter against this game even without a registered id. Map data may not line up; verify features before relying on them.")
+                section:Info(panel, "Forced adapters may not match this game's map.")
             end
             return
         end
@@ -57,7 +52,7 @@ return function(services: any): any
             local section = load("src/UI/Components/Section.luau", services)
             local textbox = load("src/UI/Components/Textbox.luau", services)
             local panel = section:Create(tab.LeftCol, "Plugin override")
-            section:Info(panel, `Force-mounted adapter: {PluginManager._manual.Name} (manual selection overrides automatic resolution)`)
+            section:Info(panel, `Using forced adapter: {PluginManager._manual.Name}`)
             textbox:CreateButton(panel, "Return to automatic", function()
                 return PluginManager:SelectPlugin(nil)
             end)

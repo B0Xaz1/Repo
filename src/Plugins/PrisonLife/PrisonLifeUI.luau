@@ -75,7 +75,6 @@ return function(services: any, Prison: any?): any
         textbox:CreateButton(armorySec, "Arm all three", function()
             return Prison.Armory and Prison.Armory:ArmAll()
         end)
-        section:Info(armorySec, "Request runs through the game's own ITEMPICKUP flow; a rejected invoke falls back to the spawn teleport plus a second request. Granted guns land in the backpack.")
 
         local modsSec = section:Create(tab.LeftCol, "Weapon Mods")
         toggle(modsSec, "No spread", "Game.NoSpread")
@@ -95,7 +94,6 @@ return function(services: any, Prison: any?): any
             if Prison.WeaponMods then Prison.WeaponMods:Reapply() return true, "Weapon re-scan complete" end
             return false, "Weapon mods unavailable"
         end)
-        section:Info(modsSec, "Disabling a switch restores the captured gun values immediately. Client-side gun changes are testing behavior; a server-authoritative experience may reject them.")
 
         local doorsSec = section:Create(tab.RightCol, "Doors and Obstacles")
         toggle(doorsSec, "Phase doors & fences", "Game.DoorPhase")
@@ -114,7 +112,6 @@ return function(services: any, Prison: any?): any
             if Prison.WorldPhase then Prison.WorldPhase:RestoreAll() end
             return true, "Door properties restored"
         end)
-        section:Info(doorsSec, "Phases every obstacle inside the legacy containers (doors, glass, celldoors, prison_fences, prison_gate). Turning it off restores collision and transparency.")
 
         local macroSec = section:Create(tab.RightCol, "Weapon Macro")
         toggle(macroSec, "Weapon switch macro", "Game.FakeMacro")
@@ -126,7 +123,6 @@ return function(services: any, Prison: any?): any
             if Prison.Macro then Prison.Macro:Stop("user request") return true, "Macro stopped" end
             return false, "Macro unavailable"
         end)
-        section:Info(macroSec, "Cycles the guns you hold; needs at least two. Stops on death, respawn, focus loss, weapon loss, and unload. Hold mode runs only while the key is down.")
 
         local routesSec = section:Create(tab.RightCol, "Map Locations")
         labels.nearest = createInfoLabel(routesSec, "Nearest: ...")
@@ -184,7 +180,6 @@ return function(services: any, Prison: any?): any
             setLabel(labels.waypoints, `Waypoints: {#Prison.Locations:ListWaypoints()}`)
         end
         scope:Add(EventBus:Subscribe("PrisonWaypointsChanged", refreshWaypoints))
-        section:Info(routesSec, "Locations resolve from tagged map objects first, then named map objects, then manifest coordinates. Waypoints are session-only.")
 
         local armorySignature = ""
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false

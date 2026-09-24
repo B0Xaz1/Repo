@@ -63,12 +63,10 @@ return function(services: any, Duel: any?): any
             if Duel.Attack then Duel.Attack:Reset("user request") end
             return true, "Combat drivers stopped"
         end)
-        section:Info(combatSec, "Each engage blinks behind the nearest enemy in your match, simulates a client-side tool click (your real mouse is untouched), fires the game's own remote, and restores your position. 'Auto equip active weapon' equips the matching tool (if both are active, it prioritizes the unequipped one or Knife). 'Gun spam shoot' auto-clicks at your configured gun cooldown, and 'Knife spam throw' spams E to throw knives.")
 
         local espSec = section:Create(tab.RightCol, "Player ESP")
         toggle(espSec, "Enemy ESP", "Game.MvSEsp")
         labels.esp = createInfoLabel(espSec, "ESP: off")
-        section:Info(espSec, "2D boxes, health bars, and names for match-scoped enemies, refreshed at ~30 fps with a hard cap of sixteen on-screen targets.")
 
         local queueModes = (manifest.Queue and manifest.Queue.Modes) or { "1v1", "2v2", "3v3", "4v4" }
         local queueSec = section:Create(tab.RightCol, "Auto Queue")
@@ -83,7 +81,6 @@ return function(services: any, Duel: any?): any
             end
             return false, "AutoQueue not loaded"
         end)
-        section:Info(queueSec, "Automates queue entry and re-queuing between matches. Automatically pauses while you are in an active duel and queues back up upon returning to the lobby.")
 
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
         local gameTabActive = true

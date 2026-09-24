@@ -69,7 +69,6 @@ return function(services: any): any
         local toggle = load("src/UI/Components/Toggle.luau", services)
         local textbox = load("src/UI/Components/Textbox.luau", services)
         local controls = section:Create(tab.LeftCol, "Example mechanics")
-        section:Info(controls, "Opt-in test-place adapter. Only tagged doors and explicitly named tools are touched. Server-owned behavior may reject client changes.")
         toggle(controls, "Phase tagged doors", "Game.Example.DoorsOpen", nil)
         toggle(controls, "Tune example weapon", "Game.Example.WeaponTuning", nil)
         local travel = section:Create(tab.RightCol, "Manifest destinations")

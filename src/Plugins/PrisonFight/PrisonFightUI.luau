@@ -62,7 +62,6 @@ return function(services: any, Prison: any?): any
             if Prison.WorldPhase then Prison.WorldPhase:RestoreAll() end
             return true, "Door properties restored"
         end)
-        section:Info(doorsSec, "Phases every obstacle inside the legacy containers (doors, glass, celldoors, prison_fences, prison_gate). Turning it off restores collision and transparency.")
 
         local macroSec = section:Create(tab.RightCol, "Weapon Macro")
         toggle(macroSec, "Weapon switch macro", "Game.FakeMacro")
@@ -74,7 +73,6 @@ return function(services: any, Prison: any?): any
             if Prison.Macro then Prison.Macro:Stop("user request") return true, "Macro stopped" end
             return false, "Macro unavailable"
         end)
-        section:Info(macroSec, "Cycles the guns you hold; needs at least three. Stops on death, respawn, focus loss, weapon loss, and unload. Hold mode runs only while the key is down.")
 
         local menuVisible = StateStore:Get("Settings.MenuVisible") ~= false
         local gameTabActive = false

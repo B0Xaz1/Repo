@@ -49,7 +49,7 @@ return function(services: any): any
         dom:Create("UIListLayout", { Parent = footer, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
         local section = services:Get("Require")("src/UI/Components/Section.luau", services)
         local textbox = services:Get("Require")("src/UI/Components/Textbox.luau", services)
-        local status = section:Info(footer, exportMessage or "Edit, copy or paste a complete profile. Import validates before applying it.")
+        local status = section:Info(footer, exportMessage or "Edit or paste profile JSON, then apply.")
         local actions = dom:Create("Frame", { Parent = footer, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 80), LayoutOrder = 99 })
         dom:Create("UIGridLayout", { Parent = actions, CellSize = UDim2.new(0.5, -4, 0, 37), CellPadding = UDim2.fromOffset(8, 3), SortOrder = Enum.SortOrder.LayoutOrder })
         textbox:CreateButton(actions, "Copy JSON", function()

@@ -7,7 +7,6 @@ return function(services: any, tab: any): any
     local hitbox = section:Create(tab.LeftCol, "Hitbox expansion", "Extras.Hitbox")
     toggle(hitbox, "Expand other root parts", "Extras.Hitbox.Enabled", nil)
     slider(hitbox, "Expanded root size", "Extras.Hitbox.Size", 2, 20, 0.5, " studs", nil)
-    section:Info(hitbox, "Expanded roots are semi-transparent. Original size, transparency and collision are restored on disable, respawn, leave and unload.")
     local spin = section:Create(tab.LeftCol, "Spin bot", "Extras.SpinBot")
     toggle(spin, "Enable spin", "Extras.SpinBot.Enabled", nil)
     slider(spin, "Spin rate", "Extras.SpinBot.Speed", -1440, 1440, 15, " deg/s", nil)
@@ -15,13 +14,13 @@ return function(services: any, tab: any): any
     toggle(guard, "Enable anti-fling", "Extras.AntiFling.Enabled", nil)
     slider(guard, "Impossible-speed threshold", "Extras.AntiFling.Threshold", 350, 2500, 25, " studs/s", nil)
     toggle(guard, "Snap back after an impulse", "Extras.AntiFling.SnapBack", nil)
-    section:Info(guard, "Runs before physics. Ordinary falling is never rejected based on downward speed alone; our teleports and flight establish a new baseline.")
     local session = section:Create(tab.RightCol, "Session utilities", "Settings")
     toggle(session, "Prevent idle kick", "Settings.AntiAfk", nil)
     toggle(session, "Auto-rejoin on disconnect", "Settings.AutoRejoin", nil)
     textbox:CreateButton(session, "Rejoin this server", function() return services:Get("HotkeyService"):Rejoin() end)
     textbox:CreateButton(session, "Find another public server", function() return services:Get("HotkeyService"):ServerHop() end)
-    section:Info(session, if services:Get("Environment").Capabilities.QueueTeleport then "Teleport queue detected. Rejoin and server-hop preserve this build's exact source ref."
-        else "This executor cannot queue the loader through teleport. Server travel can still work, but you must paste the loader again afterward.")
+    if not services:Get("Environment").Capabilities.QueueTeleport then
+        section:Info(session, "Teleport queue is unavailable. Re-run the loader after changing servers.")
+    end
     return { Name = tab.Name }
 end

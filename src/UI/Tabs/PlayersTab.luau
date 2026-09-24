@@ -12,7 +12,6 @@ return function(services: any, tab: any): any
     scope:Connect(query.Box:GetPropertyChangedSignal("Text"), refresh)
     scope:Add(services:Get("EventBus"):Subscribe("PlayerJoined", refresh))
     scope:Add(services:Get("EventBus"):Subscribe("PlayerLeft", refresh))
-    section:Info(select, "Username and display-name filtering is case-insensitive. Exact names are resolved before partial names.")
     local actions = section:Create(tab.LeftCol, "Player actions")
     textbox:CreateButton(actions, "Teleport to player", function() return movement:TeleportToPlayer(tracker:GetPlayerByName(target:Get() or "")) end)
     textbox:CreateButton(actions, "Spectate player", function() return tracker:StartSpectate(tracker:GetPlayerByName(target:Get() or "")) end)
@@ -24,9 +23,8 @@ return function(services: any, tab: any): any
     textbox:CreateButton(whitelist, "Whitelist selected player", function() return tracker:AddWhitelist(tracker:GetPlayerByName(target:Get() or "")) end)
     textbox:CreateButton(whitelist, "Remove selected from whitelist", function() return tracker:RemoveWhitelist(tracker:GetPlayerByName(target:Get() or "")) end)
     textbox:CreateButton(whitelist, "Clear whitelist", function() state:Set("Settings.Whitelist", {}); return true, "Whitelist cleared" end)
-    section:Info(whitelist, "Aimbot and triggerbot each decide independently whether to honor this shared whitelist.")
     local fling = section:Create(tab.RightCol, "Fling attack")
-    section:Info(fling, "A two-second, client-side physics attempt. Stop flight first. Server authority may prevent it from affecting the target.")
+    section:Info(fling, "Client-side only; server authority may block it. Stop flight first.")
     textbox:CreateButton(fling, "Fling selected player", function() return movement:FlingPlayer(tracker:GetPlayerByName(target:Get() or "")) end)
     textbox:CreateButton(fling, "Stop fling & restore position", function() movement:StopFling(); return true, "Fling stopped" end)
     return { Name = tab.Name }

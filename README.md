@@ -64,7 +64,7 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
 | Settings | Profiles, validated backups, Default/Legit/Rage presets, launch behavior, JSON import/export, compact mode, scale/hotkeys with conflict checks and reset actions, full theme palettes, and lifecycle actions. |
 
-The window is a charcoal two-column suite: title-bar search, version at the bottom-right, text tabs with a cyan underline, cyan-outlined groupboxes, square checkboxes, stacked dropdowns, and knobless cyan sliders that show `value/max`. Labels stay ASCII so they render on every executor font. Search is case-insensitive, matches controls, sections, and tab names, and restores each row's original parent and layout order when cleared. Six theme presets and 18 live color tokens are included.
+The interface uses a restrained two-column layout with rounded panels, subtle borders, and accent colors that follow the selected palette. Six refreshed presets and 18 editable color tokens are included. Search is case-insensitive, matches controls, sections, and tab names, and restores each row's original position when cleared.
 
 ## Settings and profiles
 

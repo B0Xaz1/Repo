@@ -8,7 +8,9 @@ return function(services: any, tab: any): any
     local textbox = load("src/UI/Components/Textbox.luau", services)
     local environment, lighting = services:Get("Environment"), services:Get("LightingService")
     local esp = section:Create(tab.LeftCol, "ESP features", "ESP")
-    section:Info(esp, if services:Get("DrawingPool").Available then "Drawing available / pooled per-player overlays" else "Drawing is unavailable. ESP and telemetry overlays will not render; native chams can still work.")
+    if not services:Get("DrawingPool").Available then
+        section:Info(esp, "Drawing is unavailable. ESP and telemetry overlays will not render; native chams can still work.")
+    end
     toggle(esp, "Enable ESP", "ESP.Enabled", nil)
     for _, entry in ipairs({ { "Boxes", "Box" }, { "Names", "Name" }, { "Health bars", "Health" }, { "Distance", "Distance" }, { "Equipped tools", "Tool" },
         { "Backpack contents", "Backpack" }, { "Tracers", "Tracers" }, { "Skeleton", "Skeleton" }, { "Head dots", "HeadDot" }, { "Look direction", "LookDir" }, { "Hide teammates", "TeamCheck" } }) do
@@ -23,7 +25,6 @@ return function(services: any, tab: any): any
     toggle(espStyle, "Rainbow mode", "ESP.Rainbow", nil)
     toggle(espStyle, "Use team color", "ESP.UseTeamColor", nil)
     color(espStyle, "ESP color", "ESP.Color", nil)
-    section:Info(espStyle, "Rainbow overrides the solid color. Team color uses the player's team. Occluded hides overlays behind walls.")
     local chams = section:Create(tab.LeftCol, "Native chams", "Chams")
     toggle(chams, "Enable chams", "Chams.Enabled", nil)
     toggle(chams, "Rainbow mode", "Chams.Rainbow", nil)
@@ -38,7 +39,9 @@ return function(services: any, tab: any): any
         toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
     end
     slider(performance, "FPS cap - 0 uncaps", "Performance.FpsCap", 0, 360, 15, " FPS", nil)
-    section:Info(performance, if environment:HasFpsCap() then "FPS-cap wrapper available. Unload always requests an uncapped limit." else "FPS cap is unsupported by this executor. Other optimizations remain available.")
+    if not environment:HasFpsCap() then
+        section:Info(performance, "FPS cap is unsupported by this executor.")
+    end
     textbox:CreateButton(performance, "Request memory collection", function() return services:Get("OptimizerService"):FlushMemory() end)
     local light = section:Create(tab.RightCol, "Cinematic lighting", "Lighting")
     toggle(light, "Fullbright", "Visuals.Fullbright", nil)
@@ -49,7 +52,6 @@ return function(services: any, tab: any): any
     slider(light, "Preset brightness", "Lighting.PresetBrightness", 0.25, 2, 0.05, "x", nil)
     toggle(light, "Soft vignette", "Lighting.Vignette", nil)
     toggle(light, "Remaster materials", "Lighting.RemasterMaterials", nil)
-    section:Info(light, "Time and grade apply when a lighting mode is active. Fullbright takes precedence; the game's own effects are never borrowed.")
     local telemetry = section:Create(tab.RightCol, "Telemetry & motion", "Settings")
     toggle(telemetry, "Watermark", "Settings.Watermark", nil)
     toggle(telemetry, "FPS counter", "Settings.ShowFPS", nil)

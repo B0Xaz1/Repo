@@ -11,7 +11,6 @@ return function(services: any, tab: any): any
     local state, dom, environment = services:Get("StateStore"), services:Get("DOM"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("Movement tab")
     local humanoid = section:Create(tab.LeftCol, "Character overrides", "Movement")
-    section:Info(humanoid, "Zero means leave the game's value alone. Jump power applies when the game uses JumpPower.")
     slider(humanoid, "Walk speed", "Movement.Speed", 0, 200, 1, "", nil)
     slider(humanoid, "Jump power", "Movement.JumpPower", 0, 200, 1, "", nil)
     toggle(humanoid, "Shift to sprint", "Movement.SprintEnabled", nil)
@@ -21,7 +20,6 @@ return function(services: any, tab: any): any
     toggle(humanoid, "Walk on walls", "Movement.WallWalkEnabled", nil)
     local touch = section:Create(tab.LeftCol, "Touch fling", "Movement")
     toggle(touch, "Enable touch fling", "Movement.TouchFling", nil)
-    section:Info(touch, "Walk into other players. Pulses root velocity between physics steps; the server may reject it.")
     local step = section:Create(tab.LeftCol, "Displacement & world", "Movement")
     toggle(step, "CFrame speed", "Movement.CFrameSpeed", nil)
     slider(step, "Extra displacement speed", "Movement.CFrameSpeedValue", 0, 200, 1, " studs/s", nil)
@@ -32,7 +30,7 @@ return function(services: any, tab: any): any
     toggle(camera, "Enable freecam", "Movement.FreecamEnabled", nil)
     slider(camera, "Freecam speed", "Movement.FreecamSpeed", 1, 300, 1, " studs/s", nil)
     keybind(camera, "Freecam hotkey", "Settings.Binds.Freecam", nil)
-    section:Info(camera, "WASD moves freely through the world. Mouse looks around; Space ascends, Ctrl descends, and Shift adds 50 studs/s. Toggle freecam off to restore the camera and character.")
+    section:Info(camera, "WASD moves; mouse looks. Space/Ctrl rise and descend. Toggle off to restore the camera.")
     toggle(flight, "Enable flight", "Movement.FlyEnabled", nil)
     slider(flight, "Flight speed", "Movement.FlySpeed", 1, 300, 1, " studs/s", nil)
     keybind(flight, "Flight hotkey", "Settings.Binds.Fly", nil)
@@ -62,8 +60,8 @@ return function(services: any, tab: any): any
     end
     holdButton(flight, "Mobile: hold ascend", "MobileFlyUpHeld")
     holdButton(flight, "Mobile: hold descend", "MobileFlyDownHeld")
-    section:Info(flight, if environment:IsMobile() then "Use the movement thumbstick, toggles, or hold buttons. Release a hold button to stop vertical movement. Flight re-engages after a respawn."
-        else "WASD follows the camera. Space ascends; Ctrl descends; Shift adds 50 studs/s. Flight pauses while typing.")
+    section:Info(flight, if environment:IsMobile() then "Use the thumbstick or hold buttons to control flight."
+        else "WASD moves; Space and Ctrl control altitude.")
     local travel = section:Create(tab.RightCol, "Position bookmarks")
     local name = textbox(travel, "Bookmark name", "Home")
     local selected = dropdown(travel, "Saved position", nil, movement:ListBookmarks())
@@ -73,10 +71,9 @@ return function(services: any, tab: any): any
     toggle(travel, "Return on touch", "Movement.TouchTeleportEnabled", nil)
     textbox:CreateButton(travel, "Set touch return spot", function() return movement:SetTouchTeleportSpot() end)
     scope:Add(services:Get("EventBus"):Subscribe("BookmarksChanged", function() selected:Refresh(movement:ListBookmarks(), true) end))
-    section:Info(travel, "Bookmarks are session-only. Teleports clear assembly velocity and temporarily suppress anti-fling.")
     local mouse = section:Create(tab.RightCol, "Click teleport", "Settings")
     toggle(mouse, "Enable click / tap teleport", "Settings.TpToMouse", nil)
-    section:Info(mouse, if environment:IsMobile() then "Tap a world surface, outside the menu, to teleport. The hold controls above provide vertical flight movement."
-        else "Hold Ctrl and left-click a world surface. UI clicks and focused textboxes are ignored.")
+    section:Info(mouse, if environment:IsMobile() then "Tap a world surface outside the menu to teleport."
+        else "Hold Ctrl and left-click a world surface.")
     return { Name = tab.Name }
 end

@@ -9,9 +9,9 @@ return function(services: any): any
         local frame = dom:Create("Frame", { Parent = parent, Name = "Section", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent], BackgroundColor3 = theme:GetToken("Panel") })
         frame:SetAttribute("B0XazSection", title)
-        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 2) })
+        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 6) })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
-        theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Accent")), "Color", "Accent")
+        theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Border")), "Color", "Border")
         dom:CreatePadding(frame, 8, 10, 8, 10)
         dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
         local header = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 14), LayoutOrder = 0,
@@ -61,7 +61,7 @@ return function(services: any): any
         theme:BindToken(button, "BackgroundColor3", normal)
         theme:BindToken(button, "TextColor3", "Text")
         theme:BindToken(dom:CreateStroke(button, theme:GetToken("BorderDim")), "Color", "BorderDim")
-        dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 2) })
+        dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 5) })
         owner:Connect(button.MouseEnter, function() theme:BindToken(button, "BackgroundColor3", "ElemHover") end)
         owner:Connect(button.MouseLeave, function() theme:BindToken(button, "BackgroundColor3", normal) end)
     end

@@ -22,14 +22,14 @@ return function(services: any, tab: any): any
     textbox:CreateButton(profiles, "Create validated backup", function() return config:Backup() end)
     textbox:CreateButton(profiles, "Restore validated backup", function() return config:RestoreBackup() end)
     scope:Add(services:Get("EventBus"):Subscribe("ProfilesChanged", function() selected:Refresh(config:ListProfiles(), true) end))
-    section:Info(profiles, if environment.Capabilities.Files then "Autosave flushes dirty state every 1.5 seconds. Default, Legit, and Rage are built-in. Default resets everything; Legit/Rage keep your theme and hotkeys."
-        else "File persistence is unavailable. Built-in Default/Legit/Rage still load. Use the JSON editor to copy/paste other profiles.")
+    if not environment.Capabilities.Files then
+        section:Info(profiles, "File persistence is unavailable; use JSON to save profiles.")
+    end
     local launch = section:Create(tab.LeftCol, "Launch behavior", "Settings")
     toggle(launch, "Restore settings on launch", "Settings.RestoreOnLaunch")
     textbox(launch, "Startup profile", "", nil, "Settings.StartupProfile")
     textbox:CreateButton(launch, "Pin selected profile for launch", function() return config:PinStartupProfile(selected:Get() or "Default") end)
     textbox:CreateButton(launch, "Clear pinned profile", function() state:Set("Settings.StartupProfile", ""); return true, "Launch will use the autosaved session" end)
-    section:Info(launch, "Restore off -> no previous feature state. Otherwise: pinned profile -> autosaved session -> fresh defaults.")
     local share = section:Create(tab.LeftCol, "Import & export")
     textbox:CreateButton(share, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)
     textbox:CreateButton(share, "Import from clipboard", function() return config:Import("") end)
@@ -39,7 +39,7 @@ return function(services: any, tab: any): any
     toggle(interface, "Show menu button", "Settings.ShowMenuIcon")
     keybind(interface, "Menu hotkey", "Settings.MenuKeybind")
     keybind(interface, "Quick unload hotkey", "Settings.UnloadKeybind")
-    section:Info(interface, "Click a bind to record. Press X to unbind or Escape to cancel. Hotkeys ignore focused textboxes. B0XazUnload() remains available in the console.")
+    section:Info(interface, "Click to bind. Press X to clear or Escape to cancel.")
     local hotkeys = section:Create(tab.RightCol, "Feature hotkeys", "Settings")
     for _, target in ipairs(services:Get("HotkeyService"):GetBindTargets()) do
         if target.Key ~= "Menu" then keybind(hotkeys, target.Label, `Settings.Binds.{target.Key}`) end
@@ -51,7 +51,6 @@ return function(services: any, tab: any): any
         state:Set("Settings.UnloadKeybind", state:GetDefaultSettings().Settings.UnloadKeybind)
         return true, "All hotkeys reset"
     end)
-    section:Info(hotkeys, "All feature bindings are available immediately and ignore focused textboxes while recording.")
     local appearance = section:Create(tab.RightCol, "Theme palette", "Theme")
     dropdown(appearance, "Theme preset", "Theme.ActivePreset", theme:GetPresetNames(), function(value: string) theme:SetPreset(value) end)
     local pickers = {}
@@ -60,8 +59,7 @@ return function(services: any, tab: any): any
         for token, picker in pairs(pickers) do picker:Set(theme:GetToken(token), true) end
     end))
     local session = section:Create(tab.RightCol, "Session")
-    section:Info(session, `Build {services.Version}\nSource ref: {tostring(environment.Globals.B0XazRef or "custom URL")}`)
-    section:Info(session, "All controls are available in this build. There is no key entry, account check, device identifier, or gated feature level.")
+    section:Info(session, `Build {services.Version}`)
     textbox:CreateButton(session, "Relaunch this build", function() environment.Globals.B0XazRelaunch() end)
     textbox:CreateButton(session, "Unload & restore everything", function() environment.Globals.B0XazUnload() end)
     return { Name = tab.Name }

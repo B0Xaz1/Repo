@@ -263,8 +263,8 @@ return function(services: any): any
         local main = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.fromOffset(CONFIG.WINDOW_WIDTH, CONFIG.WINDOW_HEIGHT), BackgroundColor3 = theme:GetToken("Bg"), Active = true })
         self._main = main
-        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 4) })
-        theme:BindToken(dom:CreateStroke(main, theme:GetToken("Accent")), "Color", "Accent")
+        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 9) })
+        theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
         local titleBar = dom:Create("Frame", { Parent = main, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 34), Active = true })
         local brand = dom:Create("TextLabel", { Parent = titleBar, BackgroundTransparency = 1, Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -180, 0, 18),
@@ -279,7 +279,7 @@ return function(services: any): any
         self._layout.TitleBar, self._layout.Search = titleBar, search
         theme:BindToken(search, "BackgroundColor3", "Elem"); theme:BindToken(search, "TextColor3", "Text"); theme:BindToken(search, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
-        dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(search, 0, 8)
+        dom:Create("UICorner", { Parent = search, CornerRadius = UDim.new(0, 5) }); dom:CreatePadding(search, 0, 8)
         scope:Connect(search:GetPropertyChangedSignal("Text"), function()
             -- The sequence stamp drops the result of a debounce that a newer keystroke replaced
             UIEngine._searchSeq += 1

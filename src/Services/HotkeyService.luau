@@ -6,7 +6,8 @@ local HttpService = game:GetService("HttpService")
 
 local CONFIG = table.freeze({
     REJOIN_RESET_DELAY = 10,
-    SERVER_HOP_MAX_PAGES = 3,
+    SERVER_HOP_MAX_PAGES = 10,
+    SERVER_HOP_RECENT_LIMIT = 8,
     SERVER_LIST_URL = "https://games.roblox.com/v1/games/",
     SERVER_LIST_LIMIT = 100,
     BIND_TARGETS = {
@@ -29,7 +30,7 @@ return function(services: any): any
     local bus, scope = services:Get("EventBus"), services:Get("Disposer"):CreateChild("HotkeyService")
     local coreGui: any = nil
     pcall(function() coreGui = game:GetService("CoreGui") end)
-    local HotkeyService = { _rejoining = false, _initialized = false }
+    local HotkeyService = { _rejoining = false, _initialized = false, _recentHops = {} }
 
     function HotkeyService:GetBindTargets(): any
         local result = {}
@@ -86,8 +87,12 @@ return function(services: any): any
 
     function HotkeyService:ServerHop(): (boolean, string)
         local cursor = ""
+        local candidates, seen = {}, {}
+        -- Roblox orders each page by occupancy. Randomize the direction, then choose uniformly
+        -- from a broad sample instead of always taking the first, emptiest server.
+        local sortOrder = if math.random(0, 1) == 0 then "Asc" else "Desc"
         for _ = 1, CONFIG.SERVER_HOP_MAX_PAGES do
-            local url = `{CONFIG.SERVER_LIST_URL}{game.PlaceId}/servers/Public?sortOrder=Asc&limit={CONFIG.SERVER_LIST_LIMIT}`
+            local url = `{CONFIG.SERVER_LIST_URL}{game.PlaceId}/servers/Public?sortOrder={sortOrder}&limit={CONFIG.SERVER_LIST_LIMIT}`
             if cursor ~= "" then url ..= `&cursor={HttpService:UrlEncode(cursor)}` end
             local response = environment:Request({ Url = url, Method = "GET" })
             if scope:IsDisposed() then return false, "Cancelled" end
@@ -95,16 +100,31 @@ return function(services: any): any
             local ok, data = pcall(function() return HttpService:JSONDecode(response.Body) end)
             if not ok or type(data) ~= "table" or type(data.data) ~= "table" then return false, "Invalid public server response" end
             for _, server in ipairs(data.data) do
-                if type(server.id) == "string" and server.id ~= game.JobId and tonumber(server.playing) and tonumber(server.maxPlayers) and server.playing < server.maxPlayers then
-                    self:QueueLoader()
-                    local moved, errorMessage = pcall(function() Teleport:TeleportToPlaceInstance(game.PlaceId, server.id, Players.LocalPlayer) end)
-                    return moved, if moved then "Joining another server..." else tostring(errorMessage)
+                local playing, maxPlayers = tonumber(server.playing), tonumber(server.maxPlayers)
+                if type(server.id) == "string" and server.id ~= game.JobId and not seen[server.id]
+                    and playing and maxPlayers and playing < maxPlayers then
+                    seen[server.id] = true
+                    table.insert(candidates, server.id)
                 end
             end
             cursor = data.nextPageCursor or ""
             if cursor == "" then break end
         end
-        return false, "No open public server was found in the first three pages"
+        if #candidates == 0 then return false, "No open public server was found" end
+
+        -- Avoid bouncing between servers when the same page of results is returned on quick hops.
+        local fresh = {}
+        for _, id in ipairs(candidates) do
+            if not table.find(self._recentHops, id) then table.insert(fresh, id) end
+        end
+        local pool = if #fresh > 0 then fresh else candidates
+        local target = pool[math.random(1, #pool)]
+        table.insert(self._recentHops, target)
+        while #self._recentHops > CONFIG.SERVER_HOP_RECENT_LIMIT do table.remove(self._recentHops, 1) end
+
+        self:QueueLoader()
+        local moved, errorMessage = pcall(function() Teleport:TeleportToPlaceInstance(game.PlaceId, target, Players.LocalPlayer) end)
+        return moved, if moved then "Joining a random public server..." else tostring(errorMessage)
     end
 
     local function onDisconnect(message: string?)

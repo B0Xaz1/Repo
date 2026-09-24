@@ -45,30 +45,28 @@ return function(services: any, tab: any): any
         local commands = commandService:GetCommandList()
         local visible = {}
         for _, entry in ipairs(commands) do
-            local searchable = (`{entry.Name} {entry.Category} {entry.Description} {entry.Usage}`):lower()
+            local searchable = (`{entry.Name} {entry.Category} {entry.Usage}`):lower()
             if query == "" or searchable:find(query, 1, true) then table.insert(visible, entry) end
         end
 
         for _, entry in ipairs(visible) do
             local row = dom:Create("TextButton", { Parent = commandList, BorderSizePixel = 0, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Text = "", AutoButtonColor = false })
-            local body = dom:Create("Frame", { Parent = row, BorderSizePixel = 0, BackgroundColor3 = theme:GetToken("Panel"), Size = UDim2.new(1, 0, 0, 52), BackgroundTransparency = 0 })
+            local body = dom:Create("Frame", { Parent = row, BorderSizePixel = 0, BackgroundColor3 = theme:GetToken("Panel"), Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 0 })
             dom:Create("UICorner", { Parent = body, CornerRadius = UDim.new(0, 3) })
             theme:BindToken(dom:CreateStroke(body, theme:GetToken("BorderDim")), "Color", "BorderDim")
             local name = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -92, 0, 16), Text = entry.Name, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
             theme:BindToken(name, "TextColor3", "Accent")
-            local category = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.new(1, -84, 6, 0), Size = UDim2.fromOffset(72, 14), Text = entry.Category, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
+            local category = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.new(1, -84, 0, 6), Size = UDim2.fromOffset(72, 14), Text = entry.Category, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
             theme:BindToken(category, "TextColor3", "TextMuted")
-            local desc = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 22), Size = UDim2.new(1, -76, 0, 14), Text = entry.Description, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
-            theme:BindToken(desc, "TextColor3", "Text")
-            local usage = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 36), Size = UDim2.new(1, -76, 0, 12), Text = entry.Usage, Font = Enum.Font.Code, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+            local usage = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 23), Size = UDim2.new(1, -76, 0, 12), Text = entry.Usage, Font = Enum.Font.Code, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
             theme:BindToken(usage, "TextColor3", "TextMuted")
-            local run = dom:Create("TextButton", { Parent = body, BorderSizePixel = 0, Position = UDim2.new(1, -62, 0, 12), Size = UDim2.fromOffset(52, 22), Text = "Run", Font = Enum.Font.GothamMedium, TextSize = 11, AutoButtonColor = false })
+            local run = dom:Create("TextButton", { Parent = body, BorderSizePixel = 0, Position = UDim2.new(1, -62, 0, 9), Size = UDim2.fromOffset(52, 22), Text = "Run", Font = Enum.Font.GothamMedium, TextSize = 11, AutoButtonColor = false })
             section:StyleButton(run, scope)
             scope:Connect(run.Activated, function()
                 commandService:Execute(entry.Name, "menu")
             end)
             scope:Connect(row.Activated, function()
-                detailText:Set(`{entry.Name}\nCategory: {entry.Category}\nUsage: {entry.Usage}\n{entry.Description}`)
+                detailText:Set(`{entry.Name}  /  {entry.Category}\n{entry.Usage}`)
                 input.Text = entry.Name
             end)
         end

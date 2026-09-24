@@ -8,7 +8,6 @@ return function(services: any, tab: any): any
     local info = section:Create(tab.LeftCol, "Game integration")
     local active = section:Info(info, `Active adapter: {manager:GetActivePluginName()}`)
     toggle(info, "Enable game plugin", "Settings.PluginEnabled", function(value: boolean) manager:SetEnabled(value) end)
-    section:Info(info, `Place {game.PlaceId}  /  Universe {game.GameId}`)
     textbox:CreateButton(info, "Copy place ID", function()
         local ok, message = services:Get("Environment"):SetClipboard(tostring(game.PlaceId))
         return ok, message or "Place ID copied"

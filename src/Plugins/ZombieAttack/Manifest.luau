@@ -43,8 +43,8 @@ return function(_services: any?): any
 
         Farm = {
             -- Stands the player off the zombie's own facing, matching the suite's engage offsets
-            UpOffset = 2,
-            BackOffset = 2,
+            UpOffset = 5,
+            BackOffset = 5,
         },
 
         Weapons = {

@@ -30,6 +30,34 @@ return function(services: any, tab: any): any
     textbox(launch, "Startup profile", "", nil, "Settings.StartupProfile")
     textbox:CreateButton(launch, "Pin selected profile for launch", function() return config:PinStartupProfile(selected:Get() or "Default") end)
     textbox:CreateButton(launch, "Clear pinned profile", function() state:Set("Settings.StartupProfile", ""); return true, "Launch will use the autosaved session" end)
+
+    local gameAutoLoad = section:Create(tab.LeftCol, "Per-game auto-load", "Settings")
+    local gameProfileStatus = section:Info(gameAutoLoad, config:GetGameProfileStatus())
+    textbox:CreateButton(gameAutoLoad, "Save current settings to this game", function()
+        if not config:ProfileExists(name.Box.Text) then
+            local saved, saveMessage = config:Save(name.Box.Text)
+            if not saved then return false, saveMessage end
+        end
+        local pinned, pinMessage = config:PinCurrentGameProfile(name.Box.Text, true)
+        gameProfileStatus:Set(config:GetGameProfileStatus())
+        return pinned, pinMessage
+    end)
+    textbox:CreateButton(gameAutoLoad, "Pin selected profile for this game", function()
+        local ok, message = config:PinCurrentGameProfile(selected:Get() or "")
+        gameProfileStatus:Set(config:GetGameProfileStatus())
+        return ok, message
+    end)
+    textbox:CreateButton(gameAutoLoad, "Clear this game's profile", function()
+        local ok, message = config:ClearCurrentGameProfile()
+        gameProfileStatus:Set(config:GetGameProfileStatus())
+        return ok, message
+    end)
+    section:Info(gameAutoLoad, "Save current settings to this game using the Save as name, or pin a saved profile selected above. This action creates a named seed only when missing and leaves an existing profile untouched. The game's saved session loads first on launch, then its pinned profile, then the global startup profile and autosaved session. Later edits stay in this experience's separate session and do not affect other games. Matching uses Universe ID (all places in that experience). Restore settings on launch must be enabled for auto-load.")
+    local bus = services:Get("EventBus")
+    scope:Add(bus:Subscribe("GameProfilesChanged", function() gameProfileStatus:Set(config:GetGameProfileStatus()) end))
+    scope:Add(state:Observe("Settings.StartupProfile", function() gameProfileStatus:Set(config:GetGameProfileStatus()) end))
+    scope:Add(state:Observe("Settings.RestoreOnLaunch", function() gameProfileStatus:Set(config:GetGameProfileStatus()) end))
+
     local share = section:Create(tab.LeftCol, "Import & export")
     textbox:CreateButton(share, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)
     textbox:CreateButton(share, "Import from clipboard", function() return config:Import("") end)

@@ -62,7 +62,7 @@ Repeated loader executions are refused while a launch is in flight. Use `B0XazRe
 | Players | Live name filter, teleport, spectate, copy name, whitelist, and bounded fling controls. |
 | Game | Place/universe information plus the active game adapter. In Prison Life (place 155615604) the tab becomes a two-column command center; otherwise an explicit Universal Mode panel. |
 | Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
-| Settings | Profiles, validated backups, Default/Legit/Rage presets, launch behavior, JSON import/export, compact mode, scale/hotkeys with conflict checks and reset actions, full theme palettes, and lifecycle actions. |
+| Settings | Profiles, validated backups, Default/Legit/Rage presets, per-experience auto-load profiles, launch behavior, JSON import/export, compact mode, scale/hotkeys with conflict checks and reset actions, full theme palettes, and lifecycle actions. |
 
 The interface uses a restrained two-column layout with rounded panels, subtle borders, and accent colors that follow the selected palette. Six refreshed presets and 18 editable color tokens are included. Search is case-insensitive, matches controls, sections, and tab names, and restores each row's original position when cleared.
 
@@ -76,6 +76,8 @@ Owned runtime files:
 B0XazUniversal/
 └── Configs/
     ├── _autoload.json
+    ├── _game_profiles.json
+    ├── _game_<universe-or-place>_<id>.json
     └── <sanitized-profile>.json
 ```
 
@@ -83,8 +85,8 @@ B0XazUniversal/
 - `Default` is a read-only reset profile; it cannot be saved or deleted.
 - Profiles serialize `Color3` and `EnumItem` values recursively. Imports are JSON data, never executable code.
 - Older profiles deep-merge over new defaults, preserving new settings.
-- Dirty sessions autosave every 1.5 seconds and at cleanup. Bookmarks and runtime transients are not serialized.
-- Launch order is **restore disabled → pinned profile → autosaved session → defaults**.
+- Dirty sessions autosave every 1.5 seconds and at cleanup. When a game has a pinned profile, its active settings are saved to a separate `Configs/_game_<kind>_<id>.json` session snapshot; the named profile remains unchanged, and the global `_autoload.json` fallback is preserved apart from global launch preferences. Bookmarks and runtime transients are not serialized.
+- Launch order is **RestoreOnLaunch disabled → defaults; otherwise per-game saved session → pinned profile → global StartupProfile → global autosaved session → defaults**. Per-game assignments use the Roblox universe ID (falling back to place ID), so subplaces in one experience share a session. Assignments are stored separately in `Configs/_game_profiles.json`; clearing one prevents its session snapshot from loading. The named profile is only the seed/fallback: subsequent edits stay in that experience's session file and do not overwrite the named profile or the global fallback.
 
 ## Architecture and cleanup
 

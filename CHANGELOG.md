@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Added:** per-experience profile assignments in Settings, keyed by Roblox Universe ID (with Place ID fallback) and stored in `Configs/_game_profiles.json`. The pinned named profile seeds a separate `Configs/_game_<kind>_<id>.json` session snapshot; launch restores that saved session first, then the pinned profile, then the global startup profile and autosaved session.
+- **Changed:** later edits for an assigned experience autosave to its own session snapshot instead of overwriting the named profile or the global fallback. Global launch preferences remain shared, and clearing an assignment prevents its old session snapshot from loading.
+
 ## 2.4.9 — 2026-09-20
 
 Zombie Attack auto farm.

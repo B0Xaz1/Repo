@@ -15,12 +15,18 @@ return function(services: any): any
         end)
         if not ok then instance:Destroy(); error(`DOM {className}: {tostring(err)}`) end
         disposer:Add(instance)
+        services:Get("Motion"):Bind(instance)
         return instance
     end
 
     function DOM:DestroyInstance(instance: Instance)
-        for _, child in ipairs(instance:GetDescendants()) do disposer:Forget(child) end
+        local theme = if services:Has("ThemeEngine") then services:Get("ThemeEngine") else nil
+        for _, child in ipairs(instance:GetDescendants()) do
+            disposer:Forget(child)
+            if theme then theme:Forget(child) end
+        end
         disposer:Forget(instance)
+        if theme then theme:Forget(instance) end
         instance:Destroy()
     end
 
@@ -33,6 +39,7 @@ return function(services: any): any
         local resolvedThickness = math.max(0, tonumber(thickness) or 1)
         local stroke = self:Create("UIStroke", { Parent = parent, Color = resolvedColor, Thickness = resolvedThickness })
         stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        services:Get("Motion"):BindStroke(parent, stroke)
         return stroke
     end
 

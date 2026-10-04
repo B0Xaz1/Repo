@@ -81,7 +81,7 @@ return function(services: any): any
     local function applyInstance(instance: Instance, property: string, token: string)
         local color = ThemeEngine._palette[token]
         if not color then return end
-        pcall(function() (instance :: any)[property] = color end)
+        pcall(function() services:Get("Motion"):Color(instance, property, color) end)
         pcall(function() instance:SetAttribute(CONFIG.ATTRIBUTE_PREFIX .. property, token) end)
     end
 
@@ -150,11 +150,14 @@ return function(services: any): any
 
     function ThemeEngine:RegisterRoot(root: Instance) self._roots[root] = true end
 
+    function ThemeEngine:Forget(instance: Instance)
+        self._bindings[instance], self._roots[instance] = nil, nil
+    end
+
     function ThemeEngine:SetPreset(name: string): boolean
         if not presets[name] then return false end
         state:Set("Theme.CustomTokens", {})
         state:Set("Theme.ActivePreset", name)
-        applyFromState(true)
         return true
     end
 
@@ -167,7 +170,6 @@ return function(services: any): any
             overrides.ToggleOn = color
         end
         state:Set("Theme.CustomTokens", overrides)
-        applyFromState(true)
     end
 
     function ThemeEngine:UpdateAllBindings(tokens: { [string]: boolean }?)

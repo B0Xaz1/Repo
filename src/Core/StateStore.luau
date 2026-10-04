@@ -62,10 +62,11 @@ local CONFIG = deepFreeze({
         Settings = {
             UIScale = 1, MenuVisible = true, ShowMenuIcon = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
             CompactMenu = false, PluginEnabled = true,
+            Favorites = {}, MotionMode = "Full", MotionSpeed = 1, Tooltips = true,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Freecam = Enum.KeyCode.Unknown, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
                 Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,
-                Menu = Enum.KeyCode.RightShift, Lighting = Enum.KeyCode.Unknown },
+                Menu = Enum.KeyCode.RightShift },
             RestoreOnLaunch = true, StartupProfile = "", AntiAfk = false, TpToMouse = false, Whitelist = {},
         },
         Theme = { ActivePreset = "Midnight", CustomTokens = {} },
@@ -245,29 +246,43 @@ return function(eventBus: any, disposer: any): any
         end
     end
 
-    function StateStore:LoadSettingsSnapshot(snapshot: any)
+    function StateStore:NormalizeSettingsSnapshot(snapshot: any)
         assert(type(snapshot) == "table")
-        local old = self._settings
-        self._hydrating = true
-        self._settings = merge(CONFIG.DEFAULT_SETTINGS, snapshot)
+        local normalized = merge(CONFIG.DEFAULT_SETTINGS, snapshot)
+        normalized.Settings.Binds.Lighting = nil -- Retired binding must not return from older profiles.
         local incomingSettings = if type(snapshot.Settings) == "table" then snapshot.Settings else {}
         local incomingBinds = if type(incomingSettings.Binds) == "table" then incomingSettings.Binds else {}
         local incomingMovement = if type(snapshot.Movement) == "table" then snapshot.Movement else {}
         if incomingMovement.FlyKeybind ~= nil and incomingBinds.Fly == nil then
-            self._settings.Settings.Binds.Fly = self._settings.Movement.FlyKeybind
+            normalized.Settings.Binds.Fly = normalized.Movement.FlyKeybind
         else
-            self._settings.Movement.FlyKeybind = self._settings.Settings.Binds.Fly
+            normalized.Movement.FlyKeybind = normalized.Settings.Binds.Fly
         end
         if incomingSettings.MenuKeybind ~= nil and incomingBinds.Menu == nil then
-            self._settings.Settings.Binds.Menu = self._settings.Settings.MenuKeybind
+            normalized.Settings.Binds.Menu = normalized.Settings.MenuKeybind
         else
-            self._settings.Settings.MenuKeybind = self._settings.Settings.Binds.Menu
+            normalized.Settings.MenuKeybind = normalized.Settings.Binds.Menu
         end
         local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
         local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode
-        if type(incomingEsp) == "string" then self._settings.ESP.DepthMode = incomingEsp
-        elseif type(incomingChams) == "string" then self._settings.ESP.DepthMode = incomingChams end
-        self._settings.Chams.DepthMode = self._settings.ESP.DepthMode
+        if type(incomingEsp) == "string" then normalized.ESP.DepthMode = incomingEsp
+        elseif type(incomingChams) == "string" then normalized.ESP.DepthMode = incomingChams end
+        normalized.Chams.DepthMode = normalized.ESP.DepthMode
+        if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
+        normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)
+        local favorites, count = {}, 0
+        for key, value in pairs(normalized.Settings.Favorites) do
+            if type(key) == "string" and #key <= 512 and value == true and count < 512 then favorites[key] = true; count += 1 end
+        end
+        normalized.Settings.Favorites = favorites
+        return normalized
+    end
+
+    function StateStore:LoadSettingsSnapshot(snapshot: any)
+        local normalized = self:NormalizeSettingsSnapshot(snapshot)
+        local old = self._settings
+        self._hydrating = true
+        self._settings = normalized
         for branch, value in pairs(self._settings) do publishChanges(branch, value, old[branch]) end
         self._hydrating = false
         self:EnforcePermissions()

@@ -8,14 +8,18 @@ return function(services: any): any
     local dom, theme, environment = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Slider capture")
+    local motion = services:Get("Motion")
     local Slider = { _active = nil }
 
     local function update(event: InputObject)
         local active = Slider._active
         if not active or active.Handle.Scope:IsDisposed() then return end
+        if active.Touch and event ~= active.Touch then return end
+        if not active.Touch and event.UserInputType == Enum.UserInputType.Touch then return end
         local position = environment:GetPointerLocation(event)
         local alpha = math.clamp((position.X - active.Track.AbsolutePosition.X) / math.max(active.Track.AbsoluteSize.X, 1), 0, 1)
-        active.Handle:Set(active.Min + alpha * (active.Max - active.Min))
+        local value = active.Handle.Normalize(active.Min + alpha * (active.Max - active.Min))
+        if value ~= active.Handle:Get() then active.Handle:Set(value) end
     end
 
     scope:ConnectImmediate(UIS.InputChanged, function(event: InputObject)
@@ -23,8 +27,13 @@ return function(services: any): any
     end)
 
     scope:Connect(UIS.InputEnded, function(event: InputObject)
-        if event.UserInputType == Enum.UserInputType.MouseButton1 or event.UserInputType == Enum.UserInputType.Touch then Slider._active = nil end
+        local active = Slider._active
+        if active and (event == active.Touch or (not active.Touch and event.UserInputType == Enum.UserInputType.MouseButton1)) then update(event); Slider._active = nil end
     end)
+
+    scope:ConnectImmediate(UIS.WindowFocusReleased, function() Slider._active = nil end)
+    scope:Add(services:Get("StateStore"):Observe("Settings.MenuVisible", function(value: boolean) if not value then Slider._active = nil end end))
+    scope:Add(services:Get("EventBus"):Subscribe("TabSelected", function() Slider._active = nil end))
 
     local function formatValue(number: number): string
         return (string.format("%.3f", number):gsub("0+$", ""):gsub("%.$", ""))
@@ -43,21 +52,35 @@ return function(services: any): any
         theme:BindToken(track, "BackgroundColor3", "ToggleOff"); dom:Create("UICorner", { Parent = track, CornerRadius = UDim.new(1, 0) })
         local fill = dom:Create("Frame", { Parent = track, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) })
         theme:BindToken(fill, "BackgroundColor3", "Accent"); dom:Create("UICorner", { Parent = fill, CornerRadius = UDim.new(1, 0) })
-        local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any)
+        local thumb = dom:Create("Frame", { Parent = fill, Name = "Thumb", BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(1, 0.5), Size = UDim2.fromOffset(4, 4), BackgroundTransparency = 1 })
+        theme:BindToken(thumb, "BackgroundColor3", "Text")
+        dom:Create("UICorner", { Parent = thumb, CornerRadius = UDim.new(1, 0) })
+        owner:Add(motion:ObserveInteraction(hit, function(hover: boolean, down: boolean, focused: boolean, instant: boolean)
+            local on = hover or down or focused
+            local duration = if instant then 0 elseif down then motion.Times.Press else motion.Times.Hover
+            local diameter = if down then 9 elseif on then 7 else 4
+            motion:Tween(thumb, "Interaction", { Size = UDim2.fromOffset(diameter, diameter), BackgroundTransparency = if on then 0 else 1 }, duration)
+            motion:Tween(track, "Interaction", { Size = UDim2.new(1, 0, 0, if on then 4 else 3), Position = UDim2.fromOffset(0, if on then 4.5 else 5) }, duration)
+        end))
+        local handle = { Kind = "Slider", Range = { Min = minimum, Max = maximum, Step = increment }, Row = row, Label = text, Scope = owner, Normalize = function(value: any)
             local number = tonumber(value) or minimum
             return math.clamp(minimum + math.floor((number - minimum) / increment + 0.5) * increment, minimum, maximum)
         end }
         function handle:_Render(value: number)
             local alpha = (value - minimum) / (maximum - minimum)
             local nextSize = UDim2.fromScale(alpha, 1)
-            if fill.Size ~= nextSize then fill.Size = nextSize end
+            local dragging = Slider._active and Slider._active.Handle == handle
+            motion:Tween(fill, "Value", { Size = nextSize }, if not self._painted or dragging then 0 else motion:Duration(row, motion.Times.Hover))
+            self._painted = true
             local nextText = `{formatValue(value)}/{formatValue(maximum)}{suffix or ""}`
             if valueLabel.Text ~= nextText then valueLabel.Text = nextText end
         end
         section:Bind(handle, defaultOrPath, callback)
         owner:Connect(hit.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            Slider._active = { Handle = handle, Track = track, Min = minimum, Max = maximum }
+            if Slider._active then return end
+            Slider._active = { Handle = handle, Track = track, Min = minimum, Max = maximum, Touch = if event.UserInputType == Enum.UserInputType.Touch then event else nil }
             update(event)
         end)
         owner:Add(function() if Slider._active and Slider._active.Handle == handle then Slider._active = nil end end)

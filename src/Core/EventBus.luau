@@ -15,6 +15,7 @@ return function(disposer: any): any
             self.Connected = false
             if self.Previous then self.Previous.Next = self.Next else list.Head = self.Next end
             if self.Next then self.Next.Previous = self.Previous else list.Tail = self.Previous end
+            if not list.Head and EventBus._lists[name] == list then EventBus._lists[name] = nil end
             self.Previous, self.Next = nil, nil
             EventBus._scope:Forget(self)
             self.Callback = nil

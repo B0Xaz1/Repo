@@ -10,14 +10,16 @@ local CONFIG = table.freeze({
 return function(services: any): any
     local dom, theme, state = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
+    local motion = services:Get("Motion")
     local Dropdown = {}
     function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?): any
         local row, text, owner = section:Control(parent, label, CONFIG.CLOSED_HEIGHT)
+        row.ClipsDescendants = true
         text.Size, text.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 16), Size = UDim2.new(1, 0, 0, 20),
             Text = "", TextTruncate = Enum.TextTruncate.AtEnd, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
         section:StyleButton(button, owner)
-        dom:CreatePadding(button, 0, 0, 0, 8)
+        dom:CreatePadding(button, 0, 20, 0, 8)
         local chevron = dom:Create("TextLabel", { Parent = button, BackgroundTransparency = 1, Position = UDim2.new(1, -16, 0, 0), Size = UDim2.fromOffset(14, 20),
             Text = "v", Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center })
         theme:BindToken(chevron, "TextColor3", "TextMuted")
@@ -29,21 +31,38 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 3) })
         dom:CreatePadding(menu, 4)
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-        local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true }
+        local handle: any = { Kind = "Dropdown", Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true, _choices = {}, _selectedChoice = nil }
         handle.Normalize = function(value: any): any return if table.find(handle._options, value) then value else handle._options[1] end
-        local function close() handle._open = false; menu.Visible = false; row.Size = UDim2.new(1, 0, 0, CONFIG.CLOSED_HEIGHT) end
+        local function close()
+            if not handle._open then return end
+            handle._open = false
+            motion:Reset(menu)
+            motion:Tween(chevron, "Expand", { Rotation = 0 }, motion.Times.Exit)
+            motion:Tween(row, "Expand", { Size = UDim2.new(1, 0, 0, CONFIG.CLOSED_HEIGHT) }, motion.Times.Exit, function()
+                if not handle._open then menu.Visible = false end
+            end)
+        end
+        local function selectChoice(choice: any, selected: boolean)
+            if not choice then return end
+            theme:BindToken(choice.Button, "TextColor3", if selected then "Accent" else "Text")
+        end
         local function buildOptions()
             handle._built, handle._dirty = true, false
             owner:Unbind("Options")
+            handle._choices, handle._selectedChoice = {}, nil
             for _, child in ipairs(menu:GetChildren()) do if child:IsA("GuiObject") then dom:DestroyInstance(child) end end
             local optionScope = owner:CreateChild("Options")
             owner:Bind("Options", optionScope)
             for index, option in ipairs(handle._options) do
                 local choice = dom:Create("TextButton", { Parent = menu, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = index,
                     Text = tostring(option), TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
-                section:StyleButton(choice, optionScope)
+                section:StyleButton(choice, optionScope, nil, true)
+                dom:CreatePadding(choice, 0, 8, 0, 8)
+                handle._choices[index] = { Button = choice }
                 optionScope:Connect(choice.Activated, function() if handle:Set(option) then close() end end)
             end
+            handle._selectedChoice = handle._choices[table.find(handle._options, handle:Get())]
+            selectChoice(handle._selectedChoice, true)
         end
         local function reconcileSelection(preserveSelection: boolean?)
             local selection = if preserveSelection then handle:Get() else nil
@@ -56,6 +75,12 @@ return function(services: any): any
         function handle:_Render(value: any)
             local nextText = tostring(value or "No options")
             if button.Text ~= nextText then button.Text = nextText end
+            local selected = self._choices[table.find(self._options, value)]
+            if selected ~= self._selectedChoice then
+                selectChoice(self._selectedChoice, false)
+                self._selectedChoice = selected
+                selectChoice(selected, true)
+            end
         end
         -- The option buttons are rebuilt only when the list itself changed; the joined signature
         -- is the cheap way to detect that without comparing tables
@@ -84,7 +109,8 @@ return function(services: any): any
             if not handle._built or handle._dirty then buildOptions() end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
             handle._open, menu.Visible = true, true
-            row.Size = UDim2.new(1, 0, 0, CONFIG.OPEN_TOP_OFFSET + menu.Size.Y.Offset + CONFIG.OPEN_BOTTOM_OFFSET)
+            motion:Tween(chevron, "Expand", { Rotation = 180 }, motion.Times.Hover)
+            motion:Tween(row, "Expand", { Size = UDim2.new(1, 0, 0, CONFIG.OPEN_TOP_OFFSET + menu.Size.Y.Offset + CONFIG.OPEN_BOTTOM_OFFSET) }, motion.Times.Enter)
         end)
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close))
         return handle

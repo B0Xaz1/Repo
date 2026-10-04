@@ -25,6 +25,9 @@ return function(services: any): any
         if not tab then return end
         if services:Has("UIEngine") then services:Get("UIEngine"):ClearSearch() end
         clearMount()
+        for _, column in ipairs({ tab.LeftCol, tab.RightCol }) do
+            column:SetAttribute("B0XazFavoriteContext", if PluginManager._active then PluginManager._active.Name else "Universal")
+        end
         if not PluginManager._active then
             local section = load("src/UI/Components/Section.luau", services)
             local dropdown = load("src/UI/Components/Dropdown.luau", services)

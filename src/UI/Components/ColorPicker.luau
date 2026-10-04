@@ -14,10 +14,13 @@ return function(services: any): any
     local dom, theme = services:Get("DOM"), services:Get("ThemeEngine")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local scope = services:Get("Disposer"):CreateChild("Color picker capture")
+    local motion = services:Get("Motion")
     local ColorPicker = { _active = nil }
     local function drag(event: InputObject, force: boolean?)
         local active = ColorPicker._active
         if not active or active.Handle.Scope:IsDisposed() then return end
+        if active.Touch and event ~= active.Touch then return end
+        if not active.Touch and event.UserInputType == Enum.UserInputType.Touch then return end
         local now = os.clock()
         if not force and now - active.LastUpdate < CONFIG.DRAG_UPDATE_INTERVAL then return end
         active.LastUpdate = now
@@ -36,15 +39,22 @@ return function(services: any): any
     scope:Connect(UIS.InputEnded, function(event: InputObject)
         if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
         local active = ColorPicker._active
-        if active then
+        if active and (event == active.Touch or (not active.Touch and event.UserInputType == Enum.UserInputType.MouseButton1)) then
             drag(event, true)
             if active.Value then active.Handle:Set(active.Value) end
             ColorPicker._active = nil
         end
     end)
+    local function cancelDrag()
+        local active = ColorPicker._active
+        ColorPicker._active = nil
+        if active and not active.Handle.Scope:IsDisposed() then active.Handle:Set(active.Handle:Get(), true) end
+    end
+    scope:ConnectImmediate(UIS.WindowFocusReleased, cancelDrag)
     function ColorPicker:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
         local row, text, owner = section:Control(parent, label, CONFIG.ROW_HEIGHT)
-        text.Size = UDim2.new(1, -120, 1, 0)
+        row.ClipsDescendants = true
+        text.Size = UDim2.new(1, -120, 0, CONFIG.ROW_HEIGHT)
         local hex = dom:Create("TextBox", { Parent = row, BorderSizePixel = 0, ClearTextOnFocus = false, Size = UDim2.fromOffset(78, 22), Position = UDim2.new(1, -116, 0, 3),
             Text = CONFIG.DEFAULT_HEX, Font = Enum.Font.Code, TextSize = 11 })
         theme:BindToken(hex, "BackgroundColor3", "Elem"); theme:BindToken(hex, "TextColor3", "TextDim")
@@ -65,9 +75,17 @@ return function(services: any): any
         local stops = {}
         for index = 0, CONFIG.HUE_STOPS do table.insert(stops, ColorSequenceKeypoint.new(index / CONFIG.HUE_STOPS, Color3.fromHSV(index / CONFIG.HUE_STOPS, 1, 1))) end
         dom:Create("UIGradient", { Parent = hue, Rotation = 90, Color = ColorSequence.new(stops) })
-        local handle = { Row = row, Label = text, Scope = owner, _hue = 0, _saturation = 1, _brightness = 1,
+        local handle = { Kind = "Color", Row = row, Label = text, Scope = owner, _open = false, _hue = 0, _saturation = 1, _brightness = 1,
             Normalize = function(value: any) return if typeof(value) == "Color3" then value else Color3.new(1, 1, 1) end }
-        local function close() panel.Visible = false; row.Size = UDim2.new(1, 0, 0, CONFIG.ROW_HEIGHT); if ColorPicker._active and ColorPicker._active.Handle == handle then ColorPicker._active = nil end end
+        local function close()
+            if ColorPicker._active and ColorPicker._active.Handle == handle then cancelDrag() end
+            if not handle._open then return end
+            handle._open = false
+            motion:Reset(panel)
+            motion:Tween(row, "Expand", { Size = UDim2.new(1, 0, 0, CONFIG.ROW_HEIGHT) }, motion.Times.Exit, function()
+                if not handle._open then panel.Visible = false end
+            end)
+        end
         function handle:_Render(value: Color3)
             local h, s, v = value:ToHSV()
             if s > 0 and v > 0 then self._hue = h end
@@ -78,9 +96,10 @@ return function(services: any): any
         end
         section:Bind(handle, defaultOrPath, callback)
         owner:Connect(swatch.Activated, function()
-            if panel.Visible then close(); return end
+            if handle._open then close(); return end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
-            panel.Visible, row.Size = true, UDim2.new(1, 0, 0, CONFIG.OPEN_ROW_HEIGHT)
+            handle._open, panel.Visible = true, true
+            motion:Tween(row, "Expand", { Size = UDim2.new(1, 0, 0, CONFIG.OPEN_ROW_HEIGHT) }, motion.Times.Enter)
         end)
         owner:Connect(hex.FocusLost, function()
             local value = hex.Text:gsub("^#", "")
@@ -91,9 +110,13 @@ return function(services: any): any
         end)
         for field, mode in pairs({ [square] = "SV", [hue] = "Hue" }) do owner:Connect(field.InputBegan, function(event: InputObject)
             if event.UserInputType ~= Enum.UserInputType.MouseButton1 and event.UserInputType ~= Enum.UserInputType.Touch then return end
-            ColorPicker._active = { Handle = handle, Field = field, Mode = mode, LastUpdate = 0, Marker = marker, Square = square, Swatch = swatch }; drag(event, true)
+            if ColorPicker._active then return end
+            ColorPicker._active = { Handle = handle, Field = field, Mode = mode, Touch = if event.UserInputType == Enum.UserInputType.Touch then event else nil, LastUpdate = 0, Marker = marker, Square = square, Swatch = swatch }; drag(event, true)
         end) end
-        owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(close)
+        owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close)); owner:Add(function()
+            if ColorPicker._active and ColorPicker._active.Handle == handle then cancelDrag() end
+            motion:Cancel(row, "Expand")
+        end)
         return handle
     end
     return setmetatable(ColorPicker, { __call = function(_constructor: any, ...: any) return ColorPicker:Create(...) end })

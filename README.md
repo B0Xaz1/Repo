@@ -1,151 +1,92 @@
 # B0Xaz Universal
 
-A streamed, dependency-injected client-side Roblox Luau suite with searchable controls, scoped cleanup, configuration profiles, and reversible property ownership.
+A Roblox utility suite with a searchable menu, customizable themes, saved profiles, and controls for supported experiences.
 
-**Version:** `2.4.9` · **Default source ref:** `main`
+**Version:** `2.4.9`
 
-> Use only in places you own or where you have permission. Client changes can be rejected by server authority and may violate an experience's rules.
+> Use only in places you own or where you have permission. Features may be limited by the experience or your execution environment, and use may violate an experience's rules.
 
-## Access model
+## Getting started
 
-Every included control is available immediately after the suite starts. There is no license-key entry, account check, hardware identifier, remote validation request, or gated feature level in this build.
+1. Open the [official loader](https://raw.githubusercontent.com/B0Xaz1/Repo/main/loader.luau).
+2. Copy its contents into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
+3. Use the menu to enable the features you need and adjust their settings.
 
-The repository is governed by the [B0Xaz Universal Use-Only License](LICENSE). It grants use of the software, but does **not** grant permission to copy, modify, publish, share, mirror, or redistribute the software or its documentation. The narrow exception for temporary copies needed by a device to load or run the authorized software is defined in the license text.
+Use the official distribution only. Compatibility varies by device and execution environment; some features may be unavailable. For release notes, see the [changelog](CHANGELOG.md).
 
-## Load
+## Default controls
 
-### Prerequisites
+| Control | Action |
+| --- | --- |
+| Right Shift | Show or hide the menu. |
+| End | Unload the suite. |
+| F | Toggle flight. |
+| Right mouse button | Activate aim assistance when enabled. |
+| Ctrl + click | Teleport when enabled; touch devices use a world tap. |
+| WASD / Space / Ctrl | Move horizontally / up / down during flight. |
+| Shift | Boost flight speed. |
 
-1. Publish the selected source ref so it is available from the raw GitHub URL. A runtime loader cannot see unpublished workspace edits.
-2. Use an executor that supports Luau `loadstring` and `game:HttpGet`. Optional executor APIs degrade gracefully when unavailable.
+Touch flight supports the thumbstick and on-screen vertical controls. Hotkeys can be changed in Settings. They are ignored while typing or recording another keybind; Escape cancels key recording and clears that bind. Hiding the menu, changing tabs, or switching away from the game cancels an active recording without changing the existing bind.
 
-Paste this four-line bootstrap. It downloads `loader.luau`, which owns readiness checks, launch locking, retries, and entry-point execution:
+## Menu
 
-```luau
-local g: any = _G; if type(getgenv) == "function" then local ok, env = pcall(getgenv); if ok and type(env) == "table" then g = env end end; g.B0XazRef = "main"
-local url: string = "https://raw.githubusercontent.com/B0Xaz1/Repo/" .. g.B0XazRef .. "/loader.luau"
-local source: string? = nil; for attempt = 1, 5 do local ok, body = pcall(function() return game:HttpGet(url .. "?t=" .. os.time() .. "_" .. attempt) end); if ok and type(body) == "string" and #body > 0 and not body:match("^%s*404") then source = body; break end; if attempt < 5 then task.wait(0.7 * attempt) end end
-assert(source, "[B0Xaz] Loader download failed"); local chunk, err = loadstring(source :: string, "@B0XazLoader"); assert(chunk, err); chunk()
-```
+Use the search box to find controls by feature, section, or tab name. Click **☆** beside a control to pin it above the sections in its own tab; click **★** to unpin it. Other tabs keep their own favorites.
 
-You can instead paste the contents of `loader.luau` directly. The selected ref must contain `init.luau` and `src/`.
-
-### Default controls
-
-- **Right Shift:** show or hide the menu.
-- **End:** unload and restore session-owned changes.
-- **F:** toggle flight.
-- **Right mouse:** activate aim correction when enabled; hold/toggle behavior is configurable.
-- **Ctrl + click:** teleport when enabled; touch uses a world tap.
-- Flight: **WASD**, **Space** up, **Ctrl** down, and **Shift** adds 50 studs/s. Touch uses the thumbstick plus up/down toggles.
-
-Hotkeys ignore focused textboxes and active key capture. Escape while recording a bind cancels and unbinds it.
-
-Public lifecycle APIs use `getgenv()` when available and `_G` otherwise:
-
-```luau
-local g: any = _G
-if type(getgenv) == "function" then g = getgenv() end
-g.B0XazUnload()     -- disposes the current session and attempts console clearing
--- g.B0XazRelaunch() -- disposes first, then downloads the same normalized init URL
-```
-
-Repeated loader executions are refused while a launch is in flight. Use `B0XazRelaunch()` for an intentional reload.
-
-## Interface
+Tooltips are reserved for less obvious settings and actions with important consequences. Hover over a control marked **?**, or tap **?**, to read its explanation. Straightforward controls have no help button. In **Settings → Interface & lifecycle**, choose **Off**, **Subtle**, or **Full** animations, adjust playback speed from **0.5× to 2×**, and turn tooltips on or off. Full at 1× keeps the standard animation feel.
 
 | Tab | Contents |
 | --- | --- |
-| Combat | Camera/mouse aim, R6/R15 hit parts, hold/toggle locks, exponential smoothing, WindMouse, prediction, target filters, FOV circle, and triggerbot. |
-| Visuals | Boxes, names, health, distance, tools/backpacks, tracers, skeletons, head dots/look direction, chams, rainbow/team color, a live ESP preview, optimization, lighting, and telemetry. |
-| Movement | Humanoid overrides, sprint/air jump, touch fling, displacement, flight, gravity/FOV, bookmarks, and click/tap teleport. |
-| Players | Live name filter, teleport, spectate, copy name, whitelist, and bounded fling controls. |
-| Game | Place/universe information plus the active game adapter. In Prison Life (place 155615604) the tab becomes a two-column command center; otherwise an explicit Universal Mode panel. |
-| Utility | Hitboxes, spin, pre-physics anti-fling, idle prevention, auto-rejoin, and public server hop. |
-| Settings | Profiles, validated backups, Default/Legit/Rage presets, per-experience auto-load profiles, launch behavior, JSON import/export, compact mode, scale/hotkeys with conflict checks and reset actions, full theme palettes, and lifecycle actions. |
+| Combat | Aim assistance, targeting preferences, FOV display, and triggerbot controls. |
+| Visuals | Player overlays, visual preview, lighting, performance options, and on-screen information. |
+| Movement | Movement settings, flight, freecam, wall walk, bookmarks, and teleport controls. |
+| Players | Player search, spectating, whitelist, and player actions. |
+| Game | Experience information and supported game-specific controls. |
+| Commands | Searchable command list, usage information, console, and recent commands. |
+| Utility | Hitbox options, spin, anti-fling, idle prevention, rejoin, and server switching. |
+| Settings | Profiles and comparisons, backups, launch preferences, themes, motion, tooltips, compatibility checks, hotkeys, and session controls. |
 
-The interface uses a restrained two-column layout with rounded panels, subtle borders, and accent colors that follow the selected palette. Six refreshed presets and 18 editable color tokens are included. Search is case-insensitive, matches controls, sections, and tab names, and restores each row's original position when cleared.
+Themes include built-in presets and custom colors. Available controls depend on the active experience and execution environment.
 
-## Settings and profiles
+## Profiles and preferences
 
-`src/Core/StateStore.luau` is the authoritative default schema. Feature switches ship off; display and filter options keep practical defaults. Speed, jump, gravity, and camera-FOV overrides use **0 = leave the game's value alone** rather than guessing a Roblox default.
+- Save and load named profiles from Settings. The built-in Default profile resets settings and cannot be overwritten or deleted.
+- **Settings → Profile comparison** compares two saved presets/profiles, or either one against the current session. View before-and-after values without loading or saving anything; compare again after making changes to refresh the results.
+- Favorites, motion preferences, and tooltip preferences are saved with your configuration. Loading another profile can change them; use **Clear all favorites** to unpin controls without changing their values.
+- Use the Default, Legit, and Rage presets as starting points, then adjust individual controls.
+- **Turn everything off** resets sliders and other values to defaults, then disables every toggle—including game plugins and restore-on-launch—without deleting saved profiles. The menu stays open with its default hotkeys.
+- Assign a profile to an experience to keep its saved session separate from other experiences. Later changes do not overwrite the assigned named profile.
+- Choose whether to restore settings on launch, select a startup profile, or clear an experience's assignment in Settings.
+- Use the backup and import/export controls to manage your configurations. Local saving requires file support in your execution environment.
+- Bookmarks are session-only.
+- For speed, jump power, gravity, and camera FOV overrides, **0 leaves the experience's value unchanged**.
 
-Owned runtime files:
+## Supported experiences
 
-```text
-B0XazUniversal/
-└── Configs/
-    ├── _autoload.json
-    ├── _game_profiles.json
-    ├── _game_<universe-or-place>_<id>.json
-    └── <sanitized-profile>.json
-```
+Game-specific controls are available for:
 
-- Filesystem wrappers constrain paths to this root and reject traversal.
-- `Default` is a read-only reset profile; it cannot be saved or deleted.
-- Profiles serialize `Color3` and `EnumItem` values recursively. Imports are JSON data, never executable code.
-- Older profiles deep-merge over new defaults, preserving new settings.
-- Dirty sessions autosave every 1.5 seconds and at cleanup. When a game has a pinned profile, its active settings are saved to a separate `Configs/_game_<kind>_<id>.json` session snapshot; the named profile remains unchanged, and the global `_autoload.json` fallback is preserved apart from global launch preferences. Bookmarks and runtime transients are not serialized.
-- Launch order is **RestoreOnLaunch disabled → defaults; otherwise per-game saved session → pinned profile → global StartupProfile → global autosaved session → defaults**. Per-game assignments use the Roblox universe ID (falling back to place ID), so subplaces in one experience share a session. Assignments are stored separately in `Configs/_game_profiles.json`; clearing one prevents its session snapshot from loading. The named profile is only the seed/fallback: subsequent edits stay in that experience's session file and do not overwrite the named profile or the global fallback.
+- **Prison Life:** armory, weapon options, doors and obstacles, weapon macro, map locations, and player watch.
+- **Prison Fight:** door controls and weapon macro.
+- **Murderers VS Sheriffs DUELS:** enemy visuals, combat controls, and automatic queue options.
+- **Zombie Attack, including Hardmode:** kill aura, auto farm, auto equip, and status displays.
 
-## Architecture and cleanup
+Other experiences use Universal Mode. Game updates may affect compatibility. Manually selecting a game plugin does not guarantee that it will work in a different experience.
 
-```text
-executor → loader.luau → init.luau → src/**/*.luau
+### Zombie Attack notes
 
-Disposer → Environment → EventBus → StateStore → TaskScheduler → ServiceContainer → DOM
-  → quick-unload listener
-  → services / combat / locomotion / visuals / plugin manager / theme / UI
-  → InitializeAll → ConstructInterface → ApplyLaunchState
-```
+Auto farm uses the target and firing preferences in the kill aura section. Stopping it leaves your character at the current location rather than returning to the starting point. Anti-fling protection is temporarily unavailable while auto farm is active. Auto equip is intended for guns, not knives.
 
-There is no `require()`, Rojo synchronization, package manager, bundler, or application build step. Application source is fetched as `.luau`; its paths are part of the runtime API.
+## Ending a session
 
-`init.luau` normalizes module paths and uses per-session source, compiled-factory, and initialized-singleton caches. Fetches have cache busters and retries, and concurrent requests for a module are single-flight. Failures are reported once with the underlying error rather than traced per stage.
+Press **End** or use the unload action in Settings. The suite attempts to restore changes it can undo, but unloading cannot reverse completed actions such as teleports or server-side effects. A pending action associated with a teleport may still run after unloading.
 
-Cleanup is centralized through `Disposer` scopes:
+## Troubleshooting
 
-- Keyed entries clean first; ordinary entries clean in reverse registration order.
-- Children own feature cycles, event subscriptions, tasks, instances, and Drawing objects.
-- Late additions to a disposed scope clean immediately.
-- Property and attribute leases capture originals before the first write and restore them when ownership ends.
-- Scheduler jobs are isolated and disabled after five consecutive failures, without interrupting unrelated jobs.
-- Drawings are hidden before removal, camera render bindings are unbound, and an optional FPS cap is reset to uncapped on unload.
-
-### Restoration limits
-
-The suite restores cached client-side properties and disposes the resources it owns. It cannot undo completed server-side effects, fired input, teleports, a destroyed character, or a streamed-out instance. A queued teleport payload can still run after a local unload when the executor offers no revocation API.
-
-## Game plugins
-
-`src/Plugins/PluginRegistry.luau` maps place or universe IDs to adapters, with a place ID taking precedence.
-
-`src/Plugins/PrisonLife/` is the Prison Life (by Aesthetical) adapter, registered under place ID `155615604`. It turns the Game tab into a lean two-column control center:
-
-- **Left:** Armory (live inventory, spawn awareness, the game's own ITEMPICKUP flow) and weapon mods (direct No Spread / Fast Fire / Full-Auto / Range toggles over both gun-stat mechanisms, with immediate restore).
-- **Right:** doors and obstacles (phase + transparency over the legacy containers `doors`/`glass`/`celldoors`/`prison_fences`/`prison_gate`), weapon macro (guns-only cycling, at least two, toggle/hold modes), map locations (teleports, waypoints, favorites), and player watch (distances, tools, spectate, whitelist).
-
-Every subsystem is a separate service module behind a frozen manifest, mounted through the PluginManager with an isolated disposer, and torn down in reverse order. The manifest carries the legacy plugin's ground-truth data: 12 map coordinates, the seven-gun set (M9, Remington 870, MP5, AK-47, M4A1, M700, Revolver), and the obstacle containers matched case-insensitively.
-
-Weapon mods honor both gun-stat mechanisms the game has used — instance attributes (`SpreadRadius`/`FireRate`/`AutoFire`/`Range`) on the tool or its children and the `GunStates` ModuleScript table — restoring whichever a gun carries (legacy targets: fire rate 0.001, range 10000). Door phasing and weapon values are reversible at any moment, not only on unload. Locations resolve from CollectionService tags first (`B0XazPrisonLife:<Id>`), then named map objects, then manifest coordinates, so map updates degrade gracefully instead of breaking teleports.
-
-`src/Plugins/ZombieAttack/` is the Zombie Attack (by Zombie Attack Official) adapter, registered under place IDs `1240123653` and `1632210982` (the Hardmode place in the same game). No universe ID is registered, because the place-to-universe mapping could not be confirmed without an authenticated call. It replaces a standalone Rayfield script: the kill aura loop, enemy scan, and gun payload are unchanged, while the UI, settings, and lifetime move onto the suite's own components.
-
-- **Left:** kill aura switch, fire rate (`0.01`–`1`s), target part (`Head`/`UpperTorso`/`Torso`/`HumanoidRootPart`, with a fallback chain for rigs missing the chosen part), a target range gate where `0` means unlimited, and the auto farm switch with its status lines and `Stop auto farm`.
-- **Right:** the auto equip switch with its status line and `Equip gun now`, then live zombie count with the resolved container name, shots fired, last target, the weapon and remote actually in use, plus `Fire once at nearest` and `Stop kill aura`.
-
-Auto farm (`src/Plugins/ZombieAttack/AutoFarmService.luau`) locks the nearest live zombie and holds you two studs above and two studs behind its own facing — behind the zombie's `LookVector` rather than the camera's, so the lock survives it turning. Placement goes through `LocomotionService:Teleport`, which zeroes assembly velocity and suppresses anti-fling, so the hold is firm instead of drifting downward between frames. It stays on that zombie while its health is above zero, and the enemy container is rescanned only when the lock goes stale (dead, despawned, or unparented) — then it takes the next nearest. Shots leave through the kill aura's own remote and payload via `KillAura:FireAtTarget`, so the farm cannot outrun the configured fire rate, and while the farm runs the aura's independent loop stands down instead of alternating targets through the same gate. Target part, range, and fire rate are shared with the kill aura section rather than duplicated. `TargetService` now resolves a body anchor (`Root`) separately from the aim part, since anchoring movement on `Head` would stand you two studs above the skull. Turning the farm off leaves you where it put you; there is no snap-back. One trade-off to know about: that teleport path suppresses anti-fling for 1.5 s per placement, so anti-fling stays suppressed for as long as the farm is holding a position. It is the same suppression any teleport in the suite applies, but continuous rather than one-shot, and it has to be — otherwise anti-fling would read the farm's own placement as an attack and fight it.
-
-Auto equip (`src/Plugins/ZombieAttack/AutoEquipService.luau`) identifies weapons by their controller child rather than by name: a Tool carrying `GunController` is a gun, and the first one found is equipped through `Humanoid:EquipTool`, character before backpack. A gun already in hand is left alone, so the loop never re-triggers an equip animation, and a deliberate unequip is respected for half a second before the tool is taken back. The controller name resolves recursively, then falls back to a bounded case-insensitive walk, so a tool that nests it under a folder or spells it with different casing still counts. Tools carrying `KnifeController` are counted for the status line but never equipped — knives are out of scope here, and reporting the count keeps that naming assumption verifiable in-game instead of assumed. This is also what clears the kill aura's `No weapon equipped` miss without touching the payload the aura sends.
-
-Settings live at `Game.ZombieAura*`, `Game.ZombieAutoEquip`, and `Game.ZombieFarm` so they serialize into profiles and appear in menu search. Everything the adapter owns — the three heartbeat connections, the label job, and the spawned paint task — hangs off the plugin's disposer scope and is released on unload or when the game plugin switch is turned off.
-
-`src/Plugins/ExampleGame/` remains the opt-in test-place adapter pattern. It is not registered for any live experience.
-
-## Validation
-
-Before publishing, manually verify representative desktop and touch executors, repeated launch/relaunch/unload cycles, respawns, optional executor APIs, visual layout, and restoration of all touched values.
+- **The suite does not start:** check internet access, use the official loader, and confirm your execution environment is compatible.
+- **The menu is hidden:** press Right Shift, your configured menu key, or the on-screen menu button if enabled.
+- **A feature is unavailable:** open **Settings → Compatibility checker** for detected capabilities and fallback guidance. Detection does not guarantee runtime permissions or game compatibility; the check does not perform disruptive actions. Review feature settings and any displayed warning as well.
+- **Settings do not persist:** confirm that local file access is supported and review your launch and profile preferences.
+- **The layout is too large:** reduce menu scale or enable compact mode in Settings.
 
 ## License
 
-Use is governed by the [B0Xaz Universal Use-Only License](LICENSE). You may use the software under its terms, but copying or redistributing it is prohibited.
+Use is governed by the [B0Xaz Universal Use-Only License](LICENSE). It permits use under its terms but does not grant permission to copy, modify, publish, share, mirror, or redistribute the software or documentation, except for the limited temporary copies expressly allowed by the license.

@@ -228,6 +228,7 @@ local booted, bootError = pcall(function()
     services:Register("StateStore", state)
     services:Register("TaskScheduler", scheduler)
     services:Register("Require", requireModule)
+    services:Register("Motion", step(function() return requireModule("src/UI/Motion.luau", services) end))
     services:Register("DOM", step(function() return requireModule("src/UI/DOM.luau", services) end))
     globals.B0XazServiceContainer = services
     local lastInputCheck = 0
@@ -250,7 +251,8 @@ local booted, bootError = pcall(function()
         { "FreecamService", "src/Locomotion/FreecamService.luau" }, { "WallWalkService", "src/Locomotion/WallWalkService.luau" },
         { "ExtrasService", "src/Services/ExtrasService.luau" }, { "AimbotService", "src/Combat/AimbotService.luau" },
         { "TriggerbotService", "src/Combat/TriggerbotService.luau" }, { "PluginManager", "src/Plugins/PluginManager.luau" },
-        { "ThemeEngine", "src/UI/ThemeEngine.luau" }, { "UIEngine", "src/UI/UIEngine.luau" },
+        { "ThemeEngine", "src/UI/ThemeEngine.luau" }, { "Tooltips", "src/UI/Tooltips.luau" },
+        { "CompatibilityService", "src/Services/CompatibilityService.luau" }, { "UIEngine", "src/UI/UIEngine.luau" },
     }
     for _, entry in ipairs(registration) do
         step(function() services:Register(entry[1], requireModule(entry[2], services)) end)

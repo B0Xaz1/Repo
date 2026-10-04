@@ -8,6 +8,7 @@ local CONFIG = table.freeze({
 return function(services: any): any
     local dom, theme, state = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore")
     local bus = services:Get("EventBus")
+    local motion = services:Get("Motion")
     local scope = services:Get("Disposer"):CreateChild("VisualsPreview")
     local VisualsPreview = { Frame = nil, _parts = {}, _initialized = false }
 
@@ -19,39 +20,43 @@ return function(services: any): any
         if config.UseTeamColor then return CONFIG.SAMPLE_TEAM end
         return fallback
     end
+    local function set(instance: any, property: string, value: any)
+        if instance[property] ~= value then instance[property] = value end
+    end
     local function paint()
         local frame = VisualsPreview.Frame
         if not frame then return end
         local menuOn = state:Peek("Settings.MenuVisible")
         local onVisuals = services:Get("UIEngine")._active and services:Get("UIEngine")._active.Name == "Visuals"
-        frame.Visible = menuOn and onVisuals == true
-        if not frame.Visible then return end
+        local on = menuOn and onVisuals == true
+        motion:Reveal(frame, on)
+        if not on then return end
         local esp, chams = state:Peek("ESP"), state:Peek("Chams")
         local parts = VisualsPreview._parts
         local color = sampleColor(esp, esp.Color)
         local chamFill = sampleColor(chams, chams.FillColor)
         local espOn = esp.Enabled
-        parts.Chams.Visible = chams.Enabled
-        parts.Chams.BackgroundColor3 = chamFill
-        parts.Box.Visible = espOn and esp.Box
-        parts.BoxStroke.Color = color
-        parts.Name.Visible = espOn and esp.Name
-        parts.Name.TextColor3 = color
-        parts.Distance.Visible = espOn and esp.Distance
-        parts.Distance.TextColor3 = color
-        parts.HealthBack.Visible = espOn and esp.Health
-        parts.Health.Visible = espOn and esp.Health
-        parts.Head.Visible = espOn and esp.HeadDot
-        parts.Head.BackgroundColor3 = color
-        parts.Tracer.Visible = espOn and esp.Tracers
-        parts.Tracer.BackgroundColor3 = color
-        parts.Look.Visible = espOn and esp.LookDir
-        parts.Look.BackgroundColor3 = color
-        parts.Tool.Visible = espOn and esp.Tool
-        parts.Tool.TextColor3 = color
-        parts.Skeleton.Visible = espOn and esp.Skeleton
-        for _, bone in ipairs(parts.Bones) do bone.BackgroundColor3 = color end
-        parts.Hint.Text = if espOn or chams.Enabled then "Live sample of enabled overlays" else "Enable ESP or chams to preview"
+        set(parts.Chams, "Visible", chams.Enabled)
+        set(parts.Chams, "BackgroundColor3", chamFill)
+        set(parts.Box, "Visible", espOn and esp.Box)
+        set(parts.BoxStroke, "Color", color)
+        set(parts.Name, "Visible", espOn and esp.Name)
+        set(parts.Name, "TextColor3", color)
+        set(parts.Distance, "Visible", espOn and esp.Distance)
+        set(parts.Distance, "TextColor3", color)
+        set(parts.HealthBack, "Visible", espOn and esp.Health)
+        set(parts.Health, "Visible", espOn and esp.Health)
+        set(parts.Head, "Visible", espOn and esp.HeadDot)
+        set(parts.Head, "BackgroundColor3", color)
+        set(parts.Tracer, "Visible", espOn and esp.Tracers)
+        set(parts.Tracer, "BackgroundColor3", color)
+        set(parts.Look, "Visible", espOn and esp.LookDir)
+        set(parts.Look, "BackgroundColor3", color)
+        set(parts.Tool, "Visible", espOn and esp.Tool)
+        set(parts.Tool, "TextColor3", color)
+        set(parts.Skeleton, "Visible", espOn and esp.Skeleton)
+        for _, bone in ipairs(parts.Bones) do set(bone, "BackgroundColor3", color) end
+        set(parts.Hint, "Text", if espOn or chams.Enabled then "Live sample of enabled overlays" else "Enable ESP or chams to preview")
     end
     function VisualsPreview:Mount(root: Instance)
         if self.Frame then return self.Frame end
@@ -113,7 +118,10 @@ return function(services: any): any
             local renderConn: RBXScriptConnection? = nil
             local function sync()
                 paint()
-                local on = VisualsPreview.Frame and VisualsPreview.Frame.Visible
+                local ui = services:Get("UIEngine")
+                local esp, chams = state:Peek("ESP"), state:Peek("Chams")
+                local on = state:Peek("Settings.MenuVisible") and ui._active and ui._active.Name == "Visuals"
+                    and ((esp.Enabled and esp.Rainbow) or (chams.Enabled and chams.Rainbow))
                 if on and not renderConn then
                     renderConn = RunService.RenderStepped:Connect(paint)
                 elseif not on and renderConn then
@@ -123,6 +131,15 @@ return function(services: any): any
             scope:Add(function() if renderConn then renderConn:Disconnect(); renderConn = nil end end)
             scope:Add(bus:Subscribe("TabSelected", sync))
             scope:Add(state:Observe("Settings.MenuVisible", sync))
+            local pending = false
+            scope:Add(bus:Subscribe("StateChanged", function(path: string)
+                if pending or not (path == "ESP" or path == "Chams" or path:sub(1, 4) == "ESP." or path:sub(1, 6) == "Chams.") then return end
+                pending = true
+                task.defer(function()
+                    pending = false
+                    if not scope:IsDisposed() then sync() end
+                end)
+            end))
             self._sync = sync
         end
         if self._sync then self._sync() else paint() end

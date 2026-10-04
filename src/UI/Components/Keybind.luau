@@ -38,6 +38,13 @@ return function(services: any): any
         finishCapture(environment:ParseKeybind(value))
     end)
 
+    local function cancelCapture()
+        if Keybind._active then finishCapture(nil) end
+    end
+    scope:ConnectImmediate(UIS.WindowFocusReleased, cancelCapture)
+    scope:Add(state:Observe("Settings.MenuVisible", function(value: boolean) if not value then cancelCapture() end end))
+    scope:Add(services:Get("EventBus"):Subscribe("TabSelected", cancelCapture))
+
     function Keybind:Create(parent: Instance, label: string, defaultOrPath: any, callback: any?): any
         local row, text, owner = section:Control(parent, label, 22)
         text.Size = UDim2.new(1, -110, 1, 0)

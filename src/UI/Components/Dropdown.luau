@@ -10,9 +10,11 @@ local CONFIG = table.freeze({
 return function(services: any): any
     local dom, theme, state = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("StateStore")
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
+    local motion = services:Get("Motion")
     local Dropdown = {}
     function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?): any
         local row, text, owner = section:Control(parent, label, CONFIG.CLOSED_HEIGHT)
+        row.ClipsDescendants = true
         text.Size, text.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 16), Size = UDim2.new(1, 0, 0, 20),
             Text = "", TextTruncate = Enum.TextTruncate.AtEnd, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
@@ -31,7 +33,15 @@ return function(services: any): any
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
         local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true }
         handle.Normalize = function(value: any): any return if table.find(handle._options, value) then value else handle._options[1] end
-        local function close() handle._open = false; menu.Visible = false; row.Size = UDim2.new(1, 0, 0, CONFIG.CLOSED_HEIGHT) end
+        local function close()
+            if not handle._open then return end
+            handle._open = false
+            motion:Reset(menu)
+            motion:Tween(chevron, "Expand", { Rotation = 0 }, motion.Times.Exit)
+            motion:Tween(row, "Expand", { Size = UDim2.new(1, 0, 0, CONFIG.CLOSED_HEIGHT) }, motion.Times.Exit, function()
+                if not handle._open then menu.Visible = false end
+            end)
+        end
         local function buildOptions()
             handle._built, handle._dirty = true, false
             owner:Unbind("Options")
@@ -84,7 +94,8 @@ return function(services: any): any
             if not handle._built or handle._dirty then buildOptions() end
             services:Get("UIEngine"):CloseAllDropdownsExcept(close)
             handle._open, menu.Visible = true, true
-            row.Size = UDim2.new(1, 0, 0, CONFIG.OPEN_TOP_OFFSET + menu.Size.Y.Offset + CONFIG.OPEN_BOTTOM_OFFSET)
+            motion:Tween(chevron, "Expand", { Rotation = 180 }, motion.Times.Hover)
+            motion:Tween(row, "Expand", { Size = UDim2.new(1, 0, 0, CONFIG.OPEN_TOP_OFFSET + menu.Size.Y.Offset + CONFIG.OPEN_BOTTOM_OFFSET) }, motion.Times.Enter)
         end)
         owner:Add(services:Get("UIEngine"):RegisterDropdownClose(close))
         return handle

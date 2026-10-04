@@ -12,23 +12,30 @@ local CONFIG = table.freeze({
 return function(services: any): any
     local dom, theme, environment, config = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("Environment"), services:Get("ConfigService")
     local scope = services:Get("Disposer"):CreateChild("ConfigShareModal")
+    local motion = services:Get("Motion")
     local ConfigShareModal = { _view = nil }
-    function ConfigShareModal:Hide()
+    function ConfigShareModal:Hide(immediate: boolean?)
+        scope:Unbind("Closing")
         local owner = self._view; self._view = nil
-        if owner then owner:Dispose() end
+        if not owner then return end
+        if immediate or not owner.Window then owner:Dispose(); return end
+        scope:Bind("Closing", owner)
+        motion:Tween(owner.Shade, "Modal", { BackgroundTransparency = 1 }, motion.Times.Exit)
+        motion:Reveal(owner.Window, false, function() scope:Unbind("Closing") end)
     end
     function ConfigShareModal:Show(initialJson: string?)
-        self:Hide()
+        self:Hide(true)
         local owner = scope:CreateChild("Share editor")
         self._view = owner
         local root = dom:Create("ScreenGui", { Parent = assert(environment:GetSafeGuiParent(), "No GUI parent for config editor"), Name = dom:RandomName(),
             ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = CONFIG.DISPLAY_ORDER, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
         theme:RegisterRoot(root)
         owner:Add(function() dom:DestroyInstance(root) end)
-        dom:Create("Frame", { Parent = root, BorderSizePixel = 0, BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4, Size = UDim2.fromScale(1, 1), Active = true })
+        owner.Shade = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Active = true })
         local screen = if Workspace.CurrentCamera then Workspace.CurrentCamera.ViewportSize else CONFIG.FALLBACK_VIEWPORT
         local window = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(math.min(CONFIG.WINDOW_MAX_WIDTH, screen.X - CONFIG.WINDOW_MARGIN_X), math.min(CONFIG.WINDOW_MAX_HEIGHT, screen.Y - CONFIG.WINDOW_MARGIN_Y)), Active = true })
+            Size = UDim2.fromOffset(math.min(CONFIG.WINDOW_MAX_WIDTH, screen.X - CONFIG.WINDOW_MARGIN_X), math.min(CONFIG.WINDOW_MAX_HEIGHT, screen.Y - CONFIG.WINDOW_MARGIN_Y)), Active = true, Visible = false })
+        owner.Window = window
         theme:BindToken(window, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = window, CornerRadius = UDim.new(0, 6) })
         theme:BindToken(dom:CreateStroke(window, theme:GetToken("Border")), "Color", "Border")
         local title = dom:Create("TextLabel", { Parent = window, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 10), Size = UDim2.new(1, -36, 0, 39),
@@ -68,8 +75,10 @@ return function(services: any): any
             return ok, message
         end, 0)
         textbox:CreateButton(actions, "Close editor", function() ConfigShareModal:Hide() end, 0)
+        motion:Tween(owner.Shade, "Modal", { BackgroundTransparency = 0.4 }, motion.Times.Enter)
+        motion:Reveal(window, true)
     end
-    function ConfigShareModal:Destroy() self:Hide(); scope:Dispose() end
-    scope:Add(function() ConfigShareModal:Hide() end)
+    function ConfigShareModal:Destroy() self:Hide(true); scope:Dispose() end
+    scope:Add(function() ConfigShareModal:Hide(true) end)
     return ConfigShareModal
 end

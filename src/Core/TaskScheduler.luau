@@ -14,6 +14,7 @@ return function(disposer: any): any
     local function run(pipeline: string, dt: number)
         if scope:IsDisposed() then return end
         for _, job in ipairs(TaskScheduler._pipelines[pipeline]) do
+            if scope:IsDisposed() then break end
             -- Re-enabling a job clears its strike history, so the breaker only counts consecutive failures
             if job.CircuitOpen and job.Enabled then job.CircuitOpen, job.Strikes = false, 0 end
             if job.Enabled and job.Connected then
@@ -33,10 +34,12 @@ return function(disposer: any): any
     end
 
     local function register(pipeline: string, name: string, priority: number, callback: (number) -> ()): any
-        local jobs = TaskScheduler._pipelines[pipeline]
-        for index = #jobs, 1, -1 do
-            if jobs[index].Name == name then jobs[index]:Disconnect(); table.remove(jobs, index) end
+        assert(not scope:IsDisposed(), "Cannot register a task after shutdown")
+        for _, existing in ipairs(TaskScheduler._pipelines[pipeline]) do
+            if existing.Name == name then existing:Disconnect() end
         end
+        -- Publish a new list only after registration is complete; a running frame keeps its snapshot.
+        local jobs = table.clone(TaskScheduler._pipelines[pipeline])
         local job: any = { Name = name, Priority = priority, Callback = callback, Strikes = 0, Enabled = true, Connected = true, CircuitOpen = false }
         function job:Disconnect()
             if self.Connected ~= true then return end
@@ -49,6 +52,7 @@ return function(disposer: any): any
                 TaskScheduler._pipelines[pipeline] = remaining
             end
             scope:Forget(self)
+            self.Callback = nil
         end
         local insertAt = #jobs + 1
         for index, existing in ipairs(jobs) do
@@ -58,6 +62,7 @@ return function(disposer: any): any
             end
         end
         table.insert(jobs, insertAt, job)
+        TaskScheduler._pipelines[pipeline] = jobs
         scope:Add(job)
         return job
     end

@@ -14,7 +14,7 @@ return function(services: any, tab: any): any
 
     local preview = section:Create(tab.RightCol, "Console")
     local inputRow = dom:Create("Frame", { Parent = preview, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), LayoutOrder = 0 })
-    local input = dom:Create("TextBox", { Parent = inputRow, BorderSizePixel = 0, BackgroundColor3 = theme:GetToken("Elem"), Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, -68, 0, 26), PlaceholderText = "Type command...", Text = "", Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
+    local input = dom:Create("TextBox", { Parent = inputRow, BorderSizePixel = 0, BackgroundColor3 = theme:GetToken("Elem"), Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, -136, 0, 26), PlaceholderText = "Type command...", Text = "", Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
     theme:BindToken(input, "BackgroundColor3", "Elem")
     theme:BindToken(input, "TextColor3", "Text")
     theme:BindToken(input, "PlaceholderColor3", "TextMuted")
@@ -36,46 +36,51 @@ return function(services: any, tab: any): any
     local recent = section:Create(tab.RightCol, "Recent")
     local recentText = section:Info(recent, "No recent commands yet.")
 
+    local rows = {}
     local function renderList()
         local query = tostring(search.Box.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-        for _, child in ipairs(commandList:GetChildren()) do
-            if child:IsA("GuiObject") and child ~= commandList:FindFirstChildOfClass("UIListLayout") then dom:DestroyInstance(child) end
+        if #rows == 0 then
+            for index, entry in ipairs(commandService:GetCommandList()) do
+                local row = dom:Create("TextButton", { Parent = commandList, BorderSizePixel = 0, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Text = "", AutoButtonColor = false, LayoutOrder = index })
+                local body = dom:Create("Frame", { Parent = row, BorderSizePixel = 0, BackgroundColor3 = theme:GetToken("Panel"), Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 0 })
+                theme:BindToken(body, "BackgroundColor3", "Panel")
+                dom:Create("UICorner", { Parent = body, CornerRadius = UDim.new(0, 3) })
+                theme:BindToken(dom:CreateStroke(body, theme:GetToken("BorderDim")), "Color", "BorderDim")
+                local name = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -92, 0, 16), Text = entry.Name, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
+                theme:BindToken(name, "TextColor3", "Accent")
+                local category = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.new(1, -84, 0, 6), Size = UDim2.fromOffset(72, 14), Text = entry.Category, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
+                theme:BindToken(category, "TextColor3", "TextMuted")
+                local usage = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 23), Size = UDim2.new(1, -76, 0, 12), Text = entry.Usage, Font = Enum.Font.Code, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+                theme:BindToken(usage, "TextColor3", "TextMuted")
+                local run = dom:Create("TextButton", { Parent = body, BorderSizePixel = 0, Position = UDim2.new(1, -62, 0, 9), Size = UDim2.fromOffset(52, 22), Text = "Run", Font = Enum.Font.GothamMedium, TextSize = 11, AutoButtonColor = false })
+                section:StyleButton(run, scope)
+                scope:Connect(run.Activated, function()
+                    commandService:Execute(entry.Name, "menu")
+                end)
+                scope:Connect(row.Activated, function()
+                    detailText:Set(`{entry.Name}  /  {entry.Category}\n{entry.Usage}`)
+                    input.Text = entry.Name
+                end)
+                table.insert(rows, { Row = row, Searchable = (`{entry.Name} {entry.Category} {entry.Usage}`):lower() })
+            end
         end
-
-        local commands = commandService:GetCommandList()
-        local visible = {}
-        for _, entry in ipairs(commands) do
-            local searchable = (`{entry.Name} {entry.Category} {entry.Usage}`):lower()
-            if query == "" or searchable:find(query, 1, true) then table.insert(visible, entry) end
-        end
-
-        for _, entry in ipairs(visible) do
-            local row = dom:Create("TextButton", { Parent = commandList, BorderSizePixel = 0, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Text = "", AutoButtonColor = false })
-            local body = dom:Create("Frame", { Parent = row, BorderSizePixel = 0, BackgroundColor3 = theme:GetToken("Panel"), Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 0 })
-            dom:Create("UICorner", { Parent = body, CornerRadius = UDim.new(0, 3) })
-            theme:BindToken(dom:CreateStroke(body, theme:GetToken("BorderDim")), "Color", "BorderDim")
-            local name = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 6), Size = UDim2.new(1, -92, 0, 16), Text = entry.Name, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
-            theme:BindToken(name, "TextColor3", "Accent")
-            local category = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.new(1, -84, 0, 6), Size = UDim2.fromOffset(72, 14), Text = entry.Category, Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
-            theme:BindToken(category, "TextColor3", "TextMuted")
-            local usage = dom:Create("TextLabel", { Parent = body, BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 23), Size = UDim2.new(1, -76, 0, 12), Text = entry.Usage, Font = Enum.Font.Code, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
-            theme:BindToken(usage, "TextColor3", "TextMuted")
-            local run = dom:Create("TextButton", { Parent = body, BorderSizePixel = 0, Position = UDim2.new(1, -62, 0, 9), Size = UDim2.fromOffset(52, 22), Text = "Run", Font = Enum.Font.GothamMedium, TextSize = 11, AutoButtonColor = false })
-            section:StyleButton(run, scope)
-            scope:Connect(run.Activated, function()
-                commandService:Execute(entry.Name, "menu")
-            end)
-            scope:Connect(row.Activated, function()
-                detailText:Set(`{entry.Name}  /  {entry.Category}\n{entry.Usage}`)
-                input.Text = entry.Name
-            end)
+        for _, record in ipairs(rows) do
+            local show = query == "" or record.Searchable:find(query, 1, true) ~= nil
+            if record.Row.Visible ~= show then
+                if not show then services:Get("Motion"):Reset(record.Row) end
+                record.Row.Visible = show
+            end
         end
     end
 
+    local logRows, logOrder = {}, 0
+
     local function appendLog(message: string)
-        local label = dom:Create("TextLabel", { Parent = log, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Text = message, TextWrapped = true, Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left })
+        logOrder += 1
+        local label = dom:Create("TextLabel", { Parent = log, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Text = message, TextWrapped = true, LayoutOrder = logOrder, Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left })
         theme:BindToken(label, "TextColor3", "Text")
-        log.CanvasPosition = Vector2.new(0, math.huge)
+        table.insert(logRows, label)
+        if #logRows > 80 then dom:DestroyInstance(table.remove(logRows, 1)) end
     end
 
     local function updateRecent()
@@ -89,7 +94,10 @@ return function(services: any, tab: any): any
         updateRecent()
     end))
 
-    scope:Connect(search.Box:GetPropertyChangedSignal("Text"), renderList)
+    scope:ConnectImmediate(log:GetPropertyChangedSignal("AbsoluteCanvasSize"), function()
+        log.CanvasPosition = Vector2.new(0, math.max(0, log.AbsoluteCanvasSize.Y))
+    end)
+    scope:ConnectImmediate(search.Box:GetPropertyChangedSignal("Text"), renderList)
     scope:Connect(runButton.Activated, function()
         local command = input.Text
         if command == "" then return end
@@ -102,6 +110,7 @@ return function(services: any, tab: any): any
         for _, child in ipairs(log:GetChildren()) do
             if child:IsA("GuiObject") and child ~= log:FindFirstChildOfClass("UIListLayout") then dom:DestroyInstance(child) end
         end
+        table.clear(logRows)
         commandService:Execute("/clear", "menu")
         updateRecent()
     end)

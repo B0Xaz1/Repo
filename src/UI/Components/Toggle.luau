@@ -13,7 +13,8 @@ return function(services: any): any
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return value == true end }
         function handle:_Render(value: boolean)
             theme:BindToken(box, "BackgroundColor3", if value then "ToggleOn" else "ToggleOff")
-            stroke.Thickness, stroke.Transparency = 1, if value then 1 else 0
+            services:Get("Motion"):Tween(stroke, "Toggle", { Transparency = if value then 1 else 0 }, if self._painted then 0.12 else 0)
+            self._painted = true
         end
         section:Bind(handle, defaultOrPath, callback)
         owner:Connect(box.Activated, function() handle:Set(not handle:Get()) end)

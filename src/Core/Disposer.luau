@@ -4,7 +4,7 @@ export type Scope = {
     Spawn: (Scope, (...any) -> (), ...any) -> thread?,
     Delay: (Scope, number, (...any) -> (), ...any) -> thread?,
     Bind: (Scope, string, any, string?) -> any,
-    Unbind: (Scope) -> (),
+    Unbind: (Scope, string) -> (),
     CreateChild: (Scope, string) -> Scope,
     ReleaseProperty: (Scope, any, string) -> (),
     ReleaseObject: (Scope, any) -> (),
@@ -80,7 +80,7 @@ return function(): any
             scope:Forget(worker)
         end)
         scope:Add(worker)
-        if seconds then task.defer(function() task.wait(seconds); coroutine.resume(worker) end) else task.spawn(worker) end
+        if seconds then task.delay(seconds, worker) else task.spawn(worker) end
         return worker
     end
 

@@ -22,8 +22,8 @@ return function(services: any): any
         if resetPath then
             local reset = dom:Create("TextButton", { Parent = content, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20),
                 Text = "Reset section", Font = Enum.Font.Gotham, TextSize = 10, AutoButtonColor = false, LayoutOrder = 999 })
-            self:StyleButton(reset, disposer:CreateChild(`Reset {title}`))
             local owner = disposer:CreateChild(`Reset action {title}`)
+            self:StyleButton(reset, owner)
             owner:Connect(reset.Activated, function()
                 local ok, message = state:ResetSection(resetPath)
                 bus:Publish("Notify", if ok then "Section reset" else "Reset failed", message or `{title} restored to defaults`)
@@ -52,7 +52,10 @@ return function(services: any): any
         theme:BindToken(text, "TextColor3", "TextMuted")
         dom:CreatePadding(row, 2, 0, 4, 0)
         local handle = { Row = row, Label = text, Scope = owner }
-        function handle:Set(value: any, _silent: boolean?) text.Text = tostring(value) end
+        function handle:Set(value: any, _silent: boolean?)
+            local nextText = tostring(value)
+            if text.Text ~= nextText then text.Text = nextText end
+        end
         return handle
     end
     function Section:StyleButton(button: TextButton, owner: any, token: string?)
@@ -62,8 +65,6 @@ return function(services: any): any
         theme:BindToken(button, "TextColor3", "Text")
         theme:BindToken(dom:CreateStroke(button, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 5) })
-        owner:Connect(button.MouseEnter, function() theme:BindToken(button, "BackgroundColor3", "ElemHover") end)
-        owner:Connect(button.MouseLeave, function() theme:BindToken(button, "BackgroundColor3", normal) end)
     end
     function Section:Bind(handle: any, defaultOrPath: any, callback: any?, literal: boolean?): any
         -- A string argument names a state path unless the caller marks it as a literal value

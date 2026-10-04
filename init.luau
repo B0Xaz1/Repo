@@ -228,6 +228,7 @@ local booted, bootError = pcall(function()
     services:Register("StateStore", state)
     services:Register("TaskScheduler", scheduler)
     services:Register("Require", requireModule)
+    services:Register("Motion", step(function() return requireModule("src/UI/Motion.luau", services) end))
     services:Register("DOM", step(function() return requireModule("src/UI/DOM.luau", services) end))
     globals.B0XazServiceContainer = services
     local lastInputCheck = 0

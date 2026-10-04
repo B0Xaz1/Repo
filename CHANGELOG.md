@@ -4,6 +4,9 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Refined control feedback with animated checkmarks, responsive slider thumbs, dropdown selection markers, and a gliding tab indicator.
+- Added softer notification fades and clearer feedback for busy actions and keybind recording.
+
 - Added subtle hover, press, and focus feedback across menu controls.
 - Added snappy transitions for windows, tabs, dropdowns, color pickers, and notifications.
 - Improved responsiveness during search, command filtering, and visual previews.

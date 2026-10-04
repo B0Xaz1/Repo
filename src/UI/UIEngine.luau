@@ -145,6 +145,18 @@ return function(services: any): any
         if self._searchBox then self._searchBox.Text = "" end
     end
 
+    function UIEngine:UpdateTabIndicator(animate: boolean?)
+        local tab, indicator, strip = self._active, self._indicator, self._layout.Strip
+        if not tab or not indicator or not strip then return end
+        local scale = math.max(if self._scale then self._scale.Scale else 1, 0.01)
+        local width = tab.Button.AbsoluteSize.X / scale
+        if width <= 0 then return end
+        local x = (tab.Button.AbsolutePosition.X - strip.AbsolutePosition.X) / scale
+        local duration = if animate and indicator.Visible and self._main.Visible then motion.Times.Tab else 0
+        indicator.Visible = true
+        motion:Tween(indicator, "Indicator", { Position = UDim2.new(0, x + width * 0.08, 1, -3), Size = UDim2.fromOffset(width * 0.84, 2) }, duration)
+    end
+
     function UIEngine:SelectTab(name: string): boolean
         local tab = self._tabByName[name]
         if not tab then return false end
@@ -157,12 +169,14 @@ return function(services: any): any
             previous.Page.Visible = false
             previous.Page.Position = previous.RestPosition
             theme:BindToken(previous.Button, "TextColor3", "TextMuted")
-            motion:Tween(previous.Underline, "Tab", { BackgroundTransparency = 1, Size = UDim2.new(0.3, 0, 0, 2) }, motion.Times.Exit)
         end
         self._active = tab
+        scope:Bind("Indicator position", tab.Button:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+            if not scope:IsDisposed() then UIEngine:UpdateTabIndicator(false) end
+        end))
         tab.Page.Visible = true
         theme:BindToken(tab.Button, "TextColor3", "Text")
-        motion:Tween(tab.Underline, "Tab", { BackgroundTransparency = 0, Size = UDim2.new(0.84, 0, 0, 2) }, motion.Times.Tab)
+        self:UpdateTabIndicator(true)
         if self._query ~= "" then self:Search(self._query) end
         motion:Cancel(tab.Page, "Tab")
         if previous and state:Peek("Settings.MenuVisible") then
@@ -228,25 +242,34 @@ return function(services: any): any
         local slot = dom:Create("Frame", { Parent = self._toastRoot, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = -self._toastId })
         local frame = dom:Create("Frame", { Parent = slot, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-            Position = UDim2.fromOffset(12, 0), BackgroundColor3 = theme:GetToken("Panel") })
+            Position = UDim2.fromOffset(12, 0), BackgroundColor3 = theme:GetToken("Panel"), BackgroundTransparency = 1 })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
         dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 3) })
         local stroke = dom:CreateStroke(frame, color or theme:GetToken("Accent"), 1)
+        stroke.Transparency = 1
         if not color then theme:BindToken(stroke, "Color", "Accent") end
         dom:CreatePadding(frame, 12, 14)
         dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
-        local heading = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16),
+        local heading = dom:Create("TextLabel", { Parent = frame, Name = "ToastHeading", TextTransparency = 1, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16),
             Text = tostring(title), Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = color or theme:GetToken("Accent"), TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0 })
         if not color then theme:BindToken(heading, "TextColor3", "Accent") end
-        local body = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+        local body = dom:Create("TextLabel", { Parent = frame, Name = "ToastBody", TextTransparency = 1, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             Text = tostring(message), TextWrapped = true, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1 })
         theme:BindToken(body, "TextColor3", "TextDim")
         owner:Add(function() dom:DestroyInstance(slot) end)
+        local function fade(transparency: number, duration: number)
+            motion:Tween(frame, "Toast surface", { BackgroundTransparency = transparency }, duration)
+            motion:Tween(stroke, "Toast edge", { Transparency = transparency }, duration)
+            motion:Tween(heading, "Toast text", { TextTransparency = transparency }, duration)
+            motion:Tween(body, "Toast text", { TextTransparency = transparency }, duration)
+        end
+        fade(0, motion.Times.Enter)
         motion:Tween(frame, "Toast", { Position = UDim2.fromOffset(0, 0) }, motion.Times.Enter)
         local record = { Frame = frame, Scope = owner }
         table.insert(self._toasts, record)
         if #self._toasts > CONFIG.MAX_TOASTS then removeToast(self._toasts[1]) end
         owner:Delay(math.clamp(duration or CONFIG.TOAST_DURATION_DEFAULT, CONFIG.TOAST_DURATION_MIN, CONFIG.TOAST_DURATION_MAX), function()
+            fade(1, motion.Times.Exit)
             motion:Tween(frame, "Toast", { Position = UDim2.fromOffset(12, 0) }, motion.Times.Exit, function() removeToast(record) end)
         end)
     end
@@ -268,6 +291,7 @@ return function(services: any): any
             layout.TitleBar.Size = UDim2.new(1, 0, 0, titleHeight)
             layout.Search.Position = UDim2.new(1, if compact then -138 else -150, 0, if compact then 5 else 7)
             layout.Strip.Position = UDim2.fromOffset(8, titleHeight)
+            layout.TabIndicatorHost.Position = layout.Strip.Position
             layout.Divider.Position = UDim2.fromOffset(12, titleHeight + 24)
             for _, tab in ipairs(UIEngine._tabs) do
                 motion:Cancel(tab.Page, "Tab")
@@ -282,6 +306,7 @@ return function(services: any): any
             tab.ColumnLayout.FillDirection = if stacked then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
             tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -4, 0, 0), UDim2.new(if stacked then 1 else 0.5, if stacked then 0 else -4, 0, 0)
         end
+        UIEngine:UpdateTabIndicator(false)
         UIEngine._toastRoot.Size = UDim2.new(0, math.min(CONFIG.TOAST_WIDTH, screen.X - 32), 1, -40)
     end
 
@@ -325,7 +350,16 @@ return function(services: any): any
         local strip = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 34), Size = UDim2.new(1, -16, 0, 24),
             ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X })
         theme:BindToken(strip, "ScrollBarImageColor3", "Accent")
-        dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        local tabLayout = dom:Create("UIListLayout", { Parent = strip, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        local indicatorHost = dom:Create("Frame", { Parent = main, Name = "TabIndicatorHost", BackgroundTransparency = 1, ClipsDescendants = true, Active = false,
+            Position = strip.Position, Size = strip.Size, ZIndex = 2 })
+        self._layout.TabIndicatorHost = indicatorHost
+        self._indicator = dom:Create("Frame", { Parent = indicatorHost, Name = "TabIndicator", BorderSizePixel = 0, Visible = false,
+            Size = UDim2.fromOffset(0, 2), ZIndex = 2 })
+        theme:BindToken(self._indicator, "BackgroundColor3", "Accent")
+        dom:Create("UICorner", { Parent = self._indicator, CornerRadius = UDim.new(1, 0) })
+        scope:ConnectImmediate(tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() UIEngine:UpdateTabIndicator(false) end)
+        scope:ConnectImmediate(strip:GetPropertyChangedSignal("CanvasPosition"), function() UIEngine:UpdateTabIndicator(false) end)
         local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 58), Size = UDim2.new(1, -24, 0, 1) })
         self._layout.Strip, self._layout.Divider = strip, divider
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
@@ -333,8 +367,6 @@ return function(services: any): any
             local button = dom:Create("TextButton", { Parent = strip, BackgroundTransparency = 1, BorderSizePixel = 0, Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 13, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = index })
             dom:CreatePadding(button, 0, 8, 0, 8)
             theme:BindToken(button, "TextColor3", "TextMuted")
-            local underline = dom:Create("Frame", { Parent = button, BorderSizePixel = 0, Position = UDim2.new(0.08, 0, 1, -1), Size = UDim2.new(0.3, 0, 0, 2), BackgroundTransparency = 1 })
-            theme:BindToken(underline, "BackgroundColor3", "Accent")
             local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(10, 64), Size = UDim2.new(1, -20, 1, -82),
                 Visible = false, ScrollBarThickness = 3, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
             page:SetAttribute("B0XazTab", entry.Name)
@@ -347,10 +379,13 @@ return function(services: any): any
             local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
             for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 8), SortOrder = Enum.SortOrder.LayoutOrder }) end
-            local tab = { Name = entry.Name, Button = button, Underline = underline, Page = page, LeftCol = left, RightCol = right,
+            local tab = { Name = entry.Name, Button = button, Page = page, LeftCol = left, RightCol = right,
                 ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index, RestPosition = page.Position }
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab
             scope:Connect(button.Activated, function() UIEngine:SelectTab(tab.Name) end)
+            scope:ConnectImmediate(button:GetPropertyChangedSignal("AbsoluteSize"), function()
+                if UIEngine._active == tab then UIEngine:UpdateTabIndicator(false) end
+            end)
             local factory = load(entry.Path)
             local ok, result = pcall(factory, services, tab)
             if not ok then
@@ -422,7 +457,7 @@ return function(services: any): any
     scope:Add(function()
         restoreSearch()
         if UIEngine._root then dom:DestroyInstance(UIEngine._root) end
-        UIEngine._root, UIEngine._main, UIEngine._toastRoot = nil, nil, nil
+        UIEngine._root, UIEngine._main, UIEngine._toastRoot, UIEngine._indicator = nil, nil, nil, nil
         table.clear(UIEngine._layout)
         table.clear(UIEngine._controls); table.clear(UIEngine._dropdowns); table.clear(UIEngine._toasts); table.clear(UIEngine._pending)
     end)

@@ -19,7 +19,7 @@ return function(services: any): any
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 16), Size = UDim2.new(1, 0, 0, 20),
             Text = "", TextTruncate = Enum.TextTruncate.AtEnd, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left })
         section:StyleButton(button, owner)
-        dom:CreatePadding(button, 0, 0, 0, 8)
+        dom:CreatePadding(button, 0, 20, 0, 8)
         local chevron = dom:Create("TextLabel", { Parent = button, BackgroundTransparency = 1, Position = UDim2.new(1, -16, 0, 0), Size = UDim2.fromOffset(14, 20),
             Text = "v", Font = Enum.Font.Gotham, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center })
         theme:BindToken(chevron, "TextColor3", "TextMuted")
@@ -31,7 +31,7 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 3) })
         dom:CreatePadding(menu, 4)
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-        local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true }
+        local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true, _choices = {}, _selectedChoice = nil }
         handle.Normalize = function(value: any): any return if table.find(handle._options, value) then value else handle._options[1] end
         local function close()
             if not handle._open then return end
@@ -42,9 +42,16 @@ return function(services: any): any
                 if not handle._open then menu.Visible = false end
             end)
         end
+        local function selectChoice(choice: any, selected: boolean, instant: boolean?)
+            if not choice then return end
+            theme:BindToken(choice.Button, "TextColor3", if selected then "Accent" else "Text")
+            motion:Tween(choice.Marker, "Selection", { Size = UDim2.fromOffset(2, if selected then 12 else 0), BackgroundTransparency = if selected then 0 else 1 },
+                if instant then 0 else motion:Duration(choice.Button, motion.Times.Hover))
+        end
         local function buildOptions()
             handle._built, handle._dirty = true, false
             owner:Unbind("Options")
+            handle._choices, handle._selectedChoice = {}, nil
             for _, child in ipairs(menu:GetChildren()) do if child:IsA("GuiObject") then dom:DestroyInstance(child) end end
             local optionScope = owner:CreateChild("Options")
             owner:Bind("Options", optionScope)
@@ -52,8 +59,16 @@ return function(services: any): any
                 local choice = dom:Create("TextButton", { Parent = menu, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = index,
                     Text = tostring(option), TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
                 section:StyleButton(choice, optionScope)
+                dom:CreatePadding(choice, 0, 8, 0, 12)
+                local marker = dom:Create("Frame", { Parent = choice, Name = "Selection", BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5),
+                    Position = UDim2.new(0, 2, 0.5, 0), Size = UDim2.fromOffset(2, 0), BackgroundTransparency = 1 })
+                theme:BindToken(marker, "BackgroundColor3", "Accent")
+                dom:Create("UICorner", { Parent = marker, CornerRadius = UDim.new(1, 0) })
+                handle._choices[index] = { Button = choice, Marker = marker }
                 optionScope:Connect(choice.Activated, function() if handle:Set(option) then close() end end)
             end
+            handle._selectedChoice = handle._choices[table.find(handle._options, handle:Get())]
+            selectChoice(handle._selectedChoice, true, true)
         end
         local function reconcileSelection(preserveSelection: boolean?)
             local selection = if preserveSelection then handle:Get() else nil
@@ -66,6 +81,12 @@ return function(services: any): any
         function handle:_Render(value: any)
             local nextText = tostring(value or "No options")
             if button.Text ~= nextText then button.Text = nextText end
+            local selected = self._choices[table.find(self._options, value)]
+            if selected ~= self._selectedChoice then
+                selectChoice(self._selectedChoice, false)
+                self._selectedChoice = selected
+                selectChoice(selected, true)
+            end
         end
         -- The option buttons are rebuilt only when the list itself changed; the joined signature
         -- is the cheap way to detect that without comparing tables

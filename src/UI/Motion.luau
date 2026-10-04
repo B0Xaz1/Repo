@@ -19,6 +19,10 @@ return function(services: any): any
         return false
     end
 
+    function Motion:Duration(instance: Instance, seconds: number): number
+        return if visible(instance) then seconds else 0
+    end
+
     function Motion:Cancel(instance: Instance, channel: string?)
         local channels = active[instance]
         if not channels then return end
@@ -114,8 +118,8 @@ return function(services: any): any
         return services:Get("ThemeEngine"):GetToken("Accent")
     end
     local function target(record: any, property: string, base: Color3): Color3
-        local amount = if record.Down then 0.20 elseif record.Focused then 0.12 elseif record.Hover then 0.08 else 0
-        if property == "Color" then amount = if record.Down or record.Focused then 0.9 elseif record.Hover then 0.6 else 0 end
+        local amount = if record.Down then 0.20 elseif record.Focused or record.Emphasis then 0.12 elseif record.Hover then 0.08 else 0
+        if property == "Color" then amount = if record.Down or record.Focused or record.Emphasis then 0.9 elseif record.Hover then 0.6 else 0 end
         if property == "TextColor3" then amount *= 2 end
         return if amount > 0 then base:Lerp(accent(), amount) else base
     end
@@ -138,12 +142,13 @@ return function(services: any): any
         local record = controls[instance]
         if not record or record.Stroke then return end
         record.Stroke, record.StrokeBases = stroke, { Color = stroke.Color }
+        record.StrokeThickness = stroke.Thickness
         strokeOwners[stroke] = record
     end
 
     local function paint(record: any, instant: boolean?)
         local instance = record.Instance
-        local on = record.Hover or record.Down or record.Focused
+        local on = record.Hover or record.Down or record.Focused or record.Emphasis
         engaged[instance] = if on then record else nil
         if on and not record.Stroke then
             local stroke = Instance.new("UIStroke")
@@ -160,16 +165,43 @@ return function(services: any): any
         if record.Stroke then
             local color = record.StrokeBases.Color
             Motion:Tween(record.Stroke, "Color", { Color = target(record, "Color", color) }, duration)
-            if record.OwnStroke then
-                Motion:Tween(record.Stroke, "Feedback", { Transparency = if on then 0.25 else 1 }, duration)
+            local thickness = record.StrokeThickness + (if record.Down then 0.75 elseif record.Focused or record.Emphasis then 0.5 elseif record.Hover then 0.25 else 0)
+            local goals: any = { Thickness = thickness }
+            if record.OwnStroke then goals.Transparency = if on then 0.25 else 1 end
+            Motion:Tween(record.Stroke, "Feedback", goals, duration)
+        end
+        local state = (if record.Hover then 1 else 0) + (if record.Down then 2 else 0) + (if record.Focused then 4 else 0)
+        if record.InteractionState ~= state or instant then
+            record.InteractionState = state
+            for connection, callback in pairs(record.Observers) do
+                if connection.Connected then pcall(callback, record.Hover, record.Down, record.Focused, instant == true) end
             end
         end
+    end
+
+    function Motion:ObserveInteraction(instance: Instance, callback: (boolean, boolean, boolean, boolean) -> ()): any
+        local record = assert(controls[instance], "Control must be bound before observing interaction")
+        local connection = { Connected = true }
+        record.Observers[connection] = callback
+        function connection:Disconnect()
+            self.Connected = false
+            record.Observers[self] = nil
+        end
+        callback(record.Hover, record.Down, record.Focused, true)
+        return connection
+    end
+
+    function Motion:SetEmphasis(instance: Instance, enabled: boolean)
+        local record = controls[instance]
+        if not record or record.Emphasis == enabled then return end
+        record.Emphasis = enabled
+        paint(record, not visible(instance))
     end
 
     function Motion:Reset(root: Instance?)
         for instance, record in pairs(table.clone(engaged)) do
             if not root or instance == root or instance:IsDescendantOf(root) then
-                record.Hover, record.Down, record.Focused, record.Input = false, false, false, nil
+                record.Hover, record.Down, record.Focused, record.Input, record.Emphasis = false, false, false, nil, false
                 if instance:IsA("TextBox") and instance:IsFocused() then instance:ReleaseFocus() end
                 paint(record, true)
             end
@@ -179,7 +211,7 @@ return function(services: any): any
     function Motion:Bind(instance: Instance)
         if controls[instance] or not (instance:IsA("GuiButton") or instance:IsA("TextBox")) then return end
         local owner = scope:CreateChild("Feedback")
-        local record: any = { Instance = instance, Bases = {}, StrokeBases = {}, Hover = false, Down = false, Focused = false }
+        local record: any = { Instance = instance, Bases = {}, StrokeBases = {}, Hover = false, Down = false, Focused = false, Emphasis = false, Observers = {} }
         controls[instance] = record
         if instance:IsA("GuiButton") then instance.AutoButtonColor = false end
         owner:ConnectImmediate(instance.MouseEnter, function() record.Hover = true; paint(record) end)
@@ -201,6 +233,8 @@ return function(services: any): any
         owner:ConnectImmediate(instance.Destroying, function() owner:Dispose() end)
         owner:Add(function()
             controls[instance], engaged[instance] = nil, nil
+            for connection in pairs(record.Observers) do connection.Connected = false end
+            table.clear(record.Observers)
             Motion:Cancel(instance)
             if record.Stroke then
                 strokeOwners[record.Stroke] = nil

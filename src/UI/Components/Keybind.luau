@@ -56,6 +56,7 @@ return function(services: any): any
         section:StyleButton(clear, owner, "Panel")
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return environment:ParseKeybind(value) or Enum.KeyCode.Unknown end }
         function handle:_Render(value: any)
+            services:Get("Motion"):SetEmphasis(button, Keybind._active == handle)
             local nextText = if Keybind._active == handle then "Press a key..." else environment:FormatKeybindName(value)
             if button.Text ~= nextText then button.Text = nextText end
         end

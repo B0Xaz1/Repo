@@ -52,6 +52,17 @@ return function(services: any): any
         theme:BindToken(track, "BackgroundColor3", "ToggleOff"); dom:Create("UICorner", { Parent = track, CornerRadius = UDim.new(1, 0) })
         local fill = dom:Create("Frame", { Parent = track, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) })
         theme:BindToken(fill, "BackgroundColor3", "Accent"); dom:Create("UICorner", { Parent = fill, CornerRadius = UDim.new(1, 0) })
+        local thumb = dom:Create("Frame", { Parent = fill, Name = "Thumb", BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(1, 0.5), Size = UDim2.fromOffset(4, 4), BackgroundTransparency = 1 })
+        theme:BindToken(thumb, "BackgroundColor3", "Text")
+        dom:Create("UICorner", { Parent = thumb, CornerRadius = UDim.new(1, 0) })
+        owner:Add(motion:ObserveInteraction(hit, function(hover: boolean, down: boolean, focused: boolean, instant: boolean)
+            local on = hover or down or focused
+            local duration = if instant then 0 elseif down then motion.Times.Press else motion.Times.Hover
+            local diameter = if down then 9 elseif on then 7 else 4
+            motion:Tween(thumb, "Interaction", { Size = UDim2.fromOffset(diameter, diameter), BackgroundTransparency = if on then 0 else 1 }, duration)
+            motion:Tween(track, "Interaction", { Size = UDim2.new(1, 0, 0, if on then 4 else 3), Position = UDim2.fromOffset(0, if on then 4.5 else 5) }, duration)
+        end))
         local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any)
             local number = tonumber(value) or minimum
             return math.clamp(minimum + math.floor((number - minimum) / increment + 0.5) * increment, minimum, maximum)
@@ -60,7 +71,7 @@ return function(services: any): any
             local alpha = (value - minimum) / (maximum - minimum)
             local nextSize = UDim2.fromScale(alpha, 1)
             local dragging = Slider._active and Slider._active.Handle == handle
-            motion:Tween(fill, "Value", { Size = nextSize }, if not self._painted or dragging then 0 else motion.Times.Hover)
+            motion:Tween(fill, "Value", { Size = nextSize }, if not self._painted or dragging then 0 else motion:Duration(row, motion.Times.Hover))
             self._painted = true
             local nextText = `{formatValue(value)}/{formatValue(maximum)}{suffix or ""}`
             if valueLabel.Text ~= nextText then valueLabel.Text = nextText end

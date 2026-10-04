@@ -454,6 +454,113 @@ local toggle=services.Require("src/UI/Components/Toggle.luau",services)(panel,"S
 local toggleButton=toggle.Row:FindFirstChildOfClass("TextButton")
 toggleButton.Activated:Fire(); toggleButton.Activated:Fire(); toggleButton.Activated:Fire(); flushTweens()
 check(toggle:Get()==true and toggleButton:FindFirstChildOfClass("UIStroke").Transparency==1,"rapid toggle clicks settle at latest value")
+-- Additional motion stays bounded, reversible, and event-driven.
+local mark=toggleButton:FindFirstChildOfClass("Frame")
+check(mark.Rotation==0 and mark.Size==UDim2.fromOffset(8,8),"enabled checkmark settles at full size")
+for _, arm in ipairs(mark:GetChildren()) do check(arm.BackgroundTransparency==0,"enabled checkmark strokes are visible") end
+toggle:Set(false); toggle:Set(true); toggle:Set(false); flushTweens()
+check(mark.Rotation==-12 and mark.Size==UDim2.fromOffset(6,6),"rapid checkmark reversal follows latest toggle")
+for _, arm in ipairs(mark:GetChildren()) do check(arm.BackgroundTransparency==1,"disabled checkmark strokes fade out") end
+local beforeUnchanged=tweenCount
+toggle:Set(false); toggle:Set(false)
+check(tweenCount==beforeUnchanged,"unchanged toggle values do not create animations")
+ui:SelectTab("Combat"); flushTweens(); local beforeHidden=tweenCount
+toggle:Set(true); slider:Set(25)
+check(tweenCount==beforeHidden and mark.Rotation==0 and fill.Size==UDim2.fromScale(0.25,1),"hidden control changes settle without starting tweens")
+ui:SelectTab("Visuals"); flushTweens()
+local thumb=fill:FindFirstChildOfClass("Frame")
+hit.MouseEnter:Fire(); flushTweens()
+check(thumb.BackgroundTransparency==0 and thumb.Size==UDim2.fromOffset(7,7),"hover reveals slider thumb")
+local sliderPress={UserInputType=Enum.UserInputType.MouseButton1,Position=Vector2.new(80,0)}
+hit.InputBegan:Fire(sliderPress); flushTweens()
+check(thumb.Size==UDim2.fromOffset(9,9) and slider:Get()==80,"pressed thumb expands without changing pointer response")
+UIS.InputEnded:Fire(sliderPress); hit.MouseLeave:Fire(); flushTweens()
+check(thumb.BackgroundTransparency==1 and track.Size.Y.Offset==3,"slider returns to compact idle track")
+hit.MouseEnter:Fire(); flushTweens(); motion:Reset(hit)
+check(thumb.BackgroundTransparency==1 and not pendingTween(thumb,"Size"),"reset hides thumb immediately")
+local observerCalls=0
+local observer=motion:ObserveInteraction(button,function() observerCalls+=1 end)
+button.MouseEnter:Fire(); flushTweens(); local observed=observerCalls
+bus:Publish("ThemeChanged"); bus:Publish("ThemeChanged"); flushTweens()
+check(observerCalls==observed,"theme refreshes do not repeat unchanged interaction callbacks")
+observer:Disconnect(); button.MouseLeave:Fire(); flushTweens()
+check(observerCalls==observed,"disconnected interaction observer is not called")
+local edge=button:FindFirstChildOfClass("UIStroke")
+button.InputBegan:Fire(press); flushTweens()
+check(edge.Thickness==1.75,"press gives a subtle border response")
+UIS.InputEnded:Fire(press); flushTweens()
+check(edge.Thickness==1,"release restores original border thickness")
+bindButton.Activated:Fire(); flushTweens()
+check(bindButton:FindFirstChildOfClass("UIStroke").Thickness==1.5,"key recording has persistent capture emphasis")
+UIS.WindowFocusReleased:Fire(); flushTasks(); flushTweens()
+check(bindButton:FindFirstChildOfClass("UIStroke").Thickness==1,"cancelled key capture clears emphasis")
+dropdownButton.Activated:Fire(); flushTweens()
+check(dropdown._selectedChoice==dropdown._choices[1] and dropdown._choices[1].Marker.BackgroundTransparency==0,"dropdown marks the current option on open")
+dropdown:Set("two"); flushTweens()
+check(dropdown._choices[1].Marker.Size.Y.Offset==0 and dropdown._choices[2].Marker.Size.Y.Offset==12,"selection marker moves to new option")
+local beforeSame=tweenCount
+dropdown:Set("two")
+check(tweenCount==beforeSame,"same dropdown selection does not restart marker animations")
+dropdown:Refresh({"three","two"},true); flushTweens()
+check(dropdown:Get()=="two" and dropdown._selectedChoice==dropdown._choices[2],"rebuilt option list retains selection marker")
+ui:CloseAllDropdownsExcept(nil); flushTweens()
+local indicator=ui._indicator
+ui._layout.Strip.AbsolutePosition=Vector2.new(10,0)
+ui._tabByName.Combat.Button.AbsolutePosition=Vector2.new(10,0)
+ui._tabByName.Combat.Button.AbsoluteSize=Vector2.new(80,22)
+ui._tabByName.Visuals.Button.AbsolutePosition=Vector2.new(94,0)
+ui._tabByName.Visuals.Button.AbsoluteSize=Vector2.new(100,22)
+ui:SelectTab("Combat"); flushTweens(); ui:SelectTab("Visuals")
+check(pendingTween(indicator,"Position")~=nil,"one shared tab indicator glides to the next tab")
+flushTweens()
+check(indicator.Position.X.Offset==92 and indicator.Size.X.Offset==84,"tab indicator matches selected label width and position")
+ui._tabByName.Visuals.Button.AbsolutePosition=Vector2.new(44,0)
+ui._layout.Strip.CanvasPosition=Vector2.new(50,0)
+check(indicator.Position.X.Offset==42 and not pendingTween(indicator,"Position"),"tab scrolling realigns indicator immediately")
+ui._scale.Scale=0.5
+ui._tabByName.Visuals.Button.AbsoluteSize=Vector2.new(50,11)
+ui._tabByName.Visuals.Button.AbsolutePosition=Vector2.new(52,0)
+check(indicator.Position.X.Offset==92 and indicator.Size.X.Offset==84,"tab indicator accounts for menu scale")
+ui._scale.Scale=1; ui:UpdateTabIndicator(false)
+local tabConnections=connectionCount()
+for _=1,15 do ui:SelectTab("Combat"); ui:SelectTab("Visuals"); flushTweens() end
+check(connectionCount()==tabConnections,"rapid tab selection does not accumulate geometry subscriptions")
+local actionThread,actionCalls
+local actions=services.Require("src/UI/Components/Textbox.luau",services)
+actionCalls=0
+local action=actions:CreateButton(panel,"Test action",function()
+    actionCalls+=1; actionThread=coroutine.running(); task.wait(); return true,"Done"
+end)
+action.Button.Activated:Fire(); flushTweens()
+check(action._busy and action.Button.Text=="Working..." and action.Button:FindFirstChildOfClass("UIStroke").Thickness==1.5,"running actions show non-looping busy feedback")
+action.Button.Activated:Fire()
+check(actionCalls==1,"busy action rejects duplicate activation")
+check(coroutine.resume(actionThread),"busy action completes")
+flushTweens()
+check(not action._busy and action.Button.Text=="Test action" and action.Button:FindFirstChildOfClass("UIStroke").Thickness==1,"action completion restores its label and emphasis")
+ui:Notify("Fade test","Short-lived notification",1)
+local toast=ui._toasts[#ui._toasts]
+check(toast.Frame.BackgroundTransparency==1,"notification begins transparent")
+for _, child in ipairs(toast.Frame:GetChildren()) do
+    if child:IsA("TextLabel") then check(child.TextTransparency==1,"notification text starts transparent") end
+end
+flushTweens()
+check(toast.Frame.BackgroundTransparency==0 and toast.Frame.Position.X.Offset==0,"notification entry fades and glides into place")
+for _, child in ipairs(toast.Frame:GetChildren()) do
+    if child:IsA("TextLabel") then check(child.TextTransparency==0,"notification text fades in") end
+end
+flushTasks()
+check(pendingTween(toast.Frame,"BackgroundTransparency")~=nil,"notification exit fades out")
+flushTweens()
+check(toast.Scope:IsDisposed(),"notification fade finishes with cleanup")
+for index=1,10 do ui:Notify("Bounded",tostring(index),1) end
+check(#ui._toasts==4,"notification bursts keep the animation count bounded by four cards")
+flushTasks(); flushTweens(); flushTasks(); flushTweens()
+motion:Reset(); flushTweens()
+local idleTweenCount,idleInstances=tweenCount,createdInstances
+for _=1,120 do RunService.RenderStepped:Fire(1/60) end
+check(next(tweens)==nil and tweenCount==idleTweenCount and createdInstances==idleInstances,"settled interface creates no idle tweens or instances")
+check(RunService.RenderStepped:Count()==0,"new motion adds no persistent frame connection")
 local doomed=dom:Create("Frame",{Parent=screen}); local destroyedCallback=false
 motion:Tween(doomed,"test",{Rotation=10},0.12,function() destroyedCallback=true end)
 dom:DestroyInstance(doomed); flushTweens()

@@ -26,13 +26,21 @@ return function(services: any): any
             Font = Enum.Font.GothamMedium, TextSize = 12, Text = text })
         section:StyleButton(button, owner)
         local handle = { Row = row, Label = label, Button = button, Scope = owner, _busy = false, Normalize = function(value: any) return tostring(value) end }
-        function handle:_Render(value: string) button.Text = value end
+        function handle:_Render(value: string)
+            local nextText = if self._busy then "Working..." else value
+            if button.Text ~= nextText then button.Text = nextText end
+        end
         section:Bind(handle, text, nil, true)
         owner:Connect(button.Activated, function()
             if handle._busy then return end
             handle._busy = true
+            handle:_Render(handle:Get())
+            services:Get("Motion"):SetEmphasis(button, true)
             local results = table.pack(pcall(onClick))
             handle._busy = false
+            if owner:IsDisposed() then return end
+            services:Get("Motion"):SetEmphasis(button, false)
+            handle:_Render(handle:Get())
             if not results[1] then bus:Publish("Notify", "Action failed", tostring(results[2]))
             elseif type(results[2]) == "boolean" and type(results[3]) == "string" then bus:Publish("Notify", if results[2] then text else "Unavailable", results[3]) end
         end)

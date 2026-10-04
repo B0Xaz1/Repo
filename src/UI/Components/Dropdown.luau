@@ -31,7 +31,7 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = menu, CornerRadius = UDim.new(0, 3) })
         dom:CreatePadding(menu, 4)
         dom:Create("UIListLayout", { Parent = menu, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-        local handle: any = { Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true, _choices = {}, _selectedChoice = nil }
+        local handle: any = { Kind = "Dropdown", Row = row, Label = text, Scope = owner, _options = table.clone(options), _open = false, _signature = nil, _built = false, _dirty = true, _choices = {}, _selectedChoice = nil }
         handle.Normalize = function(value: any): any return if table.find(handle._options, value) then value else handle._options[1] end
         local function close()
             if not handle._open then return end

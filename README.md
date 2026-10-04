@@ -30,7 +30,9 @@ Touch flight supports the thumbstick and on-screen vertical controls. Hotkeys ca
 
 ## Menu
 
-Use the search box to find controls by feature, section, or tab name.
+Use the search box to find controls by feature, section, or tab name. Click **☆** beside a control to pin it above the sections in its own tab; click **★** to unpin it. Other tabs keep their own favorites.
+
+Hover over a control for help, or tap **?** to open its explanation. In **Settings → Interface & lifecycle**, choose **Off**, **Subtle**, or **Full** animations, adjust playback speed from **0.5× to 2×**, and turn tooltips on or off. Full at 1× keeps the standard animation feel.
 
 | Tab | Contents |
 | --- | --- |
@@ -41,14 +43,17 @@ Use the search box to find controls by feature, section, or tab name.
 | Game | Experience information and supported game-specific controls. |
 | Commands | Searchable command list, usage information, console, and recent commands. |
 | Utility | Hitbox options, spin, anti-fling, idle prevention, rejoin, and server switching. |
-| Settings | Profiles, backups, launch preferences, themes, menu scale, compact mode, hotkeys, and session controls. |
+| Settings | Profiles and comparisons, backups, launch preferences, themes, motion, tooltips, compatibility checks, hotkeys, and session controls. |
 
 Themes include built-in presets and custom colors. Available controls depend on the active experience and execution environment.
 
 ## Profiles and preferences
 
 - Save and load named profiles from Settings. The built-in Default profile resets settings and cannot be overwritten or deleted.
+- **Settings → Profile comparison** compares two saved presets/profiles, or either one against the current session. View before-and-after values without loading or saving anything; compare again after making changes to refresh the results.
+- Favorites, motion preferences, and tooltip preferences are saved with your configuration. Loading another profile can change them; use **Clear all favorites** to unpin controls without changing their values.
 - Use the Default, Legit, and Rage presets as starting points, then adjust individual controls.
+- **Turn everything off** resets sliders and other values to defaults, then disables every toggle—including game plugins and restore-on-launch—without deleting saved profiles. The menu stays open with its default hotkeys.
 - Assign a profile to an experience to keep its saved session separate from other experiences. Later changes do not overwrite the assigned named profile.
 - Choose whether to restore settings on launch, select a startup profile, or clear an experience's assignment in Settings.
 - Use the backup and import/export controls to manage your configurations. Local saving requires file support in your execution environment.
@@ -78,7 +83,7 @@ Press **End** or use the unload action in Settings. The suite attempts to restor
 
 - **The suite does not start:** check internet access, use the official loader, and confirm your execution environment is compatible.
 - **The menu is hidden:** press Right Shift, your configured menu key, or the on-screen menu button if enabled.
-- **A feature is unavailable:** check its settings, the active experience, and any displayed warning. The experience may reject client-side changes.
+- **A feature is unavailable:** open **Settings → Compatibility checker** for detected capabilities and fallback guidance. Detection does not guarantee runtime permissions or game compatibility; the check does not perform disruptive actions. Review feature settings and any displayed warning as well.
 - **Settings do not persist:** confirm that local file access is supported and review your launch and profile preferences.
 - **The layout is too large:** reduce menu scale or enable compact mode in Settings.
 

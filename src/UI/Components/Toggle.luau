@@ -18,7 +18,7 @@ return function(services: any): any
         local long = dom:Create("Frame", { Parent = mark, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.fromScale(0.62, 0.43), Size = UDim2.new(0.73, 0, 0, 1.5), Rotation = -45, BackgroundTransparency = 1 })
         theme:BindToken(short, "BackgroundColor3", "Bg"); theme:BindToken(long, "BackgroundColor3", "Bg")
-        local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any) return value == true end }
+        local handle = { Kind = "Toggle", Row = row, Label = text, Scope = owner, Normalize = function(value: any) return value == true end }
         function handle:_Render(value: boolean)
             if self._painted and self._shown == value then return end
             local duration = if self._painted then motion:Duration(row, motion.Times.Hover) else 0

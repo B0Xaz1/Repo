@@ -4,6 +4,14 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Added favorites that pin controls at the top of their own tab and restore with saved configurations.
+- Added read-only profile comparisons with before-and-after values and paginated results.
+- Added Off, Subtle, and Full animation styles with adjustable playback speed.
+- Added hover and tap-to-open help for menu controls, with an option to disable tooltips.
+- Added a compatibility checker with detected capabilities, game-support information, and fallback guidance.
+
+- Added "Turn everything off" in Settings > Config profiles to reset values and disable all toggles while keeping the menu open and saved profiles intact.
+
 - Refined control feedback with animated checkmarks, responsive slider thumbs, dropdown selection markers, and a gliding tab indicator.
 - Added softer notification fades and clearer feedback for busy actions and keybind recording.
 

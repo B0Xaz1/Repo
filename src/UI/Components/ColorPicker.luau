@@ -75,7 +75,7 @@ return function(services: any): any
         local stops = {}
         for index = 0, CONFIG.HUE_STOPS do table.insert(stops, ColorSequenceKeypoint.new(index / CONFIG.HUE_STOPS, Color3.fromHSV(index / CONFIG.HUE_STOPS, 1, 1))) end
         dom:Create("UIGradient", { Parent = hue, Rotation = 90, Color = ColorSequence.new(stops) })
-        local handle = { Row = row, Label = text, Scope = owner, _open = false, _hue = 0, _saturation = 1, _brightness = 1,
+        local handle = { Kind = "Color", Row = row, Label = text, Scope = owner, _open = false, _hue = 0, _saturation = 1, _brightness = 1,
             Normalize = function(value: any) return if typeof(value) == "Color3" then value else Color3.new(1, 1, 1) end }
         local function close()
             if ColorPicker._active and ColorPicker._active.Handle == handle then cancelDrag() end

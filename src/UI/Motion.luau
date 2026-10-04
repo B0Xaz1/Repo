@@ -7,7 +7,21 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("Motion")
     local active, controls, engaged, strokeOwners, infos = {}, {}, {}, {}, {}
     local reveals = setmetatable({}, { __mode = "k" })
+    local state = services:Get("StateStore")
     local Motion = { Times = TIMES }
+
+    local function durationFor(seconds: number): number
+        local mode = state:Peek("Settings.MotionMode")
+        if mode == "Off" then return 0 end
+        local speed = tonumber(state:Peek("Settings.MotionSpeed")) or 1
+        if speed ~= speed then speed = 1 end
+        return seconds * (if mode == "Subtle" then 0.8 else 1) / math.clamp(speed, 0.5, 2)
+    end
+
+    function Motion:Distance(pixels: number): number
+        local mode = state:Peek("Settings.MotionMode")
+        return pixels * (if mode == "Off" then 0 elseif mode == "Subtle" then 0.5 else 1)
+    end
 
     local function visible(instance: Instance): boolean
         local node: Instance? = instance
@@ -42,8 +56,9 @@ return function(services: any): any
 
     function Motion:Tween(instance: Instance, channel: string, goals: any, duration: number?, finished: (() -> ())?)
         if scope:IsDisposed() then return end
+        local seconds = math.round(durationFor(duration or TIMES.Hover) * 1000) / 1000
         local existing = active[instance] and active[instance][channel]
-        if existing and (duration or TIMES.Hover) > 0 then
+        if existing and seconds > 0 then
             local same = true
             for property, value in pairs(goals) do if existing.Goals[property] ~= value then same = false; break end end
             for property in pairs(existing.Goals) do if goals[property] == nil then same = false; break end end
@@ -53,7 +68,6 @@ return function(services: any): any
         local changed = false
         for property, value in pairs(goals) do if instance[property] ~= value then changed = true; break end end
         if not changed then if finished then finished() end; return end
-        local seconds = duration or TIMES.Hover
         if seconds <= 0 then
             for property, value in pairs(goals) do instance[property] = value end
             if finished then finished() end
@@ -61,7 +75,7 @@ return function(services: any): any
         end
         if not infos[seconds] then infos[seconds] = TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out) end
         local tween = TweenService:Create(instance, infos[seconds], goals)
-        local record: any = { Tween = tween, Goals = table.clone(goals) }
+        local record: any = { Tween = tween, Goals = table.clone(goals), Finished = finished }
         if not active[instance] then active[instance] = {} end
         active[instance][channel] = record
         record.Connection = tween.Completed:Connect(function(status: Enum.PlaybackState)
@@ -101,7 +115,7 @@ return function(services: any): any
         end
         if record.Visible == on then return end
         record.Visible = on
-        local shifted = record.Rest + UDim2.fromOffset(0, 8)
+        local shifted = record.Rest + UDim2.fromOffset(0, self:Distance(8))
         if on then
             if not frame.Visible then frame.Position = shifted end
             frame.Visible = true
@@ -243,6 +257,23 @@ return function(services: any): any
             end
         end)
     end
+
+    local function settleAnimations()
+        local pending = {}
+        for instance, channels in pairs(active) do
+            for channel, record in pairs(channels) do table.insert(pending, { instance, channel, record }) end
+        end
+        for _, item in ipairs(pending) do
+            local instance, channel, record = item[1], item[2], item[3]
+            if active[instance] and active[instance][channel] == record then
+                Motion:Cancel(instance, channel)
+                for property, value in pairs(record.Goals) do instance[property] = value end
+                if record.Finished then record.Finished() end
+            end
+        end
+    end
+    scope:Add(state:Observe("Settings.MotionMode", settleAnimations))
+    scope:Add(state:Observe("Settings.MotionSpeed", settleAnimations))
 
     scope:ConnectImmediate(UIS.InputEnded, function(input: InputObject)
         for _, record in pairs(engaged) do

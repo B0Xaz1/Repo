@@ -11,7 +11,7 @@ return function(services: any): any
         theme:BindToken(box, "BackgroundColor3", "Elem"); theme:BindToken(box, "TextColor3", "Text"); theme:BindToken(box, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(box, theme:GetToken("BorderDim")), "Color", "BorderDim")
         dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 2) }); dom:CreatePadding(box, 0, 8)
-        local handle = { Row = row, Label = labelObject, Box = box, Scope = owner, Normalize = function(value: any) return tostring(value or "") end }
+        local handle = { Kind = "Textbox", Row = row, Label = labelObject, Box = box, Scope = owner, Normalize = function(value: any) return tostring(value or "") end }
         function handle:_Render(value: string)
             if box.Text ~= value then box.Text = value end
         end
@@ -25,7 +25,7 @@ return function(services: any): any
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 26),
             Font = Enum.Font.GothamMedium, TextSize = 12, Text = text })
         section:StyleButton(button, owner)
-        local handle = { Row = row, Label = label, Button = button, Scope = owner, _busy = false, Normalize = function(value: any) return tostring(value) end }
+        local handle = { Kind = "Action", Row = row, Label = label, Button = button, Scope = owner, _busy = false, Normalize = function(value: any) return tostring(value) end }
         function handle:_Render(value: string)
             local nextText = if self._busy then "Working..." else value
             if button.Text ~= nextText then button.Text = nextText end

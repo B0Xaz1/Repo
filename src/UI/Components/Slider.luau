@@ -63,7 +63,7 @@ return function(services: any): any
             motion:Tween(thumb, "Interaction", { Size = UDim2.fromOffset(diameter, diameter), BackgroundTransparency = if on then 0 else 1 }, duration)
             motion:Tween(track, "Interaction", { Size = UDim2.new(1, 0, 0, if on then 4 else 3), Position = UDim2.fromOffset(0, if on then 4.5 else 5) }, duration)
         end))
-        local handle = { Row = row, Label = text, Scope = owner, Normalize = function(value: any)
+        local handle = { Kind = "Slider", Range = { Min = minimum, Max = maximum, Step = increment }, Row = row, Label = text, Scope = owner, Normalize = function(value: any)
             local number = tonumber(value) or minimum
             return math.clamp(minimum + math.floor((number - minimum) / increment + 0.5) * increment, minimum, maximum)
         end }

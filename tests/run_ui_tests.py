@@ -21,7 +21,7 @@ for path in sources:
     modules.append(f'["{path.relative_to(ROOT).as_posix()}"] = [{delimiter}[{content}]{delimiter}],')
 tests = '\n'.join(
     (ROOT / name).read_text()
-    for name in ('tests/ui_motion.luau', 'tests/core_lifecycle.luau')
+    for name in ('tests/ui_motion.luau', 'tests/core_lifecycle.luau', 'tests/all_off.luau')
 )
 with tempfile.TemporaryDirectory(prefix='b0xaz-ui-') as directory:
     test = Path(directory) / 'ui_tests.luau'

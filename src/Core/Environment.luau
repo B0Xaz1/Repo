@@ -80,6 +80,7 @@ return function(disposer: any): any
             ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = move ~= nil,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
             QueueTeleport = queue ~= nil, FpsCap = fps ~= nil, NativeClick = click ~= nil,
+            VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
             Drawing = type(drawing) == "table" and type(drawing.new) == "function",
         }),
     }

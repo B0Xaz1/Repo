@@ -30,7 +30,7 @@ local function connectionCount()
 end
 local Enum = setmetatable({}, { __index = function(self, category)
     local values = setmetatable({}, { __index = function(group, name)
-        local value = { Name = name, _type = "EnumItem" }
+        local value = { Name = name, EnumType = "Enum." .. category, _type = "EnumItem" }
         rawset(group, name, value); return value
     end })
     rawset(self, category, values); return values
@@ -209,6 +209,7 @@ local stateValues = { ["Settings.MenuVisible"]=true, ["Settings.ShowMenuIcon"]=t
     ESP={Enabled=false,Color=Color3.new(1,0,0),Rainbow=false}, Chams={Enabled=false,FillColor=Color3.new(0,1,0),Rainbow=false} }
 local transients={}
 services.StateStore={
+    GetDefaultSettings=function() return { Settings = { MotionMode = "Full", MotionSpeed = 1, Tooltips = true } } end,
     GetTransient=function(_,key) return transients[key] end,
     SetTransient=function(_,key,value) transients[key]=value end,
     Peek=function(_,path) return stateValues[path] end,
@@ -239,6 +240,7 @@ services.Motion=factory("src/UI/Motion.luau")(services)
 services.DOM=factory("src/UI/DOM.luau")(services)
 services.ThemeEngine=factory("src/UI/ThemeEngine.luau")(services)
 services.ThemeEngine:Initialize()
+services.Tooltips=factory("src/UI/Tooltips.luau")(services)
 services.UIEngine=factory("src/UI/UIEngine.luau")(services)
 local motion,dom,theme,ui = services.Motion,services.DOM,services.ThemeEngine,services.UIEngine
 local screen=dom:Create("ScreenGui",{Parent=guiParent})
@@ -332,11 +334,11 @@ check(dropdown._open and dropdown.Row.Size.Y.Offset>38,"dropdown reversal cancel
 local allocations=createdInstances
 dropdown:Refresh({"one","two"},true)
 check(createdInstances==allocations and dropdown._open,"unchanged options do not rebuild or close")
-ui:Search("choice"); check(dropdown.Row.Parent==secondTab.ResultsCol,"search reparents matching controls")
-ui:ClearSearch(); check(dropdown.Row.Parent==panel,"clearing search restores original parent")
-rawset(dropdown.Row,"_failLayout",true)
+ui:Search("choice"); check(dropdown.Row.Parent.Parent.Parent==secondTab.ResultsCol,"search reparents matching controls")
+ui:ClearSearch(); check(dropdown.Row.Parent.Parent.Parent==panel,"clearing search restores original parent")
+rawset(dropdown.Row.Parent.Parent,"_failLayout",true)
 ui:Search("choice")
-check(dropdown.Row.Parent==panel and ui._query=="" and not ui._searchActive,"failed search rolls back controls already moved")
+check(dropdown.Row.Parent.Parent.Parent==panel and ui._query=="" and not ui._searchActive,"failed search rolls back controls already moved")
 check(#ui._searchHeaders==0 and secondTab.Columns.Visible and not secondTab.ResultsCol.Visible,"failed search clears temporary headers and restores columns")
 
 local picker=services.Require("src/UI/Components/ColorPicker.luau",services)(panel,"Color",Color3.new(1,1,1))
@@ -579,6 +581,228 @@ for _=1,40 do
     dom:DestroyInstance(temporary)
 end
 check(connectionCount()==baseline,"repeated controls leave no feedback/tween connections")
+-- Favorites, motion preferences, and shared help use the same real UI services.
+do
+    ui:ClearSearch(); flushTasks(); flushTweens()
+    local function slotOf(handle) return handle.Row.Parent.Parent end
+    local function named(parent, name)
+        for _, child in ipairs(parent:GetChildren()) do if child.Name == name then return child end end
+        error(`Missing {name}`)
+    end
+    local section = services.Require("src/UI/Components/Section.luau", services)
+    local toggles = services.Require("src/UI/Components/Toggle.luau", services)
+    local combatPanel = section:Create(ui._tabByName.Combat.LeftCol, "Favorite tests")
+    local visualPanel = section:Create(ui._tabByName.Visuals.LeftCol, "Favorite tests")
+    local a = toggles(combatPanel, "Shared label", false)
+    local b = toggles(visualPanel, "Shared label", false)
+    local aSlot, bSlot = slotOf(a), slotOf(b)
+    local aRecord, bRecord = ui._controls[aSlot], ui._controls[bSlot]
+    local aOrder = aSlot.LayoutOrder
+    check(aRecord.Id ~= bRecord.Id, "favorite identities include their own tab")
+    local baseline = connectionCount()
+    named(aSlot, "Favorite").Activated:Fire(); flushTasks(); flushTweens()
+    check(aSlot.Parent == ui._tabByName.Combat.FavoritesBody, "star pins the original live control")
+    check(bSlot.Parent == visualPanel and ui._tabByName.Visuals.FavoriteCount == 0, "favorites never populate another tab")
+    check(a:Get() == false and named(aSlot, "Favorite").Text == "★", "pinning changes no feature state")
+    check(connectionCount() == baseline, "pinning creates no duplicate control bindings")
+    a:Set(true); check(a:Get() == true, "pinned control remains interactive")
+    ui:SelectTab("Combat")
+    check(ui._tabByName.Combat.Favorites.Visible and not ui._tabByName.Visuals.Page.Visible, "only selected tab page is visible")
+    ui:Search("shared label")
+    check(aSlot.Parent == ui._active.ResultsCol and not ui._active.Favorites.Visible, "search includes favorite once, hides favorite panel")
+    ui:ClearSearch()
+    check(aSlot.Parent == ui._tabByName.Combat.FavoritesBody, "clearing search returns pinned row to favorites")
+    ui:Search("shared label"); named(aSlot, "Favorite").Activated:Fire(); flushTasks()
+    check(aSlot.Parent == ui._active.ResultsCol, "unpinning during search preserves results")
+    ui:ClearSearch()
+    check(aSlot.Parent == combatPanel and aSlot.LayoutOrder == aOrder, "unpin restores section and original order")
+    local remembered = { [aRecord.Id] = true, [bRecord.Id] = true }
+    services.StateStore:Set("Settings.Favorites", remembered); flushTasks()
+    check(aSlot.Parent == ui._tabByName.Combat.FavoritesBody and bSlot.Parent == ui._tabByName.Visuals.FavoritesBody, "restored favorite map populates each tab separately")
+    ui:SelectTab("Visuals")
+    check(not ui._tabByName.Combat.Page.Visible and ui._tabByName.Visuals.Favorites.Visible, "tab switch cannot show unrelated favorite panel")
+    local oldId = aRecord.Id
+    dom:DestroyInstance(combatPanel.Parent); flushTasks()
+    check(a.Scope:IsDisposed() and aSlot.Parent == nil and ui._controls[aSlot] == nil, "destroying original section also removes pinned row and subscriptions")
+    combatPanel = section:Create(ui._tabByName.Combat.LeftCol, "Favorite tests")
+    a = toggles(combatPanel, "Shared label", false); aSlot = slotOf(a); flushTasks()
+    check(ui._controls[aSlot].Id == oldId and aSlot.Parent == ui._tabByName.Combat.FavoritesBody, "remounted control recovers stable favorite identity")
+    local pluginContainer = dom:Create("Frame", { Parent = ui._tabByName.Game.LeftCol })
+    pluginContainer:SetAttribute("B0XazFavoriteContext", "Plugin A")
+    local pluginPanel = section:Create(pluginContainer, "Options")
+    local pluginControl = toggles(pluginPanel, "Enabled", false)
+    local pluginSlot = slotOf(pluginControl)
+    local pluginId = ui._controls[pluginSlot].Id
+    named(pluginSlot, "Favorite").Activated:Fire(); flushTasks()
+    ui:Search("enabled")
+    dom:DestroyInstance(pluginPanel.Parent); flushTasks()
+    check(pluginControl.Scope:IsDisposed() and ui._controls[pluginSlot] == nil, "plugin teardown cleans a searched favorite")
+    ui:ClearSearch()
+    pluginContainer:SetAttribute("B0XazFavoriteContext", "Plugin B")
+    pluginPanel = section:Create(pluginContainer, "Options")
+    pluginControl = toggles(pluginPanel, "Enabled", false); pluginSlot = slotOf(pluginControl); flushTasks()
+    check(ui._controls[pluginSlot].Id ~= pluginId and pluginSlot.Parent == pluginPanel, "different plugin never inherits another adapter's favorite")
+    -- Exercise the real plugin manager: deactivation disposes the plugin scope before clearing its mount.
+    local originalRequire = services.Require
+    local registration = { Name = "Fixture adapter", PluginModule = "fixture-plugin" }
+    local mountedRow, stopped = nil, 0
+    services.Require = function(path, container)
+        if path == "src/Plugins/PluginRegistry.luau" then
+            return { Resolve = function() return registration end, GetRegistrations = function() return { registration } end }
+        elseif path == "fixture-plugin" then
+            return function(pluginServices)
+                local pluginSection = factory("src/UI/Components/Section.luau")(pluginServices)
+                return { Name = registration.Name, Initialize = function() end, Destroy = function() stopped += 1 end,
+                    BuildUI = function(_, tab)
+                        local panel = pluginSection:Create(tab.LeftCol, "Adapter controls")
+                        mountedRow = pluginSection:Control(panel, "Scoped control", 22)
+                    end }
+            end
+        end
+        return originalRequire(path, container)
+    end
+    local manager = factory("src/Plugins/PluginManager.luau")(services)
+    manager:Initialize()
+    check(manager:MountUI(ui._tabByName.Game), "actual plugin manager mounts controls with favorite context")
+    local mountedSlot = mountedRow.Parent.Parent
+    local mountedId = ui._controls[mountedSlot].Id
+    named(mountedSlot, "Favorite").Activated:Fire(); flushTasks()
+    check(mountedSlot.Parent == ui._tabByName.Game.FavoritesBody, "real plugin control pins normally")
+    manager:SetEnabled(false); flushTasks()
+    check(mountedSlot.Parent == nil and ui._controls[mountedSlot] == nil and stopped == 1, "deactivating plugin scope destroys pinned controls before mount cleanup")
+    manager:SetEnabled(true); flushTasks()
+    mountedSlot = mountedRow.Parent.Parent
+    check(ui._controls[mountedSlot].Id == mountedId and mountedSlot.Parent == ui._tabByName.Game.FavoritesBody, "reenabling adapter restores only its own saved favorite")
+    for _ = 1, 4 do manager:SetEnabled(false); manager:SetEnabled(true); flushTasks(); flushTweens() end
+    local duplicates = 0
+    for _, record in pairs(ui._controls) do if record.Id == mountedId then duplicates += 1 end end
+    check(duplicates == 1 and stopped == 5, "repeated adapter remounts do not accumulate pinned rows")
+    manager:Destroy()
+    dom:DestroyInstance(manager._mount.LeftCol); dom:DestroyInstance(manager._mount.RightCol)
+    services.Require = originalRequire
+
+    services.StateStore:Set("Settings.Favorites", {}); flushTasks()
+    check(not ui._tabByName.Combat.Favorites.Visible and not ui._tabByName.Visuals.Favorites.Visible, "clearing favorites hides empty panels")
+
+    local tips = services.Tooltips
+    services.StateStore:Set("Settings.Tooltips", true)
+    ui:SelectTab("Visuals")
+    bSlot.MouseEnter:Fire()
+    check(not tips._card, "hover does not create tooltip before its delay")
+    bSlot.MouseLeave:Fire(); flushTasks()
+    check(not tips._card, "leaving before delay creates no tooltip")
+    bSlot.MouseEnter:Fire(); flushTasks()
+    check(tips._card and tips._card.Visible and tips._text.Text:find("Shared label", 1, true), "delayed hover shows contextual help")
+    local card = tips._card
+    bSlot.MouseLeave:Fire()
+    check(not card.Visible, "leaving hover hides shared card")
+    named(bSlot, "Help").Activated:Fire()
+    check(card.Visible and tips._sticky, "question mark opens tap-friendly sticky help")
+    bSlot.MouseLeave:Fire(); check(card.Visible, "tap help remains readable after pointer leaves")
+    named(bSlot, "Help").Activated:Fire(); check(not card.Visible, "second help tap dismisses")
+    named(bSlot, "Help").SelectionGained:Fire()
+    check(card.Visible, "keyboard focus on help shows description")
+    named(bSlot, "Help").SelectionLost:Fire(); check(not card.Visible, "keyboard blur hides help")
+    named(bSlot, "Help").Activated:Fire(); ui:Search("shared")
+    check(not card.Visible, "search dismisses help before moving its anchor")
+    ui:ClearSearch(); named(bSlot, "Help").Activated:Fire(); ui:SelectTab("Combat")
+    check(not card.Visible, "tab change dismisses help")
+    ui:SelectTab("Visuals"); named(bSlot, "Help").Activated:Fire()
+    services.StateStore:Set("Settings.Tooltips", false)
+    check(not card.Visible, "tooltip preference immediately hides open help")
+    named(bSlot, "Help").Activated:Fire(); check(not card.Visible, "disabled tooltips ignore explicit help")
+    services.StateStore:Set("Settings.Tooltips", true)
+    named(bSlot, "Help").Activated:Fire(); services.StateStore:Set("Settings.MenuVisible", false)
+    check(not card.Visible, "menu hide dismisses help")
+    services.StateStore:Set("Settings.MenuVisible", true)
+    named(bSlot, "Help").Activated:Fire(); dom:DestroyInstance(visualPanel.Parent); flushTasks()
+    check(not card.Visible and tips._anchor == nil, "destroyed anchor releases sticky tooltip")
+    check(tips._card == card, "all help uses one reusable card")
+    local description = tips:Describe("Animation speed", "Settings.MotionSpeed", "Slider", { Min = 0.5, Max = 2, Step = 0.1 })
+    check(description:find("Range: 0.5 to 2", 1, true) and description:find("Default: 1", 1, true), "slider help includes useful range and default")
+
+    services.StateStore:Set("Settings.MotionMode", "Full"); services.StateStore:Set("Settings.MotionSpeed", 1)
+    local animated = dom:Create("Frame", { Parent = screen, Visible = true })
+    motion:Tween(animated, "Rate", { Rotation = 12 }, 0.12)
+    check(pendingTween(animated, "Rotation").Duration == 0.12 and motion:Distance(8) == 8, "Full 1x preserves original timing and travel")
+    services.StateStore:Set("Settings.MotionSpeed", 2)
+    check(animated.Rotation == 12 and not pendingTween(animated, "Rotation"), "speed changes settle active motion")
+    motion:Tween(animated, "Rate", { Rotation = 24 }, 0.12)
+    check(pendingTween(animated, "Rotation").Duration == 0.06, "2x motion halves duration")
+    services.StateStore:Set("Settings.MotionMode", "Subtle")
+    motion:Tween(animated, "Rate", { Rotation = 36 }, 0.12)
+    check(pendingTween(animated, "Rotation").Duration == 0.048 and motion:Distance(8) == 4, "Subtle reduces duration and travel")
+    local done = 0
+    motion:Tween(animated, "Rate", { Rotation = 48 }, 0.12, function() done += 1 end)
+    services.StateStore:Set("Settings.MotionMode", "Off")
+    check(animated.Rotation == 48 and done == 1 and next(tweens) == nil, "Off settles all tweens and runs current completion exactly once")
+    local before = tweenCount
+    motion:Tween(animated, "Rate", { Rotation = 60 }, 0.12, function() done += 1 end)
+    check(animated.Rotation == 60 and done == 2 and before == tweenCount and motion:Distance(8) == 0, "Off applies future changes without allocating tweens")
+    ui:SelectTab("Combat"); ui:SelectTab("Visuals")
+    check(ui._active.Page.Position == ui._active.RestPosition and next(tweens) == nil, "Off snaps tabs directly into place")
+    services.StateStore:Set("Settings.MotionMode", "Full"); services.StateStore:Set("Settings.MotionSpeed", 1)
+    motion:Reveal(animated, true); flushTweens(); motion:Reveal(animated, false)
+    services.StateStore:Set("Settings.MotionMode", "Off")
+    check(not animated.Visible and not pendingTween(animated, "Position"), "Off completes an in-flight window close lifecycle")
+    dropdownButton.Activated:Fire(); check(dropdown._open, "dropdown still opens with motion Off")
+    ui:CloseAllDropdownsExcept(nil)
+    check(not dropdown._open and not dropdown.Row:FindFirstChildOfClass("ScrollingFrame").Visible, "Off still finishes dropdown close cleanup")
+    services.StateStore:Set("Settings.MotionMode", "Full")
+    ui:Notify("Closing", "Motion change", 1); flushTweens(); local toast = ui._toasts[#ui._toasts]
+    flushTasks()
+    services.StateStore:Set("Settings.MotionMode", "Off")
+    check(toast.Scope:IsDisposed(), "Off completes toast removal")
+    services.StateStore:Set("Settings.MotionMode", "Full"); services.StateStore:Set("Settings.MotionSpeed", 1)
+    dom:DestroyInstance(animated); dom:DestroyInstance(combatPanel.Parent); dom:DestroyInstance(pluginContainer)
+    flushTasks(); flushTweens(); flushTasks(); flushTweens()
+    local idleCount, instanceCount = tweenCount, createdInstances
+    for _ = 1, 120 do RunService.RenderStepped:Fire(1 / 60) end
+    check(next(tweens) == nil and tweenCount == idleCount and createdInstances == instanceCount, "new preferences, favorites and help add no idle rendering work")
+end
+
+-- Mount the actual Settings tab with actual controls, not just the callback-recording fixture.
+do
+    local reads, comparisons = 0, 0
+    local oldConfig = services.ConfigService
+    services.ConfigService = {
+        ListProfiles = function() reads += 1; return { "Default", "Legit", "Rage", "Current session" } end,
+        GetGameProfileStatus = function() return "No game profile" end,
+        CompareProfiles = function(_, a, b)
+            comparisons += 1
+            check(a == nil and b == "Default", "real selectors pass current sentinel and selected profile to comparison")
+            return { Left = "Current session", Right = "Default", Changes = { { Path = "Aimbot.Enabled", Before = false, After = true } } }
+        end,
+        FormatComparisonValue = function(_, value) return tostring(value) end,
+    }
+    services.HotkeyService = { GetBindTargets = function() return {} end }
+    services.Environment.Capabilities = {}
+    services.CompatibilityService = factory("src/Services/CompatibilityService.luau")(services)
+    local tab = ui._tabByName.Settings
+    check(factory("src/UI/Tabs/SettingsTab.luau")(services, tab).Name == "Settings", "real Settings tab and components construct together")
+    check(reads == 1, "Settings shares one profile listing across its three selectors")
+    flushTasks(); flushTweens(); ui:SelectTab("Settings"); flushTweens()
+    local compareRow, motionRow, summary, compatibility
+    for _, record in pairs(ui._controls) do
+        if record.TabName ~= "Settings" then continue end
+        if record.Label == "Compare profiles" then compareRow = record.Row end
+        if record.Label == "Animation style" then motionRow = record.Row end
+        if record.Label == "Differences will appear here." then summary = record.Row:FindFirstChildOfClass("TextLabel") end
+        if record.SectionName == "Compatibility checker" and not record.Pin then compatibility = record.Row:FindFirstChildOfClass("TextLabel") end
+    end
+    check(compareRow and motionRow and summary and compatibility, "all new Settings sections register with the existing searchable layout")
+    for _, child in ipairs(compareRow:GetDescendants()) do
+        if child:IsA("TextButton") and child.Text == "Compare profiles" then child.Activated:Fire(); break end
+    end
+    check(comparisons == 1 and summary.Text:find("Aimbot.Enabled", 1, true), "actual compare button renders read-only before/after results")
+    check(compatibility.Text:find("0/12", 1, true) and compatibility.Text:find("not verified", 1, true), "actual compatibility report renders detection and fallback guidance")
+    check(motionRow:GetAttribute("StatePath") == "Settings.MotionMode", "actual animation preference is bound to persistent state")
+    for _, child in ipairs(motionRow:GetChildren()) do if child.Name == "Help" then child.Activated:Fire() end end
+    check(services.Tooltips._text.Text:find("Off applies changes immediately", 1, true), "real motion control help resolves path-specific explanation")
+    ui:SelectTab("Visuals"); flushTasks(); flushTweens()
+    services.ConfigService = oldConfig
+end
+
 ui._searchBox.Text="a"; ui._searchBox.Text="ab"; ui._searchBox.Text="abc"
 flushTasks()
 check(ui._query=="abc","search debounce applies only latest query")

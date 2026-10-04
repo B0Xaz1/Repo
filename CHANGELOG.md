@@ -4,6 +4,9 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Removed the lighting-mode hotkey; lighting remains adjustable in the Visuals tab.
+- Removed dropdown option outlines and selection bars, keeping hover feedback and selected-text highlighting.
+
 - Added favorites that pin controls at the top of their own tab and restore with saved configurations.
 - Added read-only profile comparisons with before-and-after values and paginated results.
 - Added Off, Subtle, and Full animation styles with adjustable playback speed.
@@ -12,7 +15,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 - Added "Turn everything off" in Settings > Config profiles to reset values and disable all toggles while keeping the menu open and saved profiles intact.
 
-- Refined control feedback with animated checkmarks, responsive slider thumbs, dropdown selection markers, and a gliding tab indicator.
+- Refined control feedback with animated checkmarks, responsive slider thumbs, dropdown selection highlighting, and a gliding tab indicator.
 - Added softer notification fades and clearer feedback for busy actions and keybind recording.
 
 - Added subtle hover, press, and focus feedback across menu controls.

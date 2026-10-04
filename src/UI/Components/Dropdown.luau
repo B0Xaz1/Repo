@@ -42,11 +42,9 @@ return function(services: any): any
                 if not handle._open then menu.Visible = false end
             end)
         end
-        local function selectChoice(choice: any, selected: boolean, instant: boolean?)
+        local function selectChoice(choice: any, selected: boolean)
             if not choice then return end
             theme:BindToken(choice.Button, "TextColor3", if selected then "Accent" else "Text")
-            motion:Tween(choice.Marker, "Selection", { Size = UDim2.fromOffset(2, if selected then 12 else 0), BackgroundTransparency = if selected then 0 else 1 },
-                if instant then 0 else motion:Duration(choice.Button, motion.Times.Hover))
         end
         local function buildOptions()
             handle._built, handle._dirty = true, false
@@ -58,17 +56,13 @@ return function(services: any): any
             for index, option in ipairs(handle._options) do
                 local choice = dom:Create("TextButton", { Parent = menu, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = index,
                     Text = tostring(option), TextSize = 12, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
-                section:StyleButton(choice, optionScope)
-                dom:CreatePadding(choice, 0, 8, 0, 12)
-                local marker = dom:Create("Frame", { Parent = choice, Name = "Selection", BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5),
-                    Position = UDim2.new(0, 2, 0.5, 0), Size = UDim2.fromOffset(2, 0), BackgroundTransparency = 1 })
-                theme:BindToken(marker, "BackgroundColor3", "Accent")
-                dom:Create("UICorner", { Parent = marker, CornerRadius = UDim.new(1, 0) })
-                handle._choices[index] = { Button = choice, Marker = marker }
+                section:StyleButton(choice, optionScope, nil, true)
+                dom:CreatePadding(choice, 0, 8, 0, 8)
+                handle._choices[index] = { Button = choice }
                 optionScope:Connect(choice.Activated, function() if handle:Set(option) then close() end end)
             end
             handle._selectedChoice = handle._choices[table.find(handle._options, handle:Get())]
-            selectChoice(handle._selectedChoice, true, true)
+            selectChoice(handle._selectedChoice, true)
         end
         local function reconcileSelection(preserveSelection: boolean?)
             local selection = if preserveSelection then handle:Get() else nil

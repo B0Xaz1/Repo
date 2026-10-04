@@ -17,7 +17,6 @@ local CONFIG = table.freeze({
         { Key = "Hitboxes", Label = "Hitboxes", Path = "Extras.Hitbox.Enabled" },
         { Key = "Aimbot", Label = "Aimbot", Path = "Aimbot.Enabled" },
         { Key = "Menu", Label = "Menu", Path = "Settings.MenuVisible" },
-        { Key = "Lighting", Label = "Lighting mode", Path = "Lighting.Mode", Cycle = { "Off", "Static Day", "Static Night", "Dynamic" } },
     },
     BIND_DEFINITIONS = {
         { Label = "Menu", Path = "Settings.MenuKeybind" }, { Label = "Unload", Path = "Settings.UnloadKeybind" },
@@ -141,10 +140,7 @@ return function(services: any): any
             if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             for _, entry in ipairs(CONFIG.BIND_TARGETS) do
                 if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
-                    if entry.Cycle then
-                        local index = table.find(entry.Cycle, state:Get(entry.Path)) or 0
-                        services:Get("LightingService"):SetMode(entry.Cycle[index % #entry.Cycle + 1])
-                    else state:Set(entry.Path, not state:Get(entry.Path)) end
+                    state:Set(entry.Path, not state:Get(entry.Path))
                 end
             end
         end)

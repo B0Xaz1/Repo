@@ -497,14 +497,27 @@ check(bindButton:FindFirstChildOfClass("UIStroke").Thickness==1.5,"key recording
 UIS.WindowFocusReleased:Fire(); flushTasks(); flushTweens()
 check(bindButton:FindFirstChildOfClass("UIStroke").Thickness==1,"cancelled key capture clears emphasis")
 dropdownButton.Activated:Fire(); flushTweens()
-check(dropdown._selectedChoice==dropdown._choices[1] and dropdown._choices[1].Marker.BackgroundTransparency==0,"dropdown marks the current option on open")
+check(dropdown._selectedChoice==dropdown._choices[1] and dropdown._choices[1].Button.TextColor3==theme:GetToken("Accent"),"dropdown highlights the selected text on open")
 dropdown:Set("two"); flushTweens()
-check(dropdown._choices[1].Marker.Size.Y.Offset==0 and dropdown._choices[2].Marker.Size.Y.Offset==12,"selection marker moves to new option")
+check(dropdown._choices[1].Button.TextColor3==theme:GetToken("Text") and dropdown._choices[2].Button.TextColor3==theme:GetToken("Accent"),"selected-text highlight moves to new option")
 local beforeSame=tweenCount
 dropdown:Set("two")
-check(tweenCount==beforeSame,"same dropdown selection does not restart marker animations")
+check(tweenCount==beforeSame,"same dropdown selection does not restart feedback")
 dropdown:Refresh({"three","two"},true); flushTweens()
-check(dropdown:Get()=="two" and dropdown._selectedChoice==dropdown._choices[2],"rebuilt option list retains selection marker")
+check(dropdown:Get()=="two" and dropdown._selectedChoice==dropdown._choices[2],"rebuilt option list retains selection highlight")
+do
+    local option = dropdown._choices[1].Button
+    check(option:FindFirstChildOfClass("UIStroke") == nil and option:FindFirstChildOfClass("Frame") == nil, "dropdown options have no outlines or selection lines")
+    local normal = option.BackgroundColor3
+    option.MouseEnter:Fire(); flushTweens()
+    check(option.BackgroundColor3 ~= normal, "borderless dropdown keeps smooth hover feedback")
+    option.InputBegan:Fire(press); option.SelectionGained:Fire(); flushTweens()
+    check(option:FindFirstChildOfClass("UIStroke") == nil, "hover, press and keyboard focus do not recreate dropdown lines")
+    UIS.InputEnded:Fire(press); option.SelectionLost:Fire(); option.MouseLeave:Fire(); flushTweens()
+    check(option.BackgroundColor3 == normal, "borderless feedback restores normal background")
+    theme:SetPreset("Midnight"); theme:SetPreset("Paper"); flushTweens()
+    check(option:FindFirstChildOfClass("UIStroke") == nil and dropdown._choices[2].Button.TextColor3 == theme:GetToken("Accent"), "theme changes preserve borderless options and selected highlight")
+end
 ui:CloseAllDropdownsExcept(nil); flushTweens()
 local indicator=ui._indicator
 ui._layout.Strip.AbsolutePosition=Vector2.new(10,0)

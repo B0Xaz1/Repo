@@ -257,6 +257,40 @@ do
     check(next(resetState:Peek("Settings.Favorites")) == nil, "Settings clears favorites through persistent state")
     check(dropdowns["Animation style"] ~= nil, "motion style is exposed in existing interface settings")
 end
+-- Retired lighting bindings must disappear from UI/conflicts and never respond to input.
+do
+    check(defaults.Settings.Binds.Lighting == nil, "default hotkeys no longer include lighting mode")
+    resetState:LoadSettingsSnapshot({ Settings = { Binds = { Lighting = Enum.KeyCode.G } }, Lighting = { Mode = "Static Night" } })
+    check(resetState:Peek("Settings.Binds.Lighting") == nil, "legacy profiles cannot restore retired lighting binding")
+    check(resetState:Peek("Lighting.Mode") == "Static Night", "removing lighting hotkey preserves the selected lighting mode")
+    local oldPlayers, oldTeleport, oldGui = gameServices.Players, gameServices.TeleportService, gameServices.GuiService
+    local oldFocused = UIS.GetFocusedTextBox
+    gameServices.Players = { LocalPlayer = {} }
+    gameServices.TeleportService = { TeleportInitFailed = signal() }
+    gameServices.GuiService = { ErrorMessageChanged = signal() }
+    UIS.GetFocusedTextBox = function() return nil end
+    env.ParseKeybind = function(_, value) return value end
+    env.MatchesInput = function(_, event, value) return value ~= nil and value ~= Enum.KeyCode.Unknown and event.KeyCode == value end
+    local service = factory("src/Services/HotkeyService.luau")(resetServices)
+    local targetFound, definitionFound = false, false
+    for _, entry in ipairs(service:GetBindTargets()) do if entry.Key == "Lighting" then targetFound = true end end
+    for _, entry in ipairs(service:GetBindDefinitions()) do if entry.Path == "Settings.Binds.Lighting" then definitionFound = true end end
+    check(not targetFound and not definitionFound, "lighting hotkey is absent from Settings targets and binding definitions")
+    resetState:Set("Settings.Binds.Lighting", Enum.KeyCode.G)
+    check(service:FindBindConflict("Settings.Binds.ESP", Enum.KeyCode.G) == nil, "retired lighting hotkey no longer causes binding conflicts")
+    service:Initialize()
+    UIS.InputBegan:Fire({ KeyCode = Enum.KeyCode.G }, false)
+    check(resetState:Peek("Lighting.Mode") == "Static Night", "stale runtime lighting binding cannot cycle lighting")
+    resetState:Set("ESP.Enabled", false); resetState:Set("Settings.Binds.ESP", Enum.KeyCode.H)
+    UIS.InputBegan:Fire({ KeyCode = Enum.KeyCode.H }, false)
+    check(resetState:Peek("ESP.Enabled") == true, "other feature hotkeys remain functional")
+    UIS.GetFocusedTextBox = function() return {} end
+    UIS.InputBegan:Fire({ KeyCode = Enum.KeyCode.H }, false)
+    check(resetState:Peek("ESP.Enabled") == true, "remaining hotkeys still ignore typing")
+    service:Destroy()
+    gameServices.Players, gameServices.TeleportService, gameServices.GuiService = oldPlayers, oldTeleport, oldGui
+    UIS.GetFocusedTextBox = oldFocused
+end
 resetOwner:Dispose()
 mock.type = originalType
 gameServices.HttpService.JSONEncode, gameServices.HttpService.JSONDecode = oldEncode, oldDecode

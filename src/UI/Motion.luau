@@ -164,7 +164,7 @@ return function(services: any): any
         local instance = record.Instance
         local on = record.Hover or record.Down or record.Focused or record.Emphasis
         engaged[instance] = if on then record else nil
-        if on and not record.Stroke then
+        if on and not record.Stroke and instance:GetAttribute("B0XazBorderless") ~= true then
             local stroke = Instance.new("UIStroke")
             stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
             stroke.Color, stroke.Transparency, stroke.Thickness = accent(), 1, 1

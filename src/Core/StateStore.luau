@@ -66,7 +66,7 @@ local CONFIG = deepFreeze({
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Freecam = Enum.KeyCode.Unknown, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
                 Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,
-                Menu = Enum.KeyCode.RightShift, Lighting = Enum.KeyCode.Unknown },
+                Menu = Enum.KeyCode.RightShift },
             RestoreOnLaunch = true, StartupProfile = "", AntiAfk = false, TpToMouse = false, Whitelist = {},
         },
         Theme = { ActivePreset = "Midnight", CustomTokens = {} },
@@ -249,6 +249,7 @@ return function(eventBus: any, disposer: any): any
     function StateStore:NormalizeSettingsSnapshot(snapshot: any)
         assert(type(snapshot) == "table")
         local normalized = merge(CONFIG.DEFAULT_SETTINGS, snapshot)
+        normalized.Settings.Binds.Lighting = nil -- Retired binding must not return from older profiles.
         local incomingSettings = if type(snapshot.Settings) == "table" then snapshot.Settings else {}
         local incomingBinds = if type(incomingSettings.Binds) == "table" then incomingSettings.Binds else {}
         local incomingMovement = if type(snapshot.Movement) == "table" then snapshot.Movement else {}

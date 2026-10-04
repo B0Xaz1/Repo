@@ -88,12 +88,13 @@ return function(services: any): any
         end
         return handle
     end
-    function Section:StyleButton(button: TextButton, owner: any, token: string?)
+    function Section:StyleButton(button: TextButton, owner: any, token: string?, borderless: boolean?)
         local normal = token or "Elem"
+        if borderless then button:SetAttribute("B0XazBorderless", true) end
         button.AutoButtonColor = false
         theme:BindToken(button, "BackgroundColor3", normal)
         theme:BindToken(button, "TextColor3", "Text")
-        theme:BindToken(dom:CreateStroke(button, theme:GetToken("BorderDim")), "Color", "BorderDim")
+        if not borderless then theme:BindToken(dom:CreateStroke(button, theme:GetToken("BorderDim")), "Color", "BorderDim") end
         dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 5) })
     end
     function Section:Bind(handle: any, defaultOrPath: any, callback: any?, literal: boolean?): any

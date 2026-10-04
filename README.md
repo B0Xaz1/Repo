@@ -32,7 +32,7 @@ Touch flight supports the thumbstick and on-screen vertical controls. Hotkeys ca
 
 Use the search box to find controls by feature, section, or tab name. Click **☆** beside a control to pin it above the sections in its own tab; click **★** to unpin it. Other tabs keep their own favorites.
 
-Hover over a control for help, or tap **?** to open its explanation. In **Settings → Interface & lifecycle**, choose **Off**, **Subtle**, or **Full** animations, adjust playback speed from **0.5× to 2×**, and turn tooltips on or off. Full at 1× keeps the standard animation feel.
+Tooltips are reserved for less obvious settings and actions with important consequences. Hover over a control marked **?**, or tap **?**, to read its explanation. Straightforward controls have no help button. In **Settings → Interface & lifecycle**, choose **Off**, **Subtle**, or **Full** animations, adjust playback speed from **0.5× to 2×**, and turn tooltips on or off. Full at 1× keeps the standard animation feel.
 
 | Tab | Contents |
 | --- | --- |

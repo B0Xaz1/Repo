@@ -607,10 +607,29 @@ do
     local combatPanel = section:Create(ui._tabByName.Combat.LeftCol, "Favorite tests")
     local visualPanel = section:Create(ui._tabByName.Visuals.LeftCol, "Favorite tests")
     local a = toggles(combatPanel, "Shared label", false)
-    local b = toggles(visualPanel, "Shared label", false)
+    local b = toggles(visualPanel, "Shared label", "Movement.FreecamEnabled")
     local aSlot, bSlot = slotOf(a), slotOf(b)
     local aRecord, bRecord = ui._controls[aSlot], ui._controls[bSlot]
     local aOrder = aSlot.LayoutOrder
+    check(aSlot:GetChildren()[1].Size.X.Offset == -24 and bSlot:GetChildren()[1].Size.X.Offset == -44, "simple controls reclaim help-button space while advanced controls reserve it")
+    local hasSimpleHelp = false
+    for _, child in ipairs(aSlot:GetChildren()) do if child.Name == "Help" then hasSimpleHelp = true end end
+    check(not hasSimpleHelp and named(aSlot, "Favorite") ~= nil, "simple controls retain favorites without a help button")
+    local queuedBefore = next(waiting)
+    aSlot.MouseEnter:Fire(); aSlot.MouseLeave:Fire()
+    check(aSlot.MouseEnter:Count() == 0 and aSlot.MouseLeave:Count() == 0 and next(waiting) == queuedBefore, "simple controls have no tooltip listeners or scheduled hover work")
+    check(ui._tabByName.Combat.Button.MouseEnter:Count() == 1, "tabs keep hover feedback without redundant tooltip listeners")
+    for _, example in ipairs({
+        { "Enabled", "ESP.Enabled", "Toggle" }, { "Flight speed", "Movement.FlySpeed", "Slider" },
+        { "Theme preset", "Theme.ActivePreset", "Dropdown" }, { "Accent", nil, "Color" },
+        { "Menu hotkey", "Settings.MenuKeybind", "Keybind" }, { "Save as", nil, "Textbox" },
+        { "Next comparison page", nil, "Action" }, { "Show tooltips", "Settings.Tooltips", "Toggle" },
+    }) do
+        check(services.Tooltips:Describe(example[1], example[2], example[3]) == nil, "self-explanatory controls do not get generic help")
+    end
+    check(services.Tooltips:Describe("Prediction", "Aimbot.Prediction.Horizontal", "Slider") ~= nil, "prediction keeps meaningful technical help")
+    check(services.Tooltips:Describe("Speed", "Movement.Speed", "Slider"):find("Zero leaves", 1, true), "zero-value override behavior keeps its explanation")
+    check(services.Tooltips:Describe("Turn everything off", nil, "Action") ~= nil, "consequential reset action keeps help")
     check(aRecord.Id ~= bRecord.Id, "favorite identities include their own tab")
     local baseline = connectionCount()
     named(aSlot, "Favorite").Activated:Fire(); flushTasks(); flushTweens()

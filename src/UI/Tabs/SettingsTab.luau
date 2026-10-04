@@ -123,7 +123,7 @@ return function(services: any, tab: any): any
     dropdown(interface, "Animation style", "Settings.MotionMode", { "Off", "Subtle", "Full" })
     slider(interface, "Animation speed", "Settings.MotionSpeed", 0.5, 2, 0.1, "x")
     toggle(interface, "Show tooltips", "Settings.Tooltips")
-    section:Info(interface, "Hover for help or tap ?. Use ☆ to pin a control above the sections in its own tab. Favorites are saved with your configuration.")
+    section:Info(interface, "Help appears only for advanced options and important actions. Hover a control marked ? or tap ? for details. Use ☆ to pin a control above the sections in its own tab. Favorites are saved with your configuration.")
     textbox:CreateButton(interface, "Clear all favorites", function() state:Set("Settings.Favorites", {}); return true, "All controls returned to their sections" end)
     toggle(interface, "Compact menu mode", "Settings.CompactMenu")
     toggle(interface, "Show menu button", "Settings.ShowMenuIcon")

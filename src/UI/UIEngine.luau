@@ -440,7 +440,6 @@ return function(services: any): any
             dom:Create("UIListLayout", { Parent = favoritesBody, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
             if services:Has("Tooltips") then
                 scope:ConnectImmediate(page:GetPropertyChangedSignal("CanvasPosition"), function() services:Get("Tooltips"):Hide() end)
-                services:Get("Tooltips"):Attach(button, nil, function() return `Open the {entry.Name} tab. Starred controls appear first in this tab only.` end, scope)
             end
             local columns = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, -1, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
             local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })

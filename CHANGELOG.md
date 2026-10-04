@@ -4,6 +4,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Limited tooltips to advanced settings and consequential actions; straightforward controls no longer show help buttons or generic hover explanations.
+
 - Removed the lighting-mode hotkey; lighting remains adjustable in the Visuals tab.
 - Removed dropdown option outlines and selection bars, keeping hover feedback and selected-text highlighting.
 

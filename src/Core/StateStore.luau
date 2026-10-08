@@ -11,7 +11,7 @@ local CONFIG = deepFreeze({
     DEFAULT_SETTINGS = {
         Aimbot = {
             Enabled = false, UseCamera = true, Keybind = Enum.UserInputType.MouseButton2,
-            Hitpart = "Head", Smoothness = 8, MovementMode = "Linear", WindStrength = 2, WindDamping = 0.85,
+            Hitpart = "Head", Smoothness = 8,
             LockMode = "Hold", Prediction = { Horizontal = 0, Vertical = 0 }, TeamCheck = true,
             FriendCheck = false, WhitelistCheck = true, ForceFieldCheck = true, VisCheck = true,
             MaxDistance = 2000, ShakeIntensity = 0, UnlockOnDeath = true, BreakOnPull = true, MaxLockRadius = 250,

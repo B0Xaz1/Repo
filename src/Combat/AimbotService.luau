@@ -5,11 +5,10 @@ local Workspace = game:GetService("Workspace")
 local CONFIG = table.freeze({
     UPDATE_INTERVAL = 1 / 120,
     FOV_MAX = 1500,
-    WIND_FRAME_RATE = 60,
+    SMOOTHING_REFERENCE_RATE = 60,
     SHAKE_MAX = 3,
     BREAK_PULL_CURSOR_EPSILON = 1,
     MIN_LOCK_RADIUS_FLOOR = 10,
-    AIM_RAY_DISTANCE = 1000,
     CAMERA_EPSILON = 0.001,
     SMOOTHNESS_MIN = 1,
     SMOOTHNESS_MAX = 100,
@@ -26,12 +25,12 @@ return function(services: any): any
     local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("AimbotService")
     local cameraChanges = scope:CreateChild("Aim camera")
-    local AimbotService = { _target = nil, _held = false, _toggled = false, _blocked = false, _wind = Vector2.zero,
+    local AimbotService = { _target = nil, _held = false, _toggled = false, _blocked = false,
         _remainder = Vector2.zero, _lastCursor = nil, _time = 0, _updateElapsed = 0, _camera = nil, _initialized = false, _warnedMouse = false }
 
     local function drop(block: boolean?)
         AimbotService._target = nil
-        AimbotService._wind, AimbotService._remainder = Vector2.zero, Vector2.zero
+        AimbotService._remainder = Vector2.zero
         if block then AimbotService._blocked = true; AimbotService._toggled = false end
         state:SetTransient("AimbotTarget", nil)
     end
@@ -66,17 +65,6 @@ return function(services: any): any
     local function clampAxis(step: number, remaining: number): number
         if step * remaining <= 0 then return 0 end
         return math.sign(remaining) * math.min(math.abs(step), math.abs(remaining))
-    end
-
-    local function correction(errorPixels: Vector2, alpha: number, dt: number, config: any): Vector2
-        local delta = errorPixels * alpha
-        if config.MovementMode == "WindMouse" then
-            local damping = math.clamp(config.WindDamping, 0, 0.99) ^ (dt * CONFIG.WIND_FRAME_RATE)
-            local noise = Vector2.new(math.noise(AimbotService._time * 7, 11), math.noise(27, AimbotService._time * 7)) * math.clamp(config.WindStrength, 0, 30)
-            AimbotService._wind = AimbotService._wind * damping + noise * (1 - damping)
-            delta += AimbotService._wind * alpha
-        else AimbotService._wind = Vector2.zero end
-        return Vector2.new(clampAxis(delta.X, errorPixels.X), clampAxis(delta.Y, errorPixels.Y))
     end
 
     local function stableLookAt(eye: Vector3, target: Vector3, currentUp: Vector3?): CFrame?
@@ -162,14 +150,7 @@ return function(services: any): any
             state:Set("Aimbot.UseCamera", true); config.UseCamera = true
         end
         if config.UseCamera then
-            local desired = goal
-            if config.MovementMode == "WindMouse" and alpha > 0 then
-                local centre = camera.ViewportSize / 2
-                local delta = correction(screen - centre, alpha, dt, config)
-                local ray = camera:ViewportPointToRay(centre.X + delta.X / alpha, centre.Y + delta.Y / alpha)
-                desired = camera.CFrame.Position + ray.Direction * CONFIG.AIM_RAY_DISTANCE
-            end
-            local look = stableLookAt(camera.CFrame.Position, desired, camera.CFrame.UpVector)
+            local look = stableLookAt(camera.CFrame.Position, goal, camera.CFrame.UpVector)
             if look then
                 cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(look, alpha), true)
             end
@@ -177,7 +158,7 @@ return function(services: any): any
         else
             cameraChanges:ReleaseProperties()
             local remaining = screen - point
-            local delta = correction(remaining, alpha, dt, config)
+            local delta = remaining * alpha
             -- Relative mouse input only moves whole pixels, so the sub-pixel rest is carried forward
             local remainder = AimbotService._remainder
             if remaining.X * remainder.X < 0 then remainder = Vector2.new(0, remainder.Y) end
@@ -198,7 +179,7 @@ return function(services: any): any
     end
 
     function AimbotService:SmoothingAlpha(dt: number, smoothness: number): number
-        return 1 - math.exp(-dt * (CONFIG.WIND_FRAME_RATE / math.clamp(smoothness, CONFIG.SMOOTHNESS_MIN, CONFIG.SMOOTHNESS_MAX)))
+        return 1 - math.exp(-dt * (CONFIG.SMOOTHING_REFERENCE_RATE / math.clamp(smoothness, CONFIG.SMOOTHNESS_MIN, CONFIG.SMOOTHNESS_MAX)))
     end
 
     function AimbotService:GetTarget(): Player? return self._target end

@@ -11,10 +11,9 @@ return function(services: any, tab: any): any
     dropdown(aim, "Lock Mode", "Aimbot.LockMode", { "Hold", "Toggle" }, nil)
     dropdown(aim, "Hit Part", "Aimbot.Hitpart", { "Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso" }, nil)
     slider(aim, "Smoothness", "Aimbot.Smoothness", 1, 50, 0.5, "", nil)
-    dropdown(aim, "Movement Mode", "Aimbot.MovementMode", { "Linear", "WindMouse" }, nil)
-    slider(aim, "Wind Strength", "Aimbot.WindStrength", 0, 30, 0.1, "", nil)
-    slider(aim, "Wind Damping", "Aimbot.WindDamping", 0, 0.99, 0.01, "", nil)
     slider(aim, "Shake Intensity", "Aimbot.ShakeIntensity", 0, 3, 0.05, "", nil)
+    slider(aim, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
+    slider(aim, "Vertical Prediction", "Aimbot.Prediction.Vertical", 0, 1, 0.01, " s", nil)
     toggle(aim, "Use Camera Lock (CFrame)", "Aimbot.UseCamera", nil)
     local fov = section:Create(tab.LeftCol, "Aimbot FOV", "Aimbot.FOV")
     toggle(fov, "Show FOV", "Aimbot.FOV.Show", nil)
@@ -34,9 +33,7 @@ return function(services: any, tab: any): any
     for _, entry in ipairs({ { "Ignore Friends", "FriendCheck" }, { "Ignore Whitelisted", "WhitelistCheck" }, { "Ignore ForceField", "ForceFieldCheck" } }) do
         toggle(filters, entry[1], `Aimbot.{entry[2]}`, nil)
     end
-    local trigger = section:Create(tab.RightCol, "Prediction & Triggerbot", "Aimbot.Triggerbot")
-    slider(trigger, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
-    slider(trigger, "Vertical Prediction", "Aimbot.Prediction.Vertical", 0, 1, 0.01, " s", nil)
+    local trigger = section:Create(tab.RightCol, "Triggerbot", "Aimbot.Triggerbot")
     toggle(trigger, "Enable Triggerbot", "Aimbot.Triggerbot.Enabled", nil)
     keybind(trigger, "Toggle Bind", "Aimbot.Triggerbot.Keybind", nil)
     slider(trigger, "Trigger delay", "Aimbot.Triggerbot.Delay", 0, 2, 0.01, " s", nil)

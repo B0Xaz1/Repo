@@ -26,6 +26,8 @@ local CONFIG = table.freeze({
     TOUCH_FLING_BOOST = 10000,
     TOUCH_FLING_OFFSET = 0.1,
     TOUCH_TELEPORT_DEBOUNCE = 0.35,
+    NOCLIP_WORLD_REASSERT_INTERVAL = 0.2,
+    NOCLIP_SCAN_BATCH_SIZE = 256,
 })
 
 return function(services: any): any
@@ -34,11 +36,13 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("LocomotionService")
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
     local noClipChanges = scope:CreateChild("No clip")
+    local noClipWorldChanges = scope:CreateChild("No clip world parts")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
     local touchTeleportScope = scope:CreateChild("Touch teleport")
     local noClipCharacterScope = nil :: any
     local noClipCharacter = nil :: Model?
-    local noClipParts = {}
+    local noClipParts, noClipWorldParts = {}, {}
+    local noClipWorldScanGeneration, noClipWorldElapsed = 0, 0
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
         _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0, _initialized = false }
 
@@ -160,6 +164,39 @@ return function(services: any): any
 
     function LocomotionService:StopFling() stopFling() end
 
+    local function isPlayerCharacterPart(part: BasePart): boolean
+        local ancestor = part.Parent
+        while ancestor and ancestor ~= Workspace do
+            if ancestor:IsA("Model") and Players:GetPlayerFromCharacter(ancestor) then return true end
+            ancestor = ancestor.Parent
+        end
+        return false
+    end
+
+    local function untrackNoClipWorldPart(part: Instance)
+        if not noClipWorldParts[part] then return end
+        noClipWorldParts[part] = nil
+        noClipWorldChanges:RestoreProperty(part, "CanCollide")
+    end
+
+    local function trackNoClipWorldPart(descendant: Instance)
+        if not descendant:IsA("BasePart") or noClipWorldParts[descendant]
+            or not descendant:IsDescendantOf(Workspace) or isPlayerCharacterPart(descendant) then return end
+        noClipWorldParts[descendant] = true
+        noClipWorldChanges:SetProperty(descendant, "CanCollide", false, true)
+    end
+
+    local function scanNoClipWorld(generation: number)
+        scope:Spawn(function()
+            local descendants = Workspace:GetDescendants()
+            for index, descendant in ipairs(descendants) do
+                if scope:IsDisposed() or generation ~= noClipWorldScanGeneration or state:Peek("Movement.NoClip") ~= true then return end
+                trackNoClipWorldPart(descendant)
+                if index % CONFIG.NOCLIP_SCAN_BATCH_SIZE == 0 then task.wait() end
+            end
+        end)
+    end
+
     local function bindNoClipCharacter(character: Model?)
         if noClipCharacter == character then return end
         if noClipCharacterScope then noClipCharacterScope:Dispose(); noClipCharacterScope = nil end
@@ -186,20 +223,32 @@ return function(services: any): any
         noClipCharacterScope:ConnectImmediate(character.DescendantRemoving, untrack)
     end
 
-    local function updateNoClip()
+    local function updateNoClip(dt: number)
         if state:Peek("Movement.NoClip") ~= true then
             noClipChanges:RestoreProperties()
+            noClipWorldChanges:RestoreProperties()
+            noClipWorldElapsed = 0
             return
         end
         local assets = tracker:GetLocalAssets()
         if not assets then
             bindNoClipCharacter(nil)
-            return
+        else
+            if noClipCharacter ~= assets.Character then bindNoClipCharacter(assets.Character) end
+            for part in pairs(noClipParts) do
+                if part.Parent then noClipChanges:SetProperty(part, "CanCollide", false, true)
+                else noClipParts[part] = nil end
+            end
         end
-        if noClipCharacter ~= assets.Character then bindNoClipCharacter(assets.Character) end
-        for part in pairs(noClipParts) do
-            if part.Parent then noClipChanges:SetProperty(part, "CanCollide", false, true)
-            else noClipParts[part] = nil end
+        noClipWorldElapsed += dt
+        if noClipWorldElapsed < CONFIG.NOCLIP_WORLD_REASSERT_INTERVAL then return end
+        noClipWorldElapsed = 0
+        for part in pairs(noClipWorldParts) do
+            if not part:IsDescendantOf(Workspace) then
+                untrackNoClipWorldPart(part)
+            elseif part.CanCollide then
+                noClipWorldChanges:SetProperty(part, "CanCollide", false, true)
+            end
         end
     end
 
@@ -289,9 +338,26 @@ return function(services: any): any
         scope:Spawn(touchFlingLoop)
         local noClipJob = scheduler:RegisterPreSim("Movement.NoClip", 5, updateNoClip)
         scope:Add(noClipJob)
+        scope:ConnectImmediate(Workspace.DescendantAdded, function(descendant: Instance)
+            if state:Peek("Movement.NoClip") ~= true then return end
+            task.defer(function()
+                if scope:IsDisposed() or state:Peek("Movement.NoClip") ~= true then return end
+                trackNoClipWorldPart(descendant)
+            end)
+        end)
+        scope:ConnectImmediate(Workspace.DescendantRemoving, untrackNoClipWorldPart)
         local function syncNoClip(value: boolean)
             noClipJob.Enabled = value == true
-            if not value then noClipChanges:RestoreProperties() end
+            if value then
+                noClipWorldElapsed = 0
+                noClipWorldScanGeneration += 1
+                scanNoClipWorld(noClipWorldScanGeneration)
+            else
+                noClipWorldScanGeneration += 1
+                noClipChanges:RestoreProperties()
+                noClipWorldChanges:RestoreProperties()
+                table.clear(noClipWorldParts)
+            end
         end
         scope:Add(state:Observe("Movement.NoClip", syncNoClip))
         syncNoClip(state:Peek("Movement.NoClip") == true)

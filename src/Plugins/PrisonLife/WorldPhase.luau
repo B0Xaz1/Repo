@@ -27,10 +27,6 @@ return function(services: any, Prison: any?): any
         _lastScan = 0,
     }
 
-    local function isPhaseActive(): boolean
-        return StateStore:Peek("Game.DoorPhase") == true or StateStore:Peek("Movement.NoClip") == true
-    end
-
     local function isObstacleFolder(name: any): boolean
         return table.find(manifest.Doors.Folders, tostring(name):lower()) ~= nil
     end
@@ -93,7 +89,7 @@ return function(services: any, Prison: any?): any
 
     function WorldPhase:ApplyPart(part: BasePart)
         if not part.Parent then return end
-        if isPhaseActive() then
+        if StateStore:Get("Game.DoorPhase") == true then
             changes:SetProperty(part, "CanCollide", false)
             changes:SetProperty(part, "Transparency", math.clamp(
                 tonumber(StateStore:Get("Game.PhaseTransparency")) or CONFIG.DEFAULT_TRANSPARENCY, CONFIG.TRANSPARENCY_MIN, CONFIG.TRANSPARENCY_MAX))
@@ -121,7 +117,7 @@ return function(services: any, Prison: any?): any
 
     function WorldPhase:GetCounts(): any
         local parts, phased = 0, 0
-        local phaseOn = isPhaseActive()
+        local phaseOn = StateStore:Peek("Game.DoorPhase") == true
         for part in pairs(self._parts) do
             if part.Parent then
                 parts += 1
@@ -138,7 +134,7 @@ return function(services: any, Prison: any?): any
         self:ScanDoors()
 
         scope:ConnectImmediate(Workspace.DescendantAdded, function(descendant: Instance)
-            if not isPhaseActive() then return end
+            if StateStore:Peek("Game.DoorPhase") ~= true then return end
             if not descendant:IsA("BasePart") then return end
             task.defer(function()
                 if scope:IsDisposed() or WorldPhase._parts[descendant] then return end
@@ -173,13 +169,13 @@ return function(services: any, Prison: any?): any
                 if not scope:IsDisposed() then WorldPhase:ApplyAll() end
             end)
         end
-        for _, path in ipairs({ "Game.DoorPhase", "Game.PhaseTransparency", "Movement.NoClip" }) do
+        for _, path in ipairs({ "Game.DoorPhase", "Game.PhaseTransparency" }) do
             scope:Add(StateStore:Observe(path, scheduleApplyAll))
         end
 
         local reassertElapsed = 0
         reassert = TaskScheduler:RegisterHeartbeat("Game.PrisonLifeDoors", 40, function(dt: number)
-            if not isPhaseActive() then
+            if StateStore:Peek("Game.DoorPhase") ~= true then
                 reassertElapsed = 0
                 return
             end

@@ -82,6 +82,12 @@ local CONFIG = deepFreeze({
         "Game.MvSEsp", "Game.MvSKnife", "Game.MvSKnifeSpamThrow", "Game.MvSRevolver", "Game.MvSGunSpamShoot", "Game.MvSAutoEquip", "Game.MvSAutoQueue",
         "Game.ZombieAura", "Game.ZombieAutoEquip", "Game.ZombieFarm",
     },
+    NUMERIC_RANGES = {
+        ["Aimbot.MaxDistance"] = { 50, 10000 },
+        ["Aimbot.Triggerbot.Delay"] = { 0, 2 },
+        ["Aimbot.Triggerbot.MaxDistance"] = { 50, 10000 },
+        ["Extras.SpinBot.Speed"] = { 0, 3000 },
+    },
 })
 
 local function clone(value: any): any
@@ -137,7 +143,8 @@ local function merge(defaults: any, incoming: any, path: string, allowUnknown: b
                 if type(value) == "table" then
                     result[key] = merge(if type(default) == "table" then default else {}, value, childPath, childAllowsUnknown)
                 else
-                    result[key] = clone(value)
+                    local range = CONFIG.NUMERIC_RANGES[childPath]
+                    result[key] = if range and type(value) == "number" then math.clamp(value, range[1], range[2]) else clone(value)
                 end
             end
         end
@@ -188,6 +195,8 @@ return function(eventBus: any, disposer: any): any
         local default = read(CONFIG.DEFAULT_SETTINGS, path)
         if default == nil and not allowsDynamicPath(path) then return false, `Unknown settings path: {path}` end
         if not compatible(value, default) then return false, `Invalid value for {path}` end
+        local range = CONFIG.NUMERIC_RANGES[path]
+        if range then value = math.clamp(value, range[1], range[2]) end
         local old = read(self._settings, path)
         if equal(old, value) then return true end
         local stored = if type(value) == "table"

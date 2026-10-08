@@ -2,6 +2,8 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
+    RENDER_INTERVAL = 1 / 60,
+    SKELETON_INTERVAL = 1 / 30,
     INVENTORY_REFRESH = 0.25,
     RAINBOW_SPEED = 0.15,
     SCALE_DISTANCE_REF = 1500,
@@ -35,7 +37,8 @@ return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
     local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
-    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil }
+    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _renderElapsed = 0 }
+    local skeletonElapsed = 0
 
     local function hideDrawings(record: any)
         for _, object in pairs(record.Drawings) do
@@ -196,7 +199,13 @@ return function(services: any): any
         return parts
     end
 
-    local function render(_dt: number)
+    local function render(dt: number)
+        ESPController._renderElapsed += dt
+        skeletonElapsed += dt
+        if ESPController._renderElapsed < CONFIG.RENDER_INTERVAL then return end
+        ESPController._renderElapsed %= CONFIG.RENDER_INTERVAL
+        local updateSkeleton = skeletonElapsed >= CONFIG.SKELETON_INTERVAL
+        if updateSkeleton then skeletonElapsed %= CONFIG.SKELETON_INTERVAL end
         local config, chamsConfig = state:Peek("ESP"), state:Peek("Chams")
         local espEnabled = pool.Available and config.Enabled
         local chamsEnabled = chamsConfig.Enabled
@@ -256,13 +265,21 @@ return function(services: any): any
                 if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color }) end
             end
             if config.Skeleton then
-                ensureBones(record)
-                for index, pair in ipairs(boneParts(record, assets)) do
-                    local first, second = pair[1], pair[2]
-                    if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
-                        local a, aVisible = project(camera, first.Position)
-                        local b, bVisible = project(camera, second.Position)
-                        if aVisible and bVisible then draw(record, `Bone{index}`, { From = a, To = b, Color = color, Thickness = 1 }) end
+                if updateSkeleton then
+                    ensureBones(record)
+                    for index, pair in ipairs(boneParts(record, assets)) do
+                        local first, second = pair[1], pair[2]
+                        if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
+                            local a, aVisible = project(camera, first.Position)
+                            local b, bVisible = project(camera, second.Position)
+                            if aVisible and bVisible then draw(record, `Bone{index}`, { From = a, To = b, Color = color, Thickness = 1 }) end
+                        end
+                    end
+                else
+                    for index = 1, #CONFIG.R15_BONES do
+                        local name = `Bone{index}`
+                        local bone = record.Drawings[name]
+                        if bone and bone.Visible then record.Shown[name] = true end
                     end
                 end
             end

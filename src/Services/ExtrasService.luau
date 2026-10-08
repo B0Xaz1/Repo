@@ -10,7 +10,7 @@ local CONFIG = table.freeze({
     FLING_FALL_SPEED_CAP = 350,
     FLING_UPWARD_CAP = 250,
     FLING_ANGULAR_CAP = 120,
-    SPIN_SPEED_LIMIT = 1440,
+    SPIN_SPEED_LIMIT = 3000,
 })
 
 return function(services: any): any
@@ -156,7 +156,7 @@ return function(services: any): any
             local owner = ExtrasService._spinScope
             owner:SetProperty(assets.Humanoid, "AutoRotate", false)
             owner:SetProperty(root, "AssemblyAngularVelocity", Vector3.zero, true)
-            owner:SetProperty(root, "CFrame", root.CFrame * CFrame.Angles(0, math.rad(math.clamp(config.Speed, -CONFIG.SPIN_SPEED_LIMIT, CONFIG.SPIN_SPEED_LIMIT)) * dt, 0), true)
+            owner:SetProperty(root, "CFrame", root.CFrame * CFrame.Angles(0, math.rad(math.clamp(config.Speed, 0, CONFIG.SPIN_SPEED_LIMIT)) * dt, 0), true)
         end)
         local function syncHitboxSpin()
             hitboxJob.Enabled = state:Peek("Extras.Hitbox.Enabled") == true or state:Peek("Extras.SpinBot.Enabled") == true

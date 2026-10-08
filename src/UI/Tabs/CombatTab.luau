@@ -38,7 +38,7 @@ return function(services: any, tab: any): any
     slider(trigger, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
     slider(trigger, "Vertical Prediction", "Aimbot.Prediction.Vertical", 0, 1, 0.01, " s", nil)
     toggle(trigger, "Enable Triggerbot", "Aimbot.Triggerbot.Enabled", nil)
-    keybind(trigger, "Activation Bind", "Aimbot.Triggerbot.Keybind", nil)
+    keybind(trigger, "Toggle Bind", "Aimbot.Triggerbot.Keybind", nil)
     slider(trigger, "Trigger delay", "Aimbot.Triggerbot.Delay", 0, 2, 0.01, " s", nil)
     slider(trigger, "Trigger distance", "Aimbot.Triggerbot.MaxDistance", 50, 10000, 50, " studs", nil)
     for _, entry in ipairs({ { "Triggerbot Team Check", "TeamCheck" }, { "Trigger friend check", "FriendCheck" }, { "Trigger whitelist check", "WhitelistCheck" }, { "Trigger force-field check", "ForceFieldCheck" }, { "Trigger visibility check", "VisCheck" } }) do

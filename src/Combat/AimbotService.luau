@@ -3,6 +3,7 @@ local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
+    UPDATE_INTERVAL = 1 / 120,
     FOV_MAX = 1500,
     WIND_FRAME_RATE = 60,
     SHAKE_MAX = 3,
@@ -26,7 +27,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("AimbotService")
     local cameraChanges = scope:CreateChild("Aim camera")
     local AimbotService = { _target = nil, _held = false, _toggled = false, _blocked = false, _wind = Vector2.zero,
-        _remainder = Vector2.zero, _lastCursor = nil, _time = 0, _camera = nil, _initialized = false, _warnedMouse = false }
+        _remainder = Vector2.zero, _lastCursor = nil, _time = 0, _updateElapsed = 0, _camera = nil, _initialized = false, _warnedMouse = false }
 
     local function drop(block: boolean?)
         AimbotService._target = nil
@@ -96,6 +97,9 @@ return function(services: any): any
     end
 
     local function update(dt: number)
+        AimbotService._updateElapsed += dt
+        if AimbotService._updateElapsed < CONFIG.UPDATE_INTERVAL then return end
+        dt, AimbotService._updateElapsed = AimbotService._updateElapsed, 0
         if not state:Peek("Aimbot.Enabled") then
             if AimbotService._target or AimbotService._camera then
                 drop(); cameraChanges:ReleaseProperties(); AimbotService._camera = nil

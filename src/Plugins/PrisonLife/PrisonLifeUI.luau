@@ -109,8 +109,11 @@ return function(services: any, Prison: any?): any
         end)
         textbox:CreateButton(doorsSec, "Restore door originals", function()
             StateStore:Set("Game.DoorPhase", false)
-            if Prison.WorldPhase then Prison.WorldPhase:RestoreAll() end
-            return true, "Door properties restored"
+            local noClipActive = StateStore:Peek("Movement.NoClip") == true
+            if Prison.WorldPhase then
+                if noClipActive then Prison.WorldPhase:ApplyAll() else Prison.WorldPhase:RestoreAll() end
+            end
+            return true, if noClipActive then "Door phase disabled; NoClip remains active" else "Door properties restored"
         end)
 
         local macroSec = section:Create(tab.RightCol, "Weapon Macro")

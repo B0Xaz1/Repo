@@ -36,6 +36,9 @@ return function(services: any): any
     local noClipChanges = scope:CreateChild("No clip")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
     local touchTeleportScope = scope:CreateChild("Touch teleport")
+    local noClipCharacterScope = nil :: any
+    local noClipCharacter = nil :: Model?
+    local noClipParts = {}
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
         _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0, _initialized = false }
 
@@ -157,13 +160,56 @@ return function(services: any): any
 
     function LocomotionService:StopFling() stopFling() end
 
+    local function bindNoClipCharacter(character: Model?)
+        if noClipCharacter == character then return end
+        if noClipCharacterScope then noClipCharacterScope:Dispose(); noClipCharacterScope = nil end
+        noClipChanges:RestoreProperties()
+        table.clear(noClipParts)
+        noClipCharacter = character
+        if not character then return end
+
+        noClipCharacterScope = scope:CreateChild("No clip character")
+        local function track(descendant: Instance)
+            if not descendant:IsA("BasePart") then return end
+            noClipParts[descendant] = true
+            if state:Peek("Movement.NoClip") == true then
+                noClipChanges:SetProperty(descendant, "CanCollide", false, true)
+            end
+        end
+        local function untrack(descendant: Instance)
+            if not noClipParts[descendant] then return end
+            noClipParts[descendant] = nil
+            noClipChanges:RestoreProperty(descendant, "CanCollide")
+        end
+        for _, descendant in ipairs(character:GetDescendants()) do track(descendant) end
+        noClipCharacterScope:ConnectImmediate(character.DescendantAdded, track)
+        noClipCharacterScope:ConnectImmediate(character.DescendantRemoving, untrack)
+    end
+
+    local function updateNoClip()
+        if state:Peek("Movement.NoClip") ~= true then
+            noClipChanges:RestoreProperties()
+            return
+        end
+        local assets = tracker:GetLocalAssets()
+        if not assets then
+            bindNoClipCharacter(nil)
+            return
+        end
+        if noClipCharacter ~= assets.Character then bindNoClipCharacter(assets.Character) end
+        for part in pairs(noClipParts) do
+            if part.Parent then noClipChanges:SetProperty(part, "CanCollide", false, true)
+            else noClipParts[part] = nil end
+        end
+    end
+
     local function update(dt: number)
         local config = state:Peek("Movement")
         local fov = state:Peek("Camera.FOV")
-        if not LocomotionService._flingTarget and not config.CFrameSpeed and not config.NoClip and config.Speed <= 0 and config.JumpPower <= 0
+        if not LocomotionService._flingTarget and not config.CFrameSpeed and config.Speed <= 0 and config.JumpPower <= 0
             and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
             if LocomotionService._applied then
-                characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties()
+                characterChanges:RestoreProperties(); positionChanges:ReleaseProperties()
                 worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
                 LocomotionService._applied = false
             end
@@ -172,18 +218,11 @@ return function(services: any): any
         LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
-            characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
+            characterChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
-        elseif not assets then characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
+        elseif not assets then characterChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
         if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
-            if config.NoClip then
-                for _, descendant in ipairs(humanoid.Parent:GetDescendants()) do
-                    if descendant:IsA("BasePart") then noClipChanges:SetProperty(descendant, "CanCollide", false, true) end
-                end
-            else
-                noClipChanges:RestoreProperties()
-            end
             local sprint = config.SprintEnabled and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and UIS:IsKeyDown(Enum.KeyCode.LeftShift)
             local speed = if sprint then config.SprintSpeed else config.Speed
             if speed > 0 then characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, CONFIG.SPEED_MIN, CONFIG.SPEED_MAX)) else characterChanges:RestoreProperty(humanoid, "WalkSpeed") end
@@ -248,6 +287,14 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         scope:Spawn(touchFlingLoop)
+        local noClipJob = scheduler:RegisterPreSim("Movement.NoClip", 5, updateNoClip)
+        scope:Add(noClipJob)
+        local function syncNoClip(value: boolean)
+            noClipJob.Enabled = value == true
+            if not value then noClipChanges:RestoreProperties() end
+        end
+        scope:Add(state:Observe("Movement.NoClip", syncNoClip))
+        syncNoClip(state:Peek("Movement.NoClip") == true)
         scope:Add(scheduler:RegisterHeartbeat("Movement.Overrides", 10, update))
         scope:Connect(UIS.JumpRequest, function()
             if not state:Get("Movement.InfJump") or UIS:GetFocusedTextBox() then return end
@@ -269,11 +316,16 @@ return function(services: any): any
         end)
         scope:Add(tracker:OnLocalCharacterRespawn(function(assets: any)
             stopFling()
+            bindNoClipCharacter(assets.Character)
             self._touchTeleportTarget = assets.RootPart.CFrame
             bindTouchTeleport(assets.Character)
         end))
         local assets = tracker:GetLocalAssets()
-        if assets then self._touchTeleportTarget = assets.RootPart.CFrame; bindTouchTeleport(assets.Character) end
+        if assets then
+            bindNoClipCharacter(assets.Character)
+            self._touchTeleportTarget = assets.RootPart.CFrame
+            bindTouchTeleport(assets.Character)
+        end
         scope:Add(state:Observe("Movement.Fling", function(value: boolean) if not value then stopFling() end end))
     end
 

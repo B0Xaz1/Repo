@@ -12,13 +12,26 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 6) })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
         theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Border")), "Color", "Border")
-        dom:CreatePadding(frame, 8, 10, 8, 10)
-        dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
-        local header = dom:Create("TextLabel", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 14), LayoutOrder = 0,
-            Text = title, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Accent") })
-        theme:BindToken(header, "TextColor3", "Accent")
+        dom:CreatePadding(frame, 10, 12, 10, 12)
+        dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        local header = dom:Create("TextButton", { Parent = frame, Name = "SectionHeader", BackgroundTransparency = 1, BorderSizePixel = 0,
+            Size = UDim2.new(1, 0, 0, 22), LayoutOrder = 0, Text = "", AutoButtonColor = false })
+        local titleLabel = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Size = UDim2.new(1, -22, 1, 0),
+            Text = title, Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
+            TextColor3 = theme:GetToken("Accent") })
+        theme:BindToken(titleLabel, "TextColor3", "Accent")
+        local indicator = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.new(1, -20, 0, 0),
+            Size = UDim2.fromOffset(20, 22), Text = "v", Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center,
+            TextColor3 = theme:GetToken("TextMuted") })
+        theme:BindToken(indicator, "TextColor3", "TextMuted")
         local content = dom:Create("Frame", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
-        dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+        dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
+        local sectionScope = disposer:CreateChild(`Section {title}`)
+        sectionScope:ConnectImmediate(header.Activated, function()
+            content.Visible = not content.Visible
+            indicator.Text = if content.Visible then "v" else ">"
+        end)
+        sectionScope:Connect(frame.Destroying, function() sectionScope:Dispose() end)
         if resetPath then
             local reset = dom:Create("TextButton", { Parent = content, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20),
                 Text = "Reset section", Font = Enum.Font.Gotham, TextSize = 10, AutoButtonColor = false, LayoutOrder = 999 })

@@ -8,8 +8,8 @@ local CONFIG = table.freeze({
     TOAST_DURATION_DEFAULT = 4,
     TOAST_DURATION_MIN = 1,
     TOAST_DURATION_MAX = 20,
-    WINDOW_WIDTH = 720,
-    WINDOW_HEIGHT = 500,
+    WINDOW_WIDTH = 800,
+    WINDOW_HEIGHT = 560,
     WINDOW_MOBILE_PADDING = 28,
     WINDOW_MOBILE_MIN_WIDTH = 320,
     WINDOW_MOBILE_MAX_WIDTH = 720,
@@ -344,7 +344,8 @@ return function(services: any): any
         if layout.TitleBar then
             local titleHeight = if compact then 30 else 34
             layout.TitleBar.Size = UDim2.new(1, 0, 0, titleHeight)
-            layout.Search.Position = UDim2.new(1, if compact then -138 else -150, 0, if compact then 5 else 7)
+            layout.Search.Position = UDim2.new(1, if compact then -158 else -192, 0, if compact then 5 else 7)
+            layout.Search.Size = UDim2.fromOffset(if compact then 126 else 160, 20)
             layout.Strip.Position = UDim2.fromOffset(8, titleHeight)
             layout.TabIndicatorHost.Position = layout.Strip.Position
             layout.Divider.Position = UDim2.fromOffset(12, titleHeight + 24)
@@ -386,7 +387,7 @@ return function(services: any): any
         local close = dom:Create("TextButton", { Parent = titleBar, Text = "X", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -26, 0, 6), Size = UDim2.fromOffset(18, 20), Font = Enum.Font.GothamMedium, TextSize = 12 })
         theme:BindToken(close, "TextColor3", "TextMuted")
         scope:Connect(close.Activated, function() state:Set("Settings.MenuVisible", false) end)
-        local search = dom:Create("TextBox", { Parent = titleBar, BorderSizePixel = 0, Position = UDim2.new(1, -150, 0, 7), Size = UDim2.fromOffset(118, 20), ClearTextOnFocus = false,
+        local search = dom:Create("TextBox", { Parent = titleBar, BorderSizePixel = 0, Position = UDim2.new(1, -192, 0, 7), Size = UDim2.fromOffset(160, 20), ClearTextOnFocus = false,
             Text = "", PlaceholderText = "search...", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left })
         self._searchBox = search
         self._layout.TitleBar, self._layout.Search = titleBar, search
@@ -436,9 +437,9 @@ return function(services: any): any
             local favoritesBody = dom:Create("Frame", { Parent = favorites, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             dom:Create("UIListLayout", { Parent = favoritesBody, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
             local columns = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, -1, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
-            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
+            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder })
+            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
+            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
             for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 8), SortOrder = Enum.SortOrder.LayoutOrder }) end
             local tab = { Name = entry.Name, Button = button, Page = page, LeftCol = left, RightCol = right,

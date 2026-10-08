@@ -29,7 +29,7 @@ return function(_services: any?): any
         },
 
         Esp = {
-            MaxVisuals = 16, Interval = 0.033, GuiName = "B0XazMvSEsp",
+            MaxVisuals = 16, Interval = 0.05, GuiName = "B0XazMvSEsp",
             Accent = Color3.fromRGB(50, 119, 186),
             Outline = Color3.fromRGB(20, 20, 20),
             Text = Color3.fromRGB(239, 239, 239),

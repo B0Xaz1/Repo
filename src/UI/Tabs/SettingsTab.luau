@@ -27,60 +27,9 @@ return function(services: any, tab: any): any
     if not environment.Capabilities.Files then
         section:Info(profiles, "File persistence is unavailable; use JSON to save profiles.")
     end
-    local comparison = section:Create(tab.LeftCol, "Profile comparison")
-    local function comparisonChoices()
-        local choices = { "Current session" }
-        for _, profile in ipairs(profileNames) do table.insert(choices, `Profile: {profile}`) end
-        return choices
-    end
-    local report, page, stale = nil, 1, false
-    local status, rows
-    local function renderComparison()
-        if not status then return end
-        if not report then status:Set("Choose A and B, then compare. Nothing is loaded or saved."); return end
-        local pages = math.max(1, math.ceil(#report.Changes / 8))
-        page = math.clamp(page, 1, pages)
-        status:Set(`A: {report.LeftChoice}\nB: {report.RightChoice}\n{#report.Changes} differences · Page {page}/{pages}{if stale then "\nSettings or profiles changed; compare again to refresh." else ""}`)
-        local lines = {}
-        for index = (page - 1) * 8 + 1, math.min(page * 8, #report.Changes) do
-            local change = report.Changes[index]
-            table.insert(lines, `{change.Path}\nA: {config:FormatComparisonValue(change.Before)}\nB: {config:FormatComparisonValue(change.After)}`)
-        end
-        rows:Set(if #lines == 0 then "No differences." else table.concat(lines, "\n\n"))
-    end
-    local function markStale()
-        if report and not stale then stale = true; renderComparison() end
-    end
-    local compareA = dropdown(comparison, "Compare A", nil, comparisonChoices(), markStale)
-    local compareB = dropdown(comparison, "Compare B", nil, comparisonChoices(), markStale)
-    compareB:Set("Profile: Default", true)
-    status = section:Info(comparison, "Choose A and B, then compare. Nothing is loaded or saved.")
-    rows = section:Info(comparison, "Differences will appear here.")
-    textbox:CreateButton(comparison, "Compare profiles", function()
-        local function selectedProfile(control)
-            local choice = control:Get()
-            return if choice == "Current session" then nil else tostring(choice):sub(10)
-        end
-        local leftChoice, rightChoice = compareA:Get(), compareB:Get()
-        local result, message = config:CompareProfiles(selectedProfile(compareA), selectedProfile(compareB))
-        if not result then
-            report, stale = nil, false
-            status:Set(`Comparison unavailable: {message or "Select two profiles."}`)
-            rows:Set("No comparison to display.")
-            return false, message or "Select two profiles."
-        end
-        report, page, stale = result, 1, false
-        report.LeftChoice, report.RightChoice = leftChoice, rightChoice
-        renderComparison()
-    end)
-    textbox:CreateButton(comparison, "Previous comparison page", function() page -= 1; renderComparison() end)
-    textbox:CreateButton(comparison, "Next comparison page", function() page += 1; renderComparison() end)
-    section:Info(comparison, "Read-only snapshots. Built-in presets use the same defaults as loading. Legit and Rage keep your current interface and theme preferences. Access restrictions are still enforced when loading.")
     scope:Add(services:Get("EventBus"):Subscribe("ProfilesChanged", function()
         profileNames = config:ListProfiles(); selected:Refresh(profileNames, true)
-        compareA:Refresh(comparisonChoices(), true); compareB:Refresh(comparisonChoices(), true); markStale()
     end))
-    scope:Add(services:Get("EventBus"):Subscribe("StateChanged", markStale))
 
     local launch = section:Create(tab.LeftCol, "Launch behavior", "Settings")
     toggle(launch, "Restore settings on launch", "Settings.RestoreOnLaunch")

@@ -15,7 +15,7 @@ local CONFIG = deepFreeze({
             LockMode = "Hold", Prediction = { Horizontal = 0, Vertical = 0 }, TeamCheck = true,
             FriendCheck = false, WhitelistCheck = true, ForceFieldCheck = true, VisCheck = true,
             MaxDistance = 2000, ShakeIntensity = 0, UnlockOnDeath = true, BreakOnPull = true, MaxLockRadius = 250,
-            Triggerbot = { Enabled = false, Delay = 0.15, TeamCheck = true, FriendCheck = false,
+            Triggerbot = { Enabled = false, Keybind = Enum.KeyCode.Unknown, Delay = 0.15, TeamCheck = true, FriendCheck = false,
                 WhitelistCheck = true, ForceFieldCheck = true, VisCheck = true, MaxDistance = 1000 },
             FOV = { Size = 120, Show = false, Filled = false, Thickness = 1, Sides = 64, Rainbow = false, Pulse = false },
         },

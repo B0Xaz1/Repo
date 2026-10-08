@@ -12,7 +12,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 - Removed dropdown option outlines and selection bars, keeping hover feedback and selected-text highlighting.
 
 - Added favorites that pin controls at the top of their own tab and restore with saved configurations.
-- Added read-only profile comparisons with before-and-after values and paginated results.
+- Removed profile comparisons from Settings.
 - Added Off, Subtle, and Full animation styles with adjustable playback speed.
 - Added hover and tap-to-open help for menu controls, with an option to disable tooltips.
 - Added a compatibility checker with detected capabilities, game-support information, and fallback guidance.

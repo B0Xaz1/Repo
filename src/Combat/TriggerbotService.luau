@@ -12,15 +12,23 @@ return function(services: any): any
     local scheduler = services:Get("TaskScheduler")
     local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("TriggerbotService")
-    local TriggerbotService = { _candidate = nil, _elapsed = 0, _sinceShot = 0, _initialized = false }
+    local TriggerbotService = { _candidate = nil, _elapsed = 0, _sinceShot = 0, _held = false, _initialized = false }
+
+    local function clearCandidate()
+        TriggerbotService._candidate, TriggerbotService._elapsed = nil, 0
+    end
 
     function TriggerbotService:Initialize()
         if self._initialized then return end
         self._initialized = true
         local job = scheduler:RegisterPreSim("Combat.Triggerbot", 20, function(dt: number)
             local config = state:Peek("Aimbot.Triggerbot")
-            if not config.Enabled or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then
-                TriggerbotService._candidate, TriggerbotService._elapsed = nil, 0; return
+            local focused = UIS:GetFocusedTextBox() ~= nil or state:GetTransient("IsBindingKey")
+            local keybind = config.Keybind
+            local hasActivationBind = keybind ~= nil and keybind ~= Enum.KeyCode.Unknown
+            if focused then TriggerbotService._held = false end
+            if not config.Enabled or focused or (hasActivationBind and not TriggerbotService._held) then
+                clearCandidate(); return
             end
             local camera = Workspace.CurrentCamera
             if not camera then return end
@@ -44,7 +52,27 @@ return function(services: any): any
             end
         end)
         job.Enabled = state:Peek("Aimbot.Triggerbot.Enabled") == true
-        scope:Add(state:Observe("Aimbot.Triggerbot.Enabled", function(value: boolean) job.Enabled = value == true end))
+        scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
+            if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
+            if environment:MatchesInput(event, state:Get("Aimbot.Triggerbot.Keybind")) then TriggerbotService._held = true end
+        end)
+        scope:Connect(UIS.InputEnded, function(event: InputObject)
+            if environment:MatchesInput(event, state:Get("Aimbot.Triggerbot.Keybind")) then
+                TriggerbotService._held = false
+                clearCandidate()
+            end
+        end)
+        scope:ConnectImmediate(UIS.WindowFocusReleased, function()
+            TriggerbotService._held = false
+            clearCandidate()
+        end)
+        scope:Add(state:Observe("Aimbot.Triggerbot.Enabled", function(value: boolean)
+            job.Enabled = value == true
+            if not value then
+                TriggerbotService._held = false
+                clearCandidate()
+            end
+        end))
     end
 
     function TriggerbotService:Destroy() scope:Dispose() end

@@ -20,7 +20,7 @@ return function(services: any): any
         return handle
     end
     function Textbox:CreateButton(parent: Instance, text: string, onClick: () -> ...any): any
-        local row, label, owner = section:Control(parent, text, 30)
+        local row, label, owner = section:Control(parent, text, 30, 44)
         label.Visible = false
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 26),
             Font = Enum.Font.GothamMedium, TextSize = 12, Text = text })

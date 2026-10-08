@@ -12,6 +12,7 @@ local CONFIG = table.freeze({
     NAME_HEIGHT = 14,
     HEALTH_HUE_SPAN = 0.33,
     OUTLINE_THICKNESS = 3,
+    OPPONENT_REFRESH_INTERVAL = 0.1,
 })
 
 return function(services: any, Duel: any?): any
@@ -24,7 +25,11 @@ return function(services: any, Duel: any?): any
     local config = manifest.Esp
     local scope = Disposer:CreateChild(`{manifest.Name}.Esp`)
 
-    local Esp = { _gui = nil, _pool = {}, _visible = 0 }
+    local Esp = { _gui = nil, _pool = {}, _visible = 0, _opponents = {}, _opponentsAt = -math.huge }
+
+    local function setIfChanged(object: any, property: string, value: any)
+        if object[property] ~= value then object[property] = value end
+    end
 
     local function createGui(): ScreenGui
         local gui = Instance.new("ScreenGui")
@@ -89,11 +94,11 @@ return function(services: any, Duel: any?): any
     end
 
     local function hideVisual(visual: any)
-        visual.Outline.Visible = false
-        visual.Box.Visible = false
-        visual.HealthBack.Visible = false
-        visual.Health.Visible = false
-        visual.Name.Visible = false
+        setIfChanged(visual.Outline, "Visible", false)
+        setIfChanged(visual.Box, "Visible", false)
+        setIfChanged(visual.HealthBack, "Visible", false)
+        setIfChanged(visual.Health, "Visible", false)
+        setIfChanged(visual.Name, "Visible", false)
     end
 
     local function projectBounds(character: Model, camera: Camera): (number?, number?, number?, number?)
@@ -123,35 +128,43 @@ return function(services: any, Duel: any?): any
 
     local function drawVisual(visual: any, x: number, y: number, width: number, height: number, humanoid: Humanoid, displayName: string)
         local ratio = humanoid.MaxHealth > 0 and math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1) or 0
-        visual.Outline.Position = UDim2.fromOffset(x - 1, y - 1)
-        visual.Outline.Size = UDim2.fromOffset(width + 2, height + 2)
-        visual.Outline.Visible = true
-        visual.Box.Position = UDim2.fromOffset(x, y)
-        visual.Box.Size = UDim2.fromOffset(width, height)
-        visual.Box.Visible = true
-        visual.HealthBack.Position = UDim2.fromOffset(x - CONFIG.HEALTH_BAR_OFFSET, y)
-        visual.HealthBack.Size = UDim2.fromOffset(CONFIG.HEALTH_BAR_WIDTH, height)
-        visual.HealthBack.Visible = true
-        visual.Health.Position = UDim2.fromOffset(x - CONFIG.HEALTH_BAR_OFFSET, y + height * (1 - ratio))
-        visual.Health.Size = UDim2.fromOffset(CONFIG.HEALTH_BAR_WIDTH, math.max(1, height * ratio))
-        visual.Health.BackgroundColor3 = Color3.fromHSV(ratio * CONFIG.HEALTH_HUE_SPAN, 0.85, 0.95)
-        visual.Health.Visible = true
-        visual.Name.Text = string.upper(displayName)
-        visual.Name.Position = UDim2.fromOffset(x, y - CONFIG.NAME_OFFSET_Y)
-        visual.Name.Size = UDim2.fromOffset(width, CONFIG.NAME_HEIGHT)
-        visual.Name.Visible = true
+        setIfChanged(visual.Outline, "Position", UDim2.fromOffset(x - 1, y - 1))
+        setIfChanged(visual.Outline, "Size", UDim2.fromOffset(width + 2, height + 2))
+        setIfChanged(visual.Outline, "Visible", true)
+        setIfChanged(visual.Box, "Position", UDim2.fromOffset(x, y))
+        setIfChanged(visual.Box, "Size", UDim2.fromOffset(width, height))
+        setIfChanged(visual.Box, "Visible", true)
+        setIfChanged(visual.HealthBack, "Position", UDim2.fromOffset(x - CONFIG.HEALTH_BAR_OFFSET, y))
+        setIfChanged(visual.HealthBack, "Size", UDim2.fromOffset(CONFIG.HEALTH_BAR_WIDTH, height))
+        setIfChanged(visual.HealthBack, "Visible", true)
+        setIfChanged(visual.Health, "Position", UDim2.fromOffset(x - CONFIG.HEALTH_BAR_OFFSET, y + height * (1 - ratio)))
+        setIfChanged(visual.Health, "Size", UDim2.fromOffset(CONFIG.HEALTH_BAR_WIDTH, math.max(1, height * ratio)))
+        setIfChanged(visual.Health, "BackgroundColor3", Color3.fromHSV(ratio * CONFIG.HEALTH_HUE_SPAN, 0.85, 0.95))
+        setIfChanged(visual.Health, "Visible", true)
+        local label = string.upper(displayName)
+        setIfChanged(visual.Name, "Text", label)
+        setIfChanged(visual.Name, "Position", UDim2.fromOffset(x, y - CONFIG.NAME_OFFSET_Y))
+        setIfChanged(visual.Name, "Size", UDim2.fromOffset(width, CONFIG.NAME_HEIGHT))
+        setIfChanged(visual.Name, "Visible", true)
     end
 
     local function paint()
         local used = 0
         local camera = Workspace.CurrentCamera
         if StateStore:Get("Game.MvSEsp") == true and LocalPlayer.Team ~= nil and LocalPlayer:GetAttribute(manifest.Match.Attribute) ~= nil and camera then
-            for _, enemy in ipairs(Duel.Targets:GetOpponents()) do
+            local now = os.clock()
+            if now - Esp._opponentsAt >= CONFIG.OPPONENT_REFRESH_INTERVAL then
+                Esp._opponents = Duel.Targets:GetOpponents()
+                Esp._opponentsAt = now
+            end
+            for _, enemy in ipairs(Esp._opponents) do
                 if used >= #Esp._pool then break end
-                local x, y, width, height = projectBounds(enemy.Character, camera)
-                if x then
-                    used += 1
-                    drawVisual(Esp._pool[used], x, y, width, height, enemy.Humanoid, enemy.Player.DisplayName or enemy.Player.Name)
+                if enemy.Humanoid.Health > 0 and enemy.Humanoid.Parent == enemy.Character and enemy.Character:IsDescendantOf(Workspace) then
+                    local x, y, width, height = projectBounds(enemy.Character, camera)
+                    if x then
+                        used += 1
+                        drawVisual(Esp._pool[used], x, y, width, height, enemy.Humanoid, enemy.Player.DisplayName or enemy.Player.Name)
+                    end
                 end
             end
         end
@@ -185,7 +198,11 @@ return function(services: any, Duel: any?): any
         return { Enabled = StateStore:Get("Game.MvSEsp") == true, Visible = self._visible, Pool = #self._pool }
     end
 
-    function Esp:Destroy() scope:Dispose() end
+    function Esp:Destroy()
+        scope:Dispose()
+        self._opponents = {}
+        self._visible = 0
+    end
 
     return Esp
 end

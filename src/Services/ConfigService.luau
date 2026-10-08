@@ -399,48 +399,6 @@ return function(services: any): any
         return true, `Loaded {clean}`
     end
 
-    function ConfigService:CompareProfiles(left: string?, right: string?): (any?, string?)
-        local function resolve(name: string?): (any?, string?)
-            if name == nil then return state:GetSettingsSnapshot(), "Current session" end
-            local snapshot, label = getProfileSnapshot(name)
-            if not snapshot then return nil, label end
-            return state:NormalizeSettingsSnapshot(snapshot), label
-        end
-        local a, leftName = resolve(left)
-        if not a then return nil, leftName end
-        local b, rightName = resolve(right)
-        if not b then return nil, rightName end
-        local changes = {}
-        local function compare(before: any, after: any, path: string)
-            if type(before) == "table" and type(after) == "table" then
-                local keys = {}
-                for key in pairs(before) do keys[key] = true end
-                for key in pairs(after) do keys[key] = true end
-                for key in pairs(keys) do compare(before[key], after[key], if path == "" then tostring(key) else `{path}.{key}`) end
-            elseif before ~= after then
-                table.insert(changes, { Path = path, Before = before, After = after })
-            end
-        end
-        compare(a, b, "")
-        table.sort(changes, function(x: any, y: any) return x.Path < y.Path end)
-        return { Left = leftName, Right = rightName, Changes = changes }, nil
-    end
-
-    function ConfigService:FormatComparisonValue(value: any): string
-        local kind = typeof(value)
-        if value == nil then return "Not set" end
-        if kind == "boolean" then return if value then "On" else "Off" end
-        if kind == "Color3" then return string.format("#%02X%02X%02X", math.round(value.R * 255), math.round(value.G * 255), math.round(value.B * 255)) end
-        if kind == "EnumItem" then return value.Name end
-        if type(value) == "table" then
-            local count = 0
-            for _ in pairs(value) do count += 1 end
-            return if count == 0 then "Empty" else `{count} entries`
-        end
-        local text = tostring(value):gsub("[%c]", " ")
-        return if #text > 100 then text:sub(1, 97) .. "..." else text
-    end
-
     function ConfigService:TurnEverythingOff(): (boolean, string)
         local snapshot = state:GetDefaultSettings()
         local function disableToggles(settings: any)

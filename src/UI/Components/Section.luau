@@ -33,14 +33,14 @@ return function(services: any): any
         end
         return content
     end
-    function Section:Control(parent: Instance, label: string, height: number?): (Frame, TextLabel, any)
+    function Section:Control(parent: Instance, label: string, height: number?, trailingSpace: number?): (Frame, TextLabel, any)
         orders[parent] = (orders[parent] or 0) + 1
         local original = parent
         local slot, pin
         local decorated = height ~= 0
         if decorated then
             slot = dom:Create("Frame", { Parent = parent, Name = "ControlSlot", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent] })
-            parent = dom:Create("Frame", { Parent = slot, BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
+            parent = dom:Create("Frame", { Parent = slot, BackgroundTransparency = 1, Size = UDim2.new(1, -(trailingSpace or 24), 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
         end
         local row = dom:Create("Frame", { Parent = parent, Name = "Control", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, height or 22), LayoutOrder = orders[original] })
         local text = dom:Create("TextLabel", { Parent = row, BackgroundTransparency = 1, Size = UDim2.new(0.56, -8, 1, 0),

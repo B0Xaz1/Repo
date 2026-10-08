@@ -20,7 +20,8 @@ local CONFIG = table.freeze({
     },
     BIND_DEFINITIONS = {
         { Label = "Menu", Path = "Settings.MenuKeybind" }, { Label = "Unload", Path = "Settings.UnloadKeybind" },
-        { Label = "Aimbot", Path = "Aimbot.Keybind" }, { Label = "Macro", Path = "Game.FakeMacroKey" },
+        { Label = "Aimbot", Path = "Aimbot.Keybind" }, { Label = "Triggerbot", Path = "Aimbot.Triggerbot.Keybind" },
+        { Label = "Macro", Path = "Game.FakeMacroKey" },
     },
 })
 

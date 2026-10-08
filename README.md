@@ -18,7 +18,7 @@ Compatibility depends on the experience and execution environment. Use the offic
 
 ## Menu and profiles
 
-The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. You can compare profiles, use the built-in Default, Legit, and Rage presets, or assign a profile to a specific experience.
+The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. You can use the built-in Default, Legit, and Rage presets, or assign a profile to a specific experience.
 
 The Default profile restores default settings and cannot be overwritten. **Turn everything off** resets values and disables toggles without deleting saved profiles. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
 

@@ -1,5 +1,4 @@
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
     VERSION = "2.4.9",
@@ -29,13 +28,24 @@ end
 local consoleFns = {}
 for index, name in ipairs(CONFIG.CONSOLE_CLEAR_NAMES) do consoleFns[index] = runtime[name] end
 
+local function disposeMaster(master: any)
+    if not master then return end
+    local disposed, disposeError = pcall(function() master:Dispose() end)
+    local reported, errors = pcall(function() return master:GetCleanupErrors() end)
+    globals.B0XazLastCleanupErrors = if reported then errors else {
+        { Scope = "Master", Operation = "Read cleanup errors", Error = tostring(errors) },
+    }
+    if not disposed then warn(`[B0Xaz] Cleanup failed: {tostring(disposeError)}`) end
+    if reported and #errors > 0 then warn(`[B0Xaz] Cleanup reported {#errors} issue(s); see B0XazLastCleanupErrors`) end
+end
+
 function globals.B0XazUnload()
     local master, container = globals.B0XazMasterDisposer, globals.B0XazServiceContainer
     globals.B0XazRunning, globals.B0XazLaunching = false, nil
     globals.B0XazActiveToken, globals.B0XazLoaderBusy = nil, nil
     globals.B0XazMasterDisposer, globals.B0XazServiceContainer = nil, nil
     local environment = if container and container:Has("Environment") then container:Get("Environment") else nil
-    if master then pcall(function() master:Dispose() end) end
+    disposeMaster(master)
     if environment then
         environment:ClearConsole()
     else
@@ -97,7 +107,7 @@ local sessionId: number = globals.B0XazSessionId
 local sessionToken: string = `{now}_{sessionId}`
 local previous = globals.B0XazMasterDisposer
 globals.B0XazRunning, globals.B0XazMasterDisposer, globals.B0XazServiceContainer = false, nil, nil
-if previous then pcall(function() previous:Dispose() end) end
+if previous then disposeMaster(previous) end
 globals.B0XazActiveToken = sessionId
 
 local function assertAlive()
@@ -201,7 +211,7 @@ local function failBoot()
     local master = globals.B0XazMasterDisposer
     globals.B0XazRunning, globals.B0XazLaunching, globals.B0XazActiveToken = false, nil, nil
     globals.B0XazMasterDisposer, globals.B0XazServiceContainer = nil, nil
-    if master then master:Dispose() end
+    disposeMaster(master)
 end
 
 local booted, bootError = pcall(function()
@@ -212,67 +222,16 @@ local booted, bootError = pcall(function()
             task.wait(CONFIG.READINESS_POLL)
         end
     end)
-    local Disposer = step(function() return requireModule("src/Core/Disposer.luau")() end)
-    local master = Disposer.new(`Master {sessionId}`)
-    globals.B0XazMasterDisposer = master
-    local environment = step(function() return requireModule("src/Core/Environment.luau", master) end)
-    local bus = step(function() return requireModule("src/Core/EventBus.luau", master) end)
-    local state = step(function() return requireModule("src/Core/StateStore.luau", bus, master) end)
-    local scheduler = step(function() return requireModule("src/Core/TaskScheduler.luau", master) end)
-    local services = step(function() return requireModule("src/Core/ServiceContainer.luau", master) end)
-    services.Version = CONFIG.VERSION
-    services.ContainerId = "root"
-    services:Register("Disposer", master)
-    services:Register("Environment", environment)
-    services:Register("EventBus", bus)
-    services:Register("StateStore", state)
-    services:Register("TaskScheduler", scheduler)
-    services:Register("Require", requireModule)
-    services:Register("Motion", step(function() return requireModule("src/UI/Motion.luau", services) end))
-    services:Register("DOM", step(function() return requireModule("src/UI/DOM.luau", services) end))
-    globals.B0XazServiceContainer = services
-    local lastInputCheck = 0
-    local inputCheckInterval = 0.05
-    master:Connect(UIS.InputBegan, function(input: InputObject, _processed: boolean)
-        local now = os.clock()
-        if now - lastInputCheck < inputCheckInterval then return end
-        lastInputCheck = now
-        if state:GetTransient("IsBindingKey") or UIS:GetFocusedTextBox() then return end
-        if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end
+    local Bootstrap = step(function() return requireModule("src/Core/Bootstrap.luau") end)
+    step(function()
+        Bootstrap({
+            Globals = globals,
+            SessionId = sessionId,
+            Version = CONFIG.VERSION,
+            Require = requireModule,
+            Step = step,
+        })
     end)
-    local registration = {
-        { "ConfigService", "src/Services/ConfigService.luau" }, { "PlayerTracker", "src/Services/PlayerTracker.luau" },
-        { "OptimizerService", "src/Services/OptimizerService.luau" },
-        { "LightingService", "src/Services/LightingService.luau" }, { "HotkeyService", "src/Services/HotkeyService.luau" },
-        { "CommandService", "src/Services/CommandService.luau" },
-        { "DrawingPool", "src/Visuals/DrawingPool.luau" }, { "TargetFilter", "src/Combat/TargetFilter.luau" },
-        { "ESPController", "src/Visuals/ESPController.luau" }, { "OverlayController", "src/Visuals/OverlayController.luau" },
-        { "LocomotionService", "src/Locomotion/LocomotionService.luau" }, { "FlightService", "src/Locomotion/FlightService.luau" },
-        { "FreecamService", "src/Locomotion/FreecamService.luau" }, { "WallWalkService", "src/Locomotion/WallWalkService.luau" },
-        { "ExtrasService", "src/Services/ExtrasService.luau" }, { "AimbotService", "src/Combat/AimbotService.luau" },
-        { "TriggerbotService", "src/Combat/TriggerbotService.luau" }, { "PluginManager", "src/Plugins/PluginManager.luau" },
-        { "ThemeEngine", "src/UI/ThemeEngine.luau" }, { "Tooltips", "src/UI/Tooltips.luau" },
-        { "CompatibilityService", "src/Services/CompatibilityService.luau" }, { "UIEngine", "src/UI/UIEngine.luau" },
-    }
-    for _, entry in ipairs(registration) do
-        step(function() services:Register(entry[1], requireModule(entry[2], services)) end)
-    end
-    local launched = false
-    local function launch()
-        if globals.B0XazActiveToken ~= sessionId or launched then return end
-        launched = true
-        local ran, launchError = pcall(function()
-            step(function() services:InitializeAll() end)
-            step(function() services:Get("UIEngine"):ConstructInterface() end)
-            step(function() return services:Get("ConfigService"):ApplyLaunchState() end)
-            globals.B0XazLaunching, globals.B0XazRunning = nil, true
-        end)
-        if not ran then
-            warn(`[B0Xaz] Launch failed: {tostring(launchError)}`)
-            failBoot()
-        end
-    end
-    launch()
 end)
 if not booted then
     warn(`[B0Xaz] Boot failed: {tostring(bootError)}`)

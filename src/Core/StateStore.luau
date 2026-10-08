@@ -124,18 +124,37 @@ local function compatible(value: any, default: any): boolean
     return type(value) ~= "number" or (value == value and math.abs(value) < math.huge)
 end
 
-local function merge(defaults: any, incoming: any): any
+local function merge(defaults: any, incoming: any, path: string, allowUnknown: boolean): any
     local result = clone(defaults)
     if type(incoming) ~= "table" then return result end
     for key, value in pairs(incoming) do
         if type(key) == "string" or type(key) == "number" then
             local default = defaults[key]
-            if compatible(value, default) then
-                result[key] = if type(value) == "table" and type(default) == "table" then merge(default, value) else clone(value)
+            local childPath = if path == "" then tostring(key) else `{path}.{tostring(key)}`
+            local childAllowsUnknown = allowUnknown or (path == "Game" and default == nil)
+                or (type(default) == "table" and next(default) == nil)
+            if (default ~= nil or childAllowsUnknown) and compatible(value, default) then
+                if type(value) == "table" then
+                    result[key] = merge(if type(default) == "table" then default else {}, value, childPath, childAllowsUnknown)
+                else
+                    result[key] = clone(value)
+                end
             end
         end
     end
     return result
+end
+
+local function allowsDynamicPath(path: string): boolean
+    local node, parentPath = CONFIG.DEFAULT_SETTINGS, ""
+    for segment in path:gmatch("[^.]+") do
+        if type(node) ~= "table" then return false end
+        local child = node[segment]
+        if child == nil then return parentPath == "Game" or next(node) == nil end
+        if type(child) == "table" and next(child) == nil then return true end
+        node, parentPath = child, if parentPath == "" then segment else `{parentPath}.{segment}`
+    end
+    return false
 end
 
 return function(eventBus: any, disposer: any): any
@@ -160,16 +179,20 @@ return function(eventBus: any, disposer: any): any
 
     function StateStore:Get(path: string): any return clone(read(self._settings, path)) end
 
+    -- Fast, read-only access; use Get when a mutable snapshot is needed.
     function StateStore:Peek(path: string): any return read(self._settings, path) end
 
     function StateStore:Set(path: string, value: any): (boolean, string?)
         -- Rejects traversal and empty segments so every path stays inside the settings tree
         assert(type(path) == "string" and path ~= "" and not path:find("%.%.") and not path:match("^%.") and not path:match("%.$"))
         local default = read(CONFIG.DEFAULT_SETTINGS, path)
+        if default == nil and not allowsDynamicPath(path) then return false, `Unknown settings path: {path}` end
         if not compatible(value, default) then return false, `Invalid value for {path}` end
         local old = read(self._settings, path)
         if equal(old, value) then return true end
-        local stored = clone(value)
+        local stored = if type(value) == "table"
+            then merge(if type(default) == "table" then default else {}, value, path, path == "Game" or allowsDynamicPath(path))
+            else clone(value)
         write(self._settings, path, stored)
         publishChanges(path, stored, old)
         local alias = CONFIG.ALIASES[path]
@@ -248,7 +271,7 @@ return function(eventBus: any, disposer: any): any
 
     function StateStore:NormalizeSettingsSnapshot(snapshot: any)
         assert(type(snapshot) == "table")
-        local normalized = merge(CONFIG.DEFAULT_SETTINGS, snapshot)
+        local normalized = merge(CONFIG.DEFAULT_SETTINGS, snapshot, "", false)
         normalized.Settings.Binds.Lighting = nil -- Retired binding must not return from older profiles.
         local incomingSettings = if type(snapshot.Settings) == "table" then snapshot.Settings else {}
         local incomingBinds = if type(incomingSettings.Binds) == "table" then incomingSettings.Binds else {}

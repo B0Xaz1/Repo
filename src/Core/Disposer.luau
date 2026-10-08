@@ -9,6 +9,7 @@ export type Scope = {
     ReleaseProperty: (Scope, any, string) -> (),
     ReleaseObject: (Scope, any) -> (),
     ReleaseProperties: (Scope) -> (),
+    GetCleanupErrors: (Scope) -> { any },
     Dispose: (Scope) -> (),
 }
 
@@ -17,8 +18,8 @@ return function(): any
     local methods = {}
     methods.__index = methods
 
-    local function cleanup(item: any, customMethod: string?)
-        pcall(function()
+    local function cleanup(item: any, customMethod: string?): (boolean, string?)
+        local ok, err = pcall(function()
             local kind = typeof(item)
             if customMethod then
                 if customMethod == "Remove" then pcall(function() item.Visible = false end) end
@@ -39,6 +40,19 @@ return function(): any
                 end
             end
         end)
+        return ok, if ok then nil else tostring(err)
+    end
+
+    local function cleanupTracked(scope: any, operation: string, item: any, customMethod: string?)
+        local ok, err = cleanup(item, customMethod)
+        if not ok then
+            table.insert(scope._root._cleanupErrors, {
+                Scope = scope.Name,
+                Operation = operation,
+                Item = tostring(item),
+                Error = err,
+            })
+        end
     end
 
     function Disposer.new(name: string?, parent: any?): any
@@ -47,7 +61,7 @@ return function(): any
             _keys = {}, _itemSlots = {}, _leases = {}, _parent = parent,
         }, methods)
         scope._root = if parent then parent._root else scope
-        if not parent then scope._journal = {} end
+        if not parent then scope._journal, scope._cleanupErrors = {}, {} end
         return scope
     end
 
@@ -55,7 +69,7 @@ return function(): any
 
     function methods:Add(item: any, customMethod: string?): any
         if item == nil then return nil end
-        if self._disposed then cleanup(item, customMethod); return item end
+        if self._disposed then cleanupTracked(self, "Add after disposal", item, customMethod); return item end
         self._nextId += 1
         self._items[self._nextId] = { Item = item, Method = customMethod }
         if not self._itemSlots[item] then self._itemSlots[item] = {} end
@@ -107,14 +121,15 @@ return function(): any
 
     function methods:Bind(key: string, item: any, customMethod: string?): any
         self:Unbind(key)
-        if self._disposed then cleanup(item, customMethod) else self._keys[key] = { Item = item, Method = customMethod } end
+        if self._disposed then cleanupTracked(self, "Bind after disposal", item, customMethod)
+        else self._keys[key] = { Item = item, Method = customMethod } end
         return item
     end
 
     function methods:Unbind(key: string)
         local entry = self._keys[key]
         self._keys[key] = nil
-        if entry then cleanup(entry.Item, entry.Method) end
+        if entry then cleanupTracked(self, `Unbind '{key}'`, entry.Item, entry.Method) end
     end
 
     function methods:CreateChild(name: string): any
@@ -185,7 +200,15 @@ return function(): any
             if candidate == lease then table.remove(entry.Owners, index); break end
         end
         local top = entry.Owners[#entry.Owners]
-        pcall(function() object[property] = if top then top.Value else entry.Original end)
+        local restored, restoreError = pcall(function() object[property] = if top then top.Value else entry.Original end)
+        if not restored then
+            table.insert(self._root._cleanupErrors, {
+                Scope = self.Name,
+                Operation = `Restore property '{property}'`,
+                Item = tostring(object),
+                Error = tostring(restoreError),
+            })
+        end
         if not top then
             properties[property] = nil
             if next(properties) == nil then self._root._journal[object] = nil end
@@ -249,16 +272,22 @@ return function(): any
         for object in pairs(table.clone(self._leases)) do self:ReleaseObject(object) end
     end
 
+    function methods:GetCleanupErrors(): { any }
+        local errors = {}
+        for index, entry in ipairs(self._root._cleanupErrors) do errors[index] = table.clone(entry) end
+        return errors
+    end
+
     function methods:Dispose()
         if self._disposed then return end
         self._disposed = true
         local keys = self._keys
         self._keys = {}
-        for _, entry in pairs(keys) do cleanup(entry.Item, entry.Method) end
+        for key, entry in pairs(keys) do cleanupTracked(self, `Dispose binding '{key}'`, entry.Item, entry.Method) end
         for id = self._nextId, 1, -1 do
             local entry = self._items[id]
             self._items[id] = nil
-            if entry then cleanup(entry.Item, entry.Method) end
+            if entry then cleanupTracked(self, "Dispose item", entry.Item, entry.Method) end
         end
         table.clear(self._itemSlots)
         self:RestoreProperties()

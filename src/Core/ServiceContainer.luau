@@ -11,8 +11,10 @@ return function(disposer: any?): any
 
     function ServiceContainer:Register(name: string, instance: any): any
         assert(not self._destroyed)
+        assert(type(name) == "string" and name ~= "", "Service name must be a non-empty string")
         assert(instance ~= nil, `Cannot register nil service '{name}'`)
-        if self._instances[name] == nil then table.insert(self._order, name) end
+        assert(self._instances[name] == nil, `Service '{name}' is already registered`)
+        table.insert(self._order, name)
         self._instances[name] = instance
         return instance
     end
@@ -39,15 +41,19 @@ return function(disposer: any?): any
     function ServiceContainer:DestroyAll()
         if self._destroyed then return end
         self._destroyed = true
+        local failures = {}
         for index = #self._order, 1, -1 do
-            local instance = self._instances[self._order[index]]
+            local name = self._order[index]
+            local instance = self._instances[name]
             if type(instance) == "table" and type(instance.Destroy) == "function" then
-                pcall(function() instance:Destroy() end)
+                local ok, err = pcall(function() instance:Destroy() end)
+                if not ok then table.insert(failures, `Service '{name}' failed to destroy: {tostring(err)}`) end
             end
         end
         table.clear(self._instances)
         table.clear(self._order)
         table.clear(self._initialized)
+        if #failures > 0 then error(table.concat(failures, "\n"), 0) end
     end
 
     if disposer then disposer:Add(function() ServiceContainer:DestroyAll() end) end

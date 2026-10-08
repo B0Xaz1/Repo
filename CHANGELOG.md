@@ -4,6 +4,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Switched to the MIT License, which permits use, modification, and redistribution subject to retaining the copyright and permission notice.
+- Documented the use of AI tools during development.
 - Limited tooltips to advanced settings and consequential actions; straightforward controls no longer show help buttons or generic hover explanations.
 
 - Removed the lighting-mode hotkey; lighting remains adjustable in the Visuals tab.

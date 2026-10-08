@@ -58,7 +58,6 @@ return function(services: any): any
         if scope:IsDisposed() then return end
         scope:Unbind("Favorites refresh")
         self._favoritesPending = false
-        if services:Has("Tooltips") then services:Get("Tooltips"):Hide() end
         local query = self._query
         restoreSearch()
         local favorites = state:Peek("Settings.Favorites") or {}
@@ -144,7 +143,6 @@ return function(services: any): any
         local normalized = tostring(query):lower():gsub("^%s+", ""):gsub("%s+$", "")
         if normalized == self._query and (self._searchActive or normalized == "") then return end
         self._query = normalized
-        if services:Has("Tooltips") then services:Get("Tooltips"):Hide() end
         self:CloseAllDropdownsExcept(nil)
         local ok, message = pcall(function()
             restoreSearch()
@@ -197,7 +195,6 @@ return function(services: any): any
     end
 
     function UIEngine:ClearSearch()
-        if services:Has("Tooltips") then services:Get("Tooltips"):Hide() end
         scope:Unbind("Search debounce")
         restoreSearch(); self._query = ""
         if self._searchBox then self._searchBox.Text = "" end
@@ -438,9 +435,6 @@ return function(services: any): any
             theme:BindToken(heading, "TextColor3", "Accent")
             local favoritesBody = dom:Create("Frame", { Parent = favorites, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             dom:Create("UIListLayout", { Parent = favoritesBody, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
-            if services:Has("Tooltips") then
-                scope:ConnectImmediate(page:GetPropertyChangedSignal("CanvasPosition"), function() services:Get("Tooltips"):Hide() end)
-            end
             local columns = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, -1, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
             local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
             local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -4, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })

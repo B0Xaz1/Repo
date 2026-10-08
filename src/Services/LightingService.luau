@@ -143,12 +143,12 @@ return function(services: any): any
         table.clear(LightingService._modeApplied)
         if LightingService._effectsScope then LightingService._effectsScope:Dispose(); LightingService._effectsScope = nil end
         table.clear(LightingService._effects)
-        clearVignette()
     end
 
     local function reconcile()
         if scope:IsDisposed() then return end
         local config = state:Get("Lighting")
+        if config.Vignette then ensureVignette() else clearVignette() end
         local fullbright = state:Get("Visuals.Fullbright")
         if fullbright then
             restoreMode()
@@ -170,7 +170,6 @@ return function(services: any): any
         applyProfile(profile, modeChanges, LightingService._modeApplied)
         ensureEffects()
         for _, effect in ipairs(LightingService._effects) do effect.Enabled = not state:Get("Performance.NoPostProcessing") end
-        if config.Vignette then ensureVignette() else clearVignette() end
         if not config.RemasterMaterials then materials:RestoreProperties(); table.clear(LightingService._materialCache) end
     end
 
@@ -205,6 +204,7 @@ return function(services: any): any
 
     function LightingService:Restore()
         restoreMode(); fullbrightChanges:RestoreProperties()
+        clearVignette()
         table.clear(self._fullbrightApplied); self._original = nil
     end
 
@@ -231,8 +231,9 @@ return function(services: any): any
         end)
         local job = scheduler:RegisterHeartbeat("Lighting.Reassert", 70, function(dt: number)
             local mode = state:Peek("Lighting.Mode")
-            if mode == "Off" and not state:Peek("Visuals.Fullbright") then return end
-            if mode == "Dynamic" and not state:Peek("Lighting.Paused") and not state:Peek("Visuals.Fullbright") then
+            local fullbright, vignette = state:Peek("Visuals.Fullbright"), state:Peek("Lighting.Vignette")
+            if mode == "Off" and not fullbright and not vignette then return end
+            if mode == "Dynamic" and not state:Peek("Lighting.Paused") and not fullbright then
                 LightingService._clock = (LightingService._clock + dt * 24 / math.max(CONFIG.MIN_CYCLE_DURATION, state:Peek("Lighting.CycleDuration"))) % 24
             end
             LightingService._elapsed += dt
@@ -242,10 +243,11 @@ return function(services: any): any
             state:SetTransient("LightingHour", LightingService._clock)
         end)
         local function syncLighting()
-            job.Enabled = state:Peek("Lighting.Mode") ~= "Off" or state:Peek("Visuals.Fullbright") == true
+            job.Enabled = state:Peek("Lighting.Mode") ~= "Off" or state:Peek("Visuals.Fullbright") == true or state:Peek("Lighting.Vignette") == true
         end
         scope:Add(state:Observe("Lighting.Mode", syncLighting))
         scope:Add(state:Observe("Visuals.Fullbright", syncLighting))
+        scope:Add(state:Observe("Lighting.Vignette", syncLighting))
         syncLighting()
     end
 

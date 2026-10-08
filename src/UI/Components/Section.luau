@@ -3,7 +3,6 @@ return function(services: any): any
     local disposer = services:Get("Disposer")
     local orders = setmetatable({}, { __mode = "k" })
     local Section = {}
-    local details = setmetatable({}, { __mode = "k" })
 
     function Section:Create(parent: Instance, title: string, resetPath: string?): Frame
         orders[parent] = (orders[parent] or 0) + 1
@@ -33,14 +32,14 @@ return function(services: any): any
         end
         return content
     end
-    function Section:Control(parent: Instance, label: string, height: number?, trailingSpace: number?): (Frame, TextLabel, any)
+    function Section:Control(parent: Instance, label: string, height: number?): (Frame, TextLabel, any)
         orders[parent] = (orders[parent] or 0) + 1
         local original = parent
         local slot, pin
         local decorated = height ~= 0
         if decorated then
             slot = dom:Create("Frame", { Parent = parent, Name = "ControlSlot", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent] })
-            parent = dom:Create("Frame", { Parent = slot, BackgroundTransparency = 1, Size = UDim2.new(1, -(trailingSpace or 24), 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
+            parent = dom:Create("Frame", { Parent = slot, BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
         end
         local row = dom:Create("Frame", { Parent = parent, Name = "Control", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, height or 22), LayoutOrder = orders[original] })
         local text = dom:Create("TextLabel", { Parent = row, BackgroundTransparency = 1, Size = UDim2.new(0.56, -8, 1, 0),
@@ -51,16 +50,12 @@ return function(services: any): any
         owner:ConnectImmediate(row.Destroying, function() destroying = true; owner:Dispose() end)
         owner:Add(function() if not destroying then dom:DestroyInstance(slot or row) end end)
         row:SetAttribute("B0XazLabel", label)
-        local item = { Slot = slot or row, Content = parent, Label = label }
-        details[row] = item
-        owner:Add(function() details[row] = nil end)
         -- Pinned/search results retain their original section's lifetime.
         owner:ConnectImmediate(original.Destroying, function() dom:DestroyInstance(slot or row) end)
         if decorated then
             pin = dom:Create("TextButton", { Parent = slot, Name = "Favorite", BackgroundTransparency = 1, BorderSizePixel = 0,
                 Position = UDim2.new(1, -20, 0, 0), Size = UDim2.fromOffset(20, 22), Text = "☆", TextSize = 17, Font = Enum.Font.Gotham, AutoButtonColor = false })
             theme:BindToken(pin, "TextColor3", "TextMuted")
-            item.Pin = pin
         end
         if services:Has("UIEngine") then owner:Add(services:Get("UIEngine"):RegisterControl(slot or row, label, pin, owner)) end
         return row, text, owner
@@ -92,25 +87,6 @@ return function(services: any): any
         -- A string argument names a state path unless the caller marks it as a literal value
         local path = if type(defaultOrPath) == "string" and not literal then defaultOrPath else nil
         handle.Path = path
-        local item = details[handle.Row]
-        if item then
-            item.Path, item.Kind, item.Range = path, handle.Kind, handle.Range
-            item.Slot:SetAttribute("StatePath", path)
-            if item.Pin and not item.Help and services:Has("Tooltips") then
-                local tips = services:Get("Tooltips")
-                local description = tips:Describe(item.Label, path, handle.Kind, handle.Range)
-                if description then
-                    item.Content.Size = UDim2.new(1, -44, 0, 0)
-                    item.Pin.Position = UDim2.new(1, -42, 0, 0)
-                    local help = dom:Create("TextButton", { Parent = item.Slot, Name = "Help", BackgroundTransparency = 1, BorderSizePixel = 0,
-                        Position = UDim2.new(1, -20, 0, 0), Size = UDim2.fromOffset(20, 22), Text = "?", TextSize = 12, Font = Enum.Font.Gotham, AutoButtonColor = false })
-                    item.Help = help
-                    theme:BindToken(help, "TextColor3", "TextMuted")
-                    tips:Attach(item.Slot, help, function() return description end, handle.Scope)
-                end
-            end
-        end
-        handle.Row:SetAttribute("StatePath", path)
         function handle:Get(): any return self._value end
         function handle:Set(value: any, silent: boolean?): boolean
             if self.Scope:IsDisposed() then return false end

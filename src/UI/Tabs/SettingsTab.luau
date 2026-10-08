@@ -18,8 +18,6 @@ return function(services: any, tab: any): any
     textbox:CreateButton(profiles, "Overwrite selected profile", function() return config:Save(selected:Get() or "Default") end)
     textbox:CreateButton(profiles, "Delete selected profile", function() return config:Delete(selected:Get() or "Default") end)
     textbox:CreateButton(profiles, "Load Default preset", function() return config:Load("Default") end)
-    textbox:CreateButton(profiles, "Turn everything off", function() return config:TurnEverythingOff() end)
-    section:Info(profiles, "Turn everything off resets values to defaults and disables every toggle, including game plugins and restore-on-launch. The menu stays open; saved profiles are kept.")
     textbox:CreateButton(profiles, "Load Legit preset", function() return config:Load("Legit") end)
     textbox:CreateButton(profiles, "Load Rage preset", function() return config:Load("Rage") end)
     textbox:CreateButton(profiles, "Create validated backup", function() return config:Backup() end)
@@ -37,33 +35,6 @@ return function(services: any, tab: any): any
     textbox:CreateButton(launch, "Pin selected profile for launch", function() return config:PinStartupProfile(selected:Get() or "Default") end)
     textbox:CreateButton(launch, "Clear pinned profile", function() state:Set("Settings.StartupProfile", ""); return true, "Launch will use the autosaved session" end)
 
-    local gameAutoLoad = section:Create(tab.LeftCol, "Per-game auto-load", "Settings")
-    local gameProfileStatus = section:Info(gameAutoLoad, config:GetGameProfileStatus())
-    textbox:CreateButton(gameAutoLoad, "Save current settings to this game", function()
-        if not config:ProfileExists(name.Box.Text) then
-            local saved, saveMessage = config:Save(name.Box.Text)
-            if not saved then return false, saveMessage end
-        end
-        local pinned, pinMessage = config:PinCurrentGameProfile(name.Box.Text, true)
-        gameProfileStatus:Set(config:GetGameProfileStatus())
-        return pinned, pinMessage
-    end)
-    textbox:CreateButton(gameAutoLoad, "Pin selected profile for this game", function()
-        local ok, message = config:PinCurrentGameProfile(selected:Get() or "")
-        gameProfileStatus:Set(config:GetGameProfileStatus())
-        return ok, message
-    end)
-    textbox:CreateButton(gameAutoLoad, "Clear this game's profile", function()
-        local ok, message = config:ClearCurrentGameProfile()
-        gameProfileStatus:Set(config:GetGameProfileStatus())
-        return ok, message
-    end)
-    section:Info(gameAutoLoad, "Save current settings to this game using the Save as name, or pin a saved profile selected above. This action creates a named seed only when missing and leaves an existing profile untouched. The game's saved session loads first on launch, then its pinned profile, then the global startup profile and autosaved session. Later edits stay in this experience's separate session and do not affect other games. Matching uses Universe ID (all places in that experience). Restore settings on launch must be enabled for auto-load.")
-    local bus = services:Get("EventBus")
-    scope:Add(bus:Subscribe("GameProfilesChanged", function() gameProfileStatus:Set(config:GetGameProfileStatus()) end))
-    scope:Add(state:Observe("Settings.StartupProfile", function() gameProfileStatus:Set(config:GetGameProfileStatus()) end))
-    scope:Add(state:Observe("Settings.RestoreOnLaunch", function() gameProfileStatus:Set(config:GetGameProfileStatus()) end))
-
     local share = section:Create(tab.LeftCol, "Import & export")
     textbox:CreateButton(share, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)
     textbox:CreateButton(share, "Import from clipboard", function() return config:Import("") end)
@@ -71,8 +42,7 @@ return function(services: any, tab: any): any
     slider(interface, "UI scale", "Settings.UIScale", 0.6, 1.5, 0.05, "x")
     dropdown(interface, "Animation style", "Settings.MotionMode", { "Off", "Subtle", "Full" })
     slider(interface, "Animation speed", "Settings.MotionSpeed", 0.5, 2, 0.1, "x")
-    toggle(interface, "Show tooltips", "Settings.Tooltips")
-    section:Info(interface, "Help appears only for advanced options and important actions. Hover a control marked ? or tap ? for details. Use ☆ to pin a control above the sections in its own tab. Favorites are saved with your configuration.")
+    section:Info(interface, "Use ☆ to pin a control above the sections in its own tab. Favorites are saved with your configuration.")
     textbox:CreateButton(interface, "Clear all favorites", function() state:Set("Settings.Favorites", {}); return true, "All controls returned to their sections" end)
     toggle(interface, "Compact menu mode", "Settings.CompactMenu")
     toggle(interface, "Show menu button", "Settings.ShowMenuIcon")
@@ -97,18 +67,6 @@ return function(services: any, tab: any): any
     scope:Add(services:Get("EventBus"):Subscribe("ThemeChanged", function()
         for token, picker in pairs(pickers) do picker:Set(theme:GetToken(token), true) end
     end))
-    local compatibility = section:Create(tab.RightCol, "Compatibility checker")
-    local compatibilityResult = section:Info(compatibility, "")
-    local function refreshCompatibility()
-        local result = services:Get("CompatibilityService"):GetReport()
-        local lines = { `{result.Detected}/{result.Total} optional capabilities detected.`, result.Game, result.Notice }
-        for _, entry in ipairs(result.Checks) do
-            table.insert(lines, `{if entry.Available then "Detected" else "Unavailable"} · {entry.Name}\n{entry.Detail}`)
-        end
-        compatibilityResult:Set(table.concat(lines, "\n\n"))
-    end
-    textbox:CreateButton(compatibility, "Refresh compatibility check", refreshCompatibility)
-    refreshCompatibility()
     local session = section:Create(tab.RightCol, "Session")
     section:Info(session, `Build {services.Version}`)
     textbox:CreateButton(session, "Relaunch this build", function() environment.Globals.B0XazRelaunch() end)

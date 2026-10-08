@@ -62,7 +62,7 @@ local CONFIG = deepFreeze({
         Settings = {
             UIScale = 1, MenuVisible = true, ShowMenuIcon = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
             CompactMenu = false, PluginEnabled = true,
-            Favorites = {}, MotionMode = "Full", MotionSpeed = 1, Tooltips = true,
+            Favorites = {}, MotionMode = "Full", MotionSpeed = 1,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Freecam = Enum.KeyCode.Unknown, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
                 Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,

@@ -43,8 +43,8 @@ return function(context: any)
         { "FreecamService", "src/Locomotion/FreecamService.luau" }, { "WallWalkService", "src/Locomotion/WallWalkService.luau" },
         { "ExtrasService", "src/Services/ExtrasService.luau" }, { "AimbotService", "src/Combat/AimbotService.luau" },
         { "TriggerbotService", "src/Combat/TriggerbotService.luau" }, { "PluginManager", "src/Plugins/PluginManager.luau" },
-        { "ThemeEngine", "src/UI/ThemeEngine.luau" }, { "Tooltips", "src/UI/Tooltips.luau" },
-        { "CompatibilityService", "src/Services/CompatibilityService.luau" }, { "UIEngine", "src/UI/UIEngine.luau" },
+        { "ThemeEngine", "src/UI/ThemeEngine.luau" },
+        { "UIEngine", "src/UI/UIEngine.luau" },
     }
     for _, entry in ipairs(registration) do
         step(function() services:Register(entry[1], requireModule(entry[2], services)) end)

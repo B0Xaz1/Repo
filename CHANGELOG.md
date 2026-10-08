@@ -6,7 +6,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 - Switched to the MIT License, which permits use, modification, and redistribution subject to retaining the copyright and permission notice.
 - Documented the use of AI tools during development.
-- Limited tooltips to advanced settings and consequential actions; straightforward controls no longer show help buttons or generic hover explanations.
+- Removed tooltip overlays and help markers from controls.
+- Removed per-game profile auto-load and the compatibility checker from Settings.
 
 - Removed the lighting-mode hotkey; lighting remains adjustable in the Visuals tab.
 - Removed dropdown option outlines and selection bars, keeping hover feedback and selected-text highlighting.
@@ -14,10 +15,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 - Added favorites that pin controls at the top of their own tab and restore with saved configurations.
 - Removed profile comparisons from Settings.
 - Added Off, Subtle, and Full animation styles with adjustable playback speed.
-- Added hover and tap-to-open help for menu controls, with an option to disable tooltips.
-- Added a compatibility checker with detected capabilities, game-support information, and fallback guidance.
 
-- Added "Turn everything off" in Settings > Config profiles to reset values and disable all toggles while keeping the menu open and saved profiles intact.
+- Removed the "Turn everything off" action from Config profiles.
 
 - Refined control feedback with animated checkmarks, responsive slider thumbs, dropdown selection highlighting, and a gliding tab indicator.
 - Added softer notification fades and clearer feedback for busy actions and keybind recording.

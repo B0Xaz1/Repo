@@ -14,13 +14,13 @@ AI tools were used during development, including for code and documentation. The
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. Open the menu with **Right Shift** and enable the features you want.
 
-Compatibility depends on the experience and execution environment. Use the official loader, and check **Settings → Compatibility checker** if a feature is unavailable. See the [changelog](CHANGELOG.md) for recent changes.
+Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
 
 ## Menu and profiles
 
-The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. You can use the built-in Default, Legit, and Rage presets, or assign a profile to a specific experience.
+The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
 
-The Default profile restores default settings and cannot be overwritten. **Turn everything off** resets values and disables toggles without deleting saved profiles. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
+The Default profile restores default settings and cannot be overwritten. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
 
 ## Supported experiences
 

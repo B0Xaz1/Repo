@@ -4,7 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
-- Added a Da Hood (place 2788229376) fake macro: configurable hold key and ground-velocity speed slider in the Game tab. It reduces acceleration on inclines and leaves airborne momentum untouched; this does not use the game's macro mechanics.
+- Added a Da Hood (place 2788229376) fake macro: configurable hold key and ground-velocity speed slider in the Game tab. Steering now pushes into existing momentum for a sliding arc instead of snapping to the input direction. Inclines weaken the push, and airborne momentum remains untouched; this does not reproduce the game's macro glitch.
 
 - Switched to the MIT License, which permits use, modification, and redistribution subject to retaining the copyright and permission notice.
 - Documented the use of AI tools during development.

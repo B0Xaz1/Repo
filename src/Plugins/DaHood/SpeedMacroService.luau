@@ -3,7 +3,8 @@ local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    ACCELERATION = 8, -- horizontal response per second on level ground
+    PUSH_RATE = 1.8, -- seconds^-1; accelerates along input rather than steering velocity toward it
+    MAX_STEP = 0.05, -- avoid an oversized impulse after a delayed frame
     NO_BOOST_NORMAL_Y = 0.8, -- roughly 37 degrees: no boost on steep inclines
     FULL_BOOST_NORMAL_Y = 0.985, -- roughly 10 degrees: full boost on nearly flat ground
     GROUND_CHECK_EXTRA = 1.5,
@@ -72,10 +73,20 @@ return function(services: any, manifest: any): any
             manifest.Macro.MinSpeed, manifest.Macro.MaxSpeed)
         local current = root.AssemblyLinearVelocity
         local horizontal = Vector3.new(current.X, 0, current.Z)
-        local target = planarDirection.Unit * speed
-        local alpha = math.clamp(dt * CONFIG.ACCELERATION * incline, 0, 1)
-        local boosted = horizontal:Lerp(target, alpha)
-        -- Change horizontal ground motion only. Gravity, jumping and airborne momentum are untouched.
+        -- Old-style macro slides keep their heading as the camera turns. Push in the desired
+        -- direction instead of snapping the existing velocity toward MoveDirection: strafing
+        -- curves, and reversing first bleeds off forward momentum before moving backward.
+        local impulse = planarDirection.Unit * (speed * CONFIG.PUSH_RATE * math.clamp(dt, 0, CONFIG.MAX_STEP) * incline)
+        local boosted = horizontal + impulse
+        local currentSpeed = horizontal.Magnitude
+        if boosted.Magnitude > speed then
+            if currentSpeed <= speed then
+                boosted = boosted.Unit * speed
+            elseif boosted.Magnitude >= currentSpeed then
+                return -- already above the slider's cap: do not inject more speed
+            end
+        end
+        -- Ground-only horizontal push. No braking or velocity writes on release or in the air.
         root.AssemblyLinearVelocity = Vector3.new(boosted.X, current.Y, boosted.Z)
     end
 

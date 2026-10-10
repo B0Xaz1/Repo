@@ -132,8 +132,19 @@ press(Enum.KeyCode.V)
 assert(root.AssemblyLinearVelocity.X > 0 and root.AssemblyLinearVelocity.X < 85, "grounded input accelerates smoothly")
 assert(humanoid.WalkSpeed == 18 and root.AssemblyLinearVelocity.Y == 7, "never change WalkSpeed or vertical velocity")
 state:Set("Game.DaHoodMacroSpeed", 120)
-job(1)
-assert(root.AssemblyLinearVelocity.X == 120, "slider target takes effect on ground")
+for _ = 1, 90 do job(1 / 60) end
+assert(math.abs(root.AssemblyLinearVelocity.X - 120) < 0.001, "slider caps sustained ground speed")
+
+-- Changing direction should curve through momentum rather than instantly snapping to the input.
+root.AssemblyLinearVelocity = Vector3.new(80, 7, 0)
+humanoid.MoveDirection = Vector3.new(0, 0, 1)
+job(1 / 60)
+assert(root.AssemblyLinearVelocity.X > 70 and root.AssemblyLinearVelocity.Z > 0
+    and root.AssemblyLinearVelocity.Z < 10, "sideways input adds a small lateral push without deleting forward slide")
+humanoid.MoveDirection = Vector3.new(-1, 0, 0)
+job(1 / 60)
+assert(root.AssemblyLinearVelocity.X > 0, "reversing first bleeds momentum instead of snapping backward")
+humanoid.MoveDirection = Vector3.new(1, 0, 0)
 
 -- Airborne: preserve every velocity component across repeated frames, even after releasing.
 root.AssemblyLinearVelocity = Vector3.new(48, 23, -9)
@@ -199,8 +210,9 @@ job(1)
 assert(same(root.AssemblyLinearVelocity, afterRespawn), "respawn must stop")
 release(Enum.KeyCode.B)
 state:Set("Game.DaHoodMacroKey", Enum.UserInputType.MouseButton2)
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 press(Enum.UserInputType.MouseButton2)
-assert(root.AssemblyLinearVelocity.X > afterRespawn.X, "mouse bind must work")
+assert(root.AssemblyLinearVelocity.X > 0, "mouse bind must work")
 keysDown[Enum.UserInputType.MouseButton2] = false
 local beforeMissedRelease = root.AssemblyLinearVelocity
 job(1)
@@ -221,9 +233,10 @@ assert(same(root.AssemblyLinearVelocity, afterUnbind), "typing must not activate
 release(Enum.KeyCode.V)
 input.Focused = false
 state:Set("Game.DaHoodMacroSpeed", 500)
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 press(Enum.KeyCode.V)
-job(1)
-assert(root.AssemblyLinearVelocity.X == 200, "target speed must remain inside slider bounds")
+for _ = 1, 90 do job(1 / 60) end
+assert(math.abs(root.AssemblyLinearVelocity.X - 200) < 0.001, "speed must stay inside slider bounds")
 local nextRoot = { AssemblyLinearVelocity = Vector3.new(9, 12, 0) }
 assets = { Humanoid = humanoid, RootPart = nextRoot, Character = {} }
 job(1)

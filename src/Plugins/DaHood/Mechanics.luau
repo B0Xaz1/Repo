@@ -24,8 +24,9 @@ return function(services: any): any
         local panel = section:Create(tab.LeftCol, "Da Hood - Fake Macro")
         toggle(panel, "Enable fake macro", "Game.DaHoodMacroEnabled")
         keybind(panel, "Hold key", "Game.DaHoodMacroKey")
-        slider(panel, "Ground speed", "Game.DaHoodMacroSpeed", manifest.Macro.MinSpeed, manifest.Macro.MaxSpeed, 1)
-        section:Info(panel, "Hold to accelerate along the ground. Steep slopes reduce the boost; in the air, no velocity is added or removed. The server may override local motion.")
+        slider(panel, "Glide speed", "Game.DaHoodMacroSpeed", manifest.Macro.MinSpeed, manifest.Macro.MaxSpeed, 1)
+        section:Info(panel, "Hold S and turn the camera for a backward glide. Ground momentum curves rather than snapping to each turn; steep slopes weaken the push. Airborne velocity is untouched.")
+        section:Info(panel, "This is a glide-inspired fake macro, not the game's animation/zoom glitch. The server may override local motion.")
     end
 
     function Plugin:Destroy()

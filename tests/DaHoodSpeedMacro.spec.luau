@@ -30,6 +30,7 @@ local vectorMt = {
 }
 Vector3 = { new = function(x, y, z) return setmetatable({ X = x, Y = y, Z = z }, vectorMt) end }
 function vectorMethods:Lerp(other, alpha) return self + (other - self) * alpha end
+function vectorMethods:Dot(other) return self.X * other.X + self.Y * other.Y + self.Z * other.Z end
 local function same(a, b) return a.X == b.X and a.Y == b.Y and a.Z == b.Z end
 
 local keyCode = { Name = "KeyCode" }
@@ -58,7 +59,8 @@ function input:GetFocusedTextBox() return if self.Focused then {} else nil end
 function input:IsKeyDown(key) return keysDown[key] == true end
 function input:IsMouseButtonPressed(key) return keysDown[key] == true end
 local groundHit = { Normal = Vector3.new(0, 1, 0) }
-local world = { Raycast = function(_self, _from, _direction, params)
+local camera = { CFrame = { LookVector = Vector3.new(1, 0, 0) } }
+local world = { CurrentCamera = camera, Raycast = function(_self, _from, _direction, params)
     assert(params.FilterDescendantsInstances and params.FilterDescendantsInstances[1], "ray must exclude own character")
     return groundHit
 end }
@@ -72,7 +74,7 @@ end }
 local makeMacro = __SERVICE__
 local humanoid = {
     WalkSpeed = 18, Health = 100, FloorMaterial = Enum.Material.Concrete, HipHeight = 2,
-    MoveDirection = Vector3.new(1, 0, 0), Sit = false, PlatformStand = false, MotionState = Enum.HumanoidStateType.Running,
+    MoveDirection = Vector3.new(-1, 0, 0), Sit = false, PlatformStand = false, MotionState = Enum.HumanoidStateType.Running,
 }
 function humanoid:GetState() return self.MotionState end
 local root = { AssemblyLinearVelocity = Vector3.new(0, 7, 0), Position = Vector3.new(0, 4, 0), Size = Vector3.new(2, 2, 1) }
@@ -124,6 +126,8 @@ local function release(key)
         UserInputType = if key.EnumType == inputType then key else nil })
 end
 
+-- Native S movement is backward (-X); the macro should reverse it into camera-forward (+X).
+root.AssemblyLinearVelocity = Vector3.new(-18, 7, 0)
 local start = root.AssemblyLinearVelocity
 press(Enum.KeyCode.V, true)
 assert(same(root.AssemblyLinearVelocity, start), "processed input must be ignored")
@@ -133,13 +137,23 @@ job(1 / 60)
 assert(same(root.AssemblyLinearVelocity, start), "holding V alone must never boost")
 press(Enum.KeyCode.S)
 job(1 / 60)
-assert(root.AssemblyLinearVelocity.X > 0 and root.AssemblyLinearVelocity.X < 85, "V then S accelerates on ground")
+assert(root.AssemblyLinearVelocity.X > 0 and root.AssemblyLinearVelocity.X < 85, "V + S must move camera-forward, not S-backward")
 assert(humanoid.WalkSpeed == 18 and root.AssemblyLinearVelocity.Y == 7, "never change WalkSpeed or vertical velocity")
 local whileMoving = root.AssemblyLinearVelocity
 release(Enum.KeyCode.S)
 job(1 / 60)
 assert(same(root.AssemblyLinearVelocity, whileMoving), "letting go of S stops pushing without cancelling V")
 press(Enum.KeyCode.S)
+-- Forward follows horizontal camera look even when the camera is pitched or turned.
+camera.CFrame.LookVector = Vector3.new(0, 0.8, 0.6)
+humanoid.MoveDirection = Vector3.new(0, 0, -1)
+root.AssemblyLinearVelocity = Vector3.new(0, 7, -18)
+job(1 / 60)
+assert(root.AssemblyLinearVelocity.Z > 0 and root.AssemblyLinearVelocity.Y == 7,
+    "pitched camera must still push along horizontal camera-forward")
+camera.CFrame.LookVector = Vector3.new(1, 0, 0)
+humanoid.MoveDirection = Vector3.new(-1, 0, 0)
+root.AssemblyLinearVelocity = Vector3.new(0, 7, 0)
 state:Set("Game.DaHoodMacroSpeed", 120)
 for _ = 1, 90 do job(1 / 60) end
 assert(math.abs(root.AssemblyLinearVelocity.X - 120) < 0.001, "slider caps sustained ground speed")
@@ -150,10 +164,12 @@ humanoid.MoveDirection = Vector3.new(0, 0, 1)
 job(1 / 60)
 assert(root.AssemblyLinearVelocity.X > 70 and root.AssemblyLinearVelocity.Z > 0
     and root.AssemblyLinearVelocity.Z < 10, "sideways input adds a small lateral push without deleting forward slide")
-humanoid.MoveDirection = Vector3.new(-1, 0, 0)
-job(1 / 60)
-assert(root.AssemblyLinearVelocity.X > 0, "reversing first bleeds momentum instead of snapping backward")
+camera.CFrame.LookVector = Vector3.new(-1, 0, 0)
 humanoid.MoveDirection = Vector3.new(1, 0, 0)
+job(1 / 60)
+assert(root.AssemblyLinearVelocity.X > 0, "turning camera around bleeds momentum instead of snapping backward")
+camera.CFrame.LookVector = Vector3.new(1, 0, 0)
+humanoid.MoveDirection = Vector3.new(-1, 0, 0)
 
 -- Airborne: preserve every velocity component across repeated frames, even after releasing.
 root.AssemblyLinearVelocity = Vector3.new(48, 23, -9)
@@ -192,8 +208,8 @@ assert(root.AssemblyLinearVelocity.X > inclineGain, "flat ground boosts more tha
 local moving = root.AssemblyLinearVelocity
 humanoid.MoveDirection = Vector3.new(0, 0, 0)
 job(0.1)
-assert(same(root.AssemblyLinearVelocity, moving), "standing still must not add velocity")
-humanoid.MoveDirection = Vector3.new(1, 0, 0)
+assert(root.AssemblyLinearVelocity.X > moving.X, "S should still push forward if MoveDirection is stale")
+humanoid.MoveDirection = Vector3.new(-1, 0, 0)
 
 input.WindowFocusReleased:Fire()
 local afterFocus = root.AssemblyLinearVelocity

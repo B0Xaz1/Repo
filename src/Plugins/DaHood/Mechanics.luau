@@ -29,7 +29,7 @@ return function(services: any): any
         dropdown(panel, "Activation mode", "Game.DaHoodMacroMode", { "Hold", "Toggle" })
         slider(panel, "Glide speed", "Game.DaHoodMacroSpeed", manifest.Macro.MinSpeed, manifest.Macro.MaxSpeed, 1)
         section:Info(panel, "S is required to glide. Hold mode: hold activation key (V by default) + S. Toggle mode: tap activation key to arm/disarm, then hold S. Activation alone never boosts; S cannot be the bind.")
-        section:Info(panel, "Turn the camera for a backward glide. Ground momentum curves rather than snapping to each turn; steep slopes weaken the push. Airborne velocity is untouched.")
+        section:Info(panel, "S drives a camera-forward glide even though S normally walks backward. Turn the camera to steer; momentum curves instead of snapping. Slopes weaken the push and air velocity is untouched.")
         section:Info(panel, "This is a glide-inspired fake macro, not the game's animation/zoom glitch. The server may override local motion.")
     end
 

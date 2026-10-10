@@ -65,9 +65,18 @@ return function(services: any, manifest: any): any
         local motionState = humanoid:GetState()
         if motionState == Enum.HumanoidStateType.Freefall or motionState == Enum.HumanoidStateType.Jumping
             or motionState == Enum.HumanoidStateType.Flying or motionState == Enum.HumanoidStateType.Swimming then return end
-        local direction = humanoid.MoveDirection
-        local planarDirection = Vector3.new(direction.X, 0, direction.Z)
-        if planarDirection.Magnitude < 0.05 then return end
+        local camera = Workspace.CurrentCamera
+        if not camera then return end
+        local look = camera.CFrame.LookVector
+        local cameraForward = Vector3.new(look.X, 0, look.Z)
+        if cameraForward.Magnitude < 0.05 then return end
+        cameraForward = cameraForward.Unit
+        -- S normally moves backward. The macro instead pushes forward along the camera;
+        -- side input can bend the glide without changing its forward direction.
+        local movement = humanoid.MoveDirection
+        local planarMovement = Vector3.new(movement.X, 0, movement.Z)
+        local sideways = planarMovement - cameraForward * planarMovement:Dot(cameraForward)
+        local glideDirection = (cameraForward + sideways * 0.35).Unit
 
         local groundDistance = math.max(3, humanoid.HipHeight + root.Size.Y / 2 + CONFIG.GROUND_CHECK_EXTRA)
         local hit = Workspace:Raycast(root.Position, Vector3.new(0, -groundDistance, 0), groundRay)
@@ -80,10 +89,12 @@ return function(services: any, manifest: any): any
             manifest.Macro.MinSpeed, manifest.Macro.MaxSpeed)
         local current = root.AssemblyLinearVelocity
         local horizontal = Vector3.new(current.X, 0, current.Z)
-        -- Old-style macro slides keep their heading as the camera turns. Push in the desired
-        -- direction instead of snapping the existing velocity toward MoveDirection: strafing
-        -- curves, and reversing first bleeds off forward momentum before moving backward.
-        local impulse = planarDirection.Unit * (speed * CONFIG.PUSH_RATE * math.clamp(dt, 0, CONFIG.MAX_STEP) * incline)
+        -- Counter only ordinary S walking speed so the first grounded frame can move forward,
+        -- but let larger existing backward momentum bleed off over time rather than snapping.
+        local backward = math.max(0, -horizontal:Dot(cameraForward))
+        local walkCorrection = math.min(backward, math.max(0, humanoid.WalkSpeed))
+        local impulse = cameraForward * walkCorrection
+            + glideDirection * (speed * CONFIG.PUSH_RATE * math.clamp(dt, 0, CONFIG.MAX_STEP) * incline)
         local boosted = horizontal + impulse
         local currentSpeed = horizontal.Magnitude
         if boosted.Magnitude > speed then

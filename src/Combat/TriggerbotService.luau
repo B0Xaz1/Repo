@@ -6,6 +6,7 @@ local CONFIG = table.freeze({
     RAY_MAX_DISTANCE = 10000,
     DELAY_MAX = 2,
     MIN_SHOT_INTERVAL = 0.04,
+    NOTICE_COOLDOWN = 5,
 })
 
 return function(services: any): any
@@ -13,10 +14,21 @@ return function(services: any): any
     local scheduler = services:Get("TaskScheduler")
     local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("TriggerbotService")
-    local TriggerbotService = { _candidate = nil, _elapsed = 0, _sinceShot = 0, _checkElapsed = 0, _initialized = false }
+    local TriggerbotService = { _candidate = nil, _elapsed = 0, _sinceShot = 0, _checkElapsed = 0,
+        _lastNotice = nil, _lastNoticeAt = -math.huge, _initialized = false }
 
     local function clearCandidate()
         TriggerbotService._candidate, TriggerbotService._elapsed = nil, 0
+    end
+
+    -- A skipped shot is reported once per reason instead of once per frame, so an empty hand or an
+    -- unfocused window explains itself without filling the notification stack
+    local function notice(reason: string?)
+        local message = reason or "The equipped tool could not be activated"
+        local now = os.clock()
+        if TriggerbotService._lastNotice == message and now - TriggerbotService._lastNoticeAt < CONFIG.NOTICE_COOLDOWN then return end
+        TriggerbotService._lastNotice, TriggerbotService._lastNoticeAt = message, now
+        bus:Publish("Notify", "Triggerbot", message)
     end
 
     function TriggerbotService:Initialize()
@@ -47,10 +59,10 @@ return function(services: any): any
             local delay = math.clamp(config.Delay, 0, CONFIG.DELAY_MAX)
             if TriggerbotService._elapsed < delay or TriggerbotService._sinceShot < math.max(CONFIG.MIN_SHOT_INTERVAL, delay) then return end
             TriggerbotService._sinceShot = 0
-            if not environment:MouseClick() then
-                state:Set("Aimbot.Triggerbot.Enabled", false)
-                bus:Publish("Notify", "Triggerbot unavailable", "Neither native click nor virtual input succeeded on this executor")
-            end
+            -- The shot is simulated through the equipped tool's own activation handler. No mouse
+            -- button is pressed, so the menu, the cursor, and other windows keep their input.
+            local fired, reason = environment:ActivateTool()
+            if not fired then notice(reason) end
         end)
         job.Enabled = state:Peek("Aimbot.Triggerbot.Enabled") == true
         scope:ConnectImmediate(UIS.InputBegan, function(event: InputObject, processed: boolean)
@@ -66,6 +78,7 @@ return function(services: any): any
             job.Enabled = value == true
             if not value then
                 clearCandidate()
+                TriggerbotService._lastNotice, TriggerbotService._lastNoticeAt = nil, -math.huge
             end
         end))
     end

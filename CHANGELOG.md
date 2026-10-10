@@ -4,6 +4,10 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Removed injected input across the suite. No feature presses your mouse buttons, moves your cursor, or sends key events any more: triggerbot and the Murderers VS Sheriffs spam drivers simulate the weapon's own activation, so an automatic action can no longer click the menu, other in-game interface elements, or another window.
+- Aim assistance now always corrects the camera, which retires the "Use Camera Lock (CFrame)" control. Saved profiles load unchanged.
+- Simulated actions pause while a text field has focus and while Roblox is not the focused window. A skipped action now reports why once, instead of switching the feature off.
+- Renamed the Murderers VS Sheriffs spam controls, which no longer send an E press or an auto-click.
 - Added a Da Hood (place 2788229376) fake macro: configurable activation key (default V), Hold/Toggle mode, and ground-velocity speed slider in the Game tab. S is required for a boost in either mode; V alone never changes velocity. S pushes forward relative to the camera and the character turns to face the glide. Acceleration is quicker, the speed slider reaches 400 (new default 180), and turns retain momentum. Inclines weaken the push, and airborne velocity remains untouched. This does not reproduce the game's macro glitch.
 
 - Switched to the MIT License, which permits use, modification, and redistribution subject to retaining the copyright and permission notice.

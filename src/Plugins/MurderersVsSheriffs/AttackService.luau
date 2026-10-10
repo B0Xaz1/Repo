@@ -7,12 +7,7 @@ local CONFIG = table.freeze({
     EQUIP_SWAP_INTERVAL = 0.15,
     MIN_SHOT_INTERVAL = 0.01,
     KNIFE_SPAM_INTERVAL = 0.05,
-    SPAM_KEY_RELEASE_DELAY = 0.02,
-    SPAM_THROW_KEY = Enum.KeyCode.E,
 })
-
-local VirtualInputManager: any = nil
-pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
 
 return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
@@ -84,9 +79,8 @@ return function(services: any, Duel: any?): any
             pcall(function()
                 myRoot.CFrame = CFrame.lookAt(target.Root.Position - target.Root.CFrame.LookVector * knifeConfig.BackOffset + Vector3.new(0, knifeConfig.UpOffset, 0), target.Root.Position)
 
-                if knifeConfig.SimulateClick then
-                    local knife = getKnife()
-                    if knife then pcall(function() knife:Activate() end) end
+                if knifeConfig.SimulateActivation then
+                    Environment:ActivateTool(getKnife())
                 end
                 RunService.Heartbeat:Wait()
                 Attack._knifeRemote:FireServer(target.Part)
@@ -230,12 +224,9 @@ return function(services: any, Duel: any?): any
         if now - Attack._lastSpamShot < shotInterval then return end
         Attack._lastSpamShot = now
 
-        pcall(function()
-            gun:Activate()
-        end)
-        if Environment then
-            Environment:MouseClick()
-        end
+        -- The shot is simulated through the revolver's own activation handler; no mouse button
+        -- is pressed, so the player keeps control of the cursor and any window in front of them
+        Environment:ActivateTool(gun)
     end
 
     local function processKnifeSpamThrow(now: number, knife: Tool?)
@@ -245,16 +236,9 @@ return function(services: any, Duel: any?): any
         if now - Attack._lastSpamThrow < CONFIG.KNIFE_SPAM_INTERVAL then return end
         Attack._lastSpamThrow = now
 
-        if VirtualInputManager then
-            pcall(function()
-                VirtualInputManager:SendKeyEvent(true, CONFIG.SPAM_THROW_KEY, false, game)
-                task.defer(function() task.wait(CONFIG.SPAM_KEY_RELEASE_DELAY);
-                    pcall(function()
-                        VirtualInputManager:SendKeyEvent(false, CONFIG.SPAM_THROW_KEY, false, game)
-                    end)
-                end)
-            end)
-        end
+        -- Simulated rather than injected: no E press reaches the keyboard state, the game's own
+        -- bindings, or anything else the player is doing with their hands
+        Environment:ActivateTool(knife)
     end
 
     local function tick(now: number)

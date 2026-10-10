@@ -8,7 +8,6 @@ local CONFIG = table.freeze({
     CONFIGS_SUBFOLDER = "Configs",
     FPS_MIN = 15,
     FPS_MAX = 1000,
-    CLICK_RELEASE_DELAY = 0.03,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
 })
 
@@ -45,11 +44,9 @@ return function(disposer: any): any
     local getHui = first(probe("gethui"))
     local write, read, exists = first(probe("writefile")), first(probe("readfile")), first(probe("isfile"))
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
-    local move = first(probe("mousemoverel"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
     local fps = first(probe("setfpscap"), probe("set_fps_cap"), probe("setfps"))
-    local click = first(probe("mouse1click"))
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
@@ -69,18 +66,19 @@ return function(disposer: any): any
     keyLookup.none, keyLookup.unbound = Enum.KeyCode.Unknown, Enum.KeyCode.Unknown
 
     local cachedParent: Instance? = nil
-    local virtualInput: any = nil
-    pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
-    local mousePressed = false
+    -- Focus is tracked only so simulated actions pause while another window owns the desktop.
+    -- Nothing in this module ever reaches the operating system's input queue.
+    local windowFocused = true
+    scope:ConnectImmediate(UIS.WindowFocused, function() windowFocused = true end)
+    scope:ConnectImmediate(UIS.WindowFocusReleased, function() windowFocused = false end)
 
     local Environment = {
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
         Capabilities = table.freeze({
             Files = write ~= nil and read ~= nil, WriteFile = write ~= nil, ReadFile = read ~= nil,
-            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = move ~= nil,
+            ListFiles = list ~= nil, DeleteFile = delete ~= nil,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
-            QueueTeleport = queue ~= nil, FpsCap = fps ~= nil, NativeClick = click ~= nil,
-            VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
+            QueueTeleport = queue ~= nil, FpsCap = fps ~= nil, HttpRequest = requestFn ~= nil,
             Drawing = type(drawing) == "table" and type(drawing.new) == "function",
         }),
     }
@@ -167,11 +165,6 @@ return function(disposer: any): any
         return nil
     end
 
-    function Environment:MouseMove(x: number, y: number): boolean
-        if not move then return false end
-        return pcall(move, math.round(x), math.round(y))
-    end
-
     function Environment:SetClipboard(text: string): (boolean, string?)
         if not clipSet then return false, "Clipboard writing is unavailable" end
         local ok, err = pcall(clipSet, text)
@@ -254,20 +247,28 @@ return function(disposer: any): any
         return result, nil
     end
 
-    function Environment:MouseClick(): boolean
-        if click then return pcall(click) end
-        -- Without a native click API the press/release pair is synthesized, and mousePressed
-        -- keeps a delayed release from overlapping the next press
-        if not virtualInput or mousePressed then return false end
-        local point = UIS:GetMouseLocation()
-        local sent = pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0) end)
-        if not sent then return false end
-        mousePressed = true
-        scope:Delay(CONFIG.CLICK_RELEASE_DELAY, function()
-            virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, false, game, 0)
-            mousePressed = false
-        end)
-        return true
+    function Environment:GetEquippedTool(): Tool?
+        local character = Players.LocalPlayer and Players.LocalPlayer.Character
+        if not character then return nil end
+        for _, child in ipairs(character:GetChildren()) do
+            if child:IsA("Tool") then return child end
+        end
+        return nil
+    end
+
+    -- Simulated activation replaces injected clicks. Tool:Activate() runs the same activation
+    -- handler the engine runs for a click, entirely inside the game: the player's cursor and
+    -- keyboard are untouched, so menus, other windows, and anything under the pointer stay safe.
+    function Environment:ActivateTool(tool: Instance?): (boolean, string?)
+        if not windowFocused then return false, "Roblox is not the focused window" end
+        if UIS:GetFocusedTextBox() then return false, "A text field has focus" end
+        local character = Players.LocalPlayer and Players.LocalPlayer.Character
+        local target = tool or self:GetEquippedTool()
+        if not target then return false, "No tool is equipped" end
+        if not target:IsA("Tool") then return false, "Only a tool can be activated" end
+        if character and target.Parent ~= character then return false, "That tool is not equipped" end
+        local ok, err = pcall(function() (target :: Tool):Activate() end)
+        return ok, if ok then nil else tostring(err)
     end
 
     function Environment:ClearConsole()
@@ -280,10 +281,6 @@ return function(disposer: any): any
     function Environment:Destroy() scope:Dispose() end
 
     scope:Add(function()
-        if mousePressed and virtualInput then
-            mousePressed = false
-            pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
-        end
         if fps then pcall(fps, 0) end
     end)
 

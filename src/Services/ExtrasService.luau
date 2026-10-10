@@ -171,13 +171,16 @@ return function(services: any): any
         scope:Add(state:Observe("Extras.SpinBot.Enabled", function(value: boolean) if not value then stopSpin() end; syncHitboxSpin() end))
         syncHitboxSpin()
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
+        -- The only virtual input left in the suite, and it stays inside Roblox: it runs solely on
+        -- the engine's own idle signal, so it cannot interrupt a player who is at the keyboard, and
+        -- it never reaches the operating system's cursor, keys, or any other window.
         scope:Connect(Players.LocalPlayer.Idled, function()
             if not state:Get("Settings.AntiAfk") or not virtualUser then return end
             local sent = pcall(function()
                 virtualUser:CaptureController()
                 virtualUser:ClickButton2(Vector2.zero)
             end)
-            if not sent then bus:Publish("Notify", "Anti-AFK", "This executor cannot send idle-prevention input"); state:Set("Settings.AntiAfk", false) end
+            if not sent then bus:Publish("Notify", "Anti-AFK", "This client cannot simulate idle-prevention input"); state:Set("Settings.AntiAfk", false) end
         end)
     end
 

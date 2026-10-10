@@ -71,7 +71,7 @@ return function(services: any): any
     local function buildBuiltin(key: string): any
         local snapshot = state:GetDefaultSettings()
         if key == "legit" then
-            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness, snapshot.Aimbot.UseCamera = false, 16, true
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness = false, 16
             snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck = true, true, true
             snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 70, true, 120
             snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.2
@@ -82,7 +82,7 @@ return function(services: any): any
             snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling, snapshot.Movement.InfJump = false, false, false, false
             snapshot.Extras.Hitbox.Enabled, snapshot.Extras.SpinBot.Enabled = false, false
         elseif key == "rage" then
-            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness, snapshot.Aimbot.UseCamera = true, 1.5, true
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness = true, 1.5
             snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck, snapshot.Aimbot.WhitelistCheck = false, false, false, false
             snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 360, true, 800
             snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = true, 0.02

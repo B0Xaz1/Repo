@@ -16,6 +16,10 @@ AI tools were used during development, including for code and documentation. The
 
 Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
 
+## Your controls stay yours
+
+Features that fire a weapon or complete an action simulate the game's own activation. Nothing presses your mouse buttons, moves your cursor, or types on your keyboard, so the menu, other in-game interface elements, and other windows keep working normally while a feature runs. Aim assistance corrects the camera instead of moving the mouse. Simulated actions pause while a text field has focus and while Roblox is not the focused window, and a skipped action reports why instead of acting anyway.
+
 ## Menu and profiles
 
 The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.

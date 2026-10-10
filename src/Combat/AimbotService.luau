@@ -12,7 +12,6 @@ local CONFIG = table.freeze({
     CAMERA_EPSILON = 0.001,
     SMOOTHNESS_MIN = 1,
     SMOOTHNESS_MAX = 100,
-    MOUSE_MAX_STEP = 200,
     HITPARTS = {
         Head = { "Head" }, Torso = { "UpperTorso", "Torso", "LowerTorso" },
         HumanoidRootPart = { "HumanoidRootPart" }, UpperTorso = { "UpperTorso", "Torso" }, LowerTorso = { "LowerTorso", "Torso" },
@@ -22,15 +21,13 @@ local CONFIG = table.freeze({
 return function(services: any): any
     local state, environment, tracker = services:Get("StateStore"), services:Get("Environment"), services:Get("PlayerTracker")
     local filter, scheduler = services:Get("TargetFilter"), services:Get("TaskScheduler")
-    local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("AimbotService")
     local cameraChanges = scope:CreateChild("Aim camera")
     local AimbotService = { _target = nil, _held = false, _toggled = false, _blocked = false,
-        _remainder = Vector2.zero, _lastCursor = nil, _time = 0, _updateElapsed = 0, _camera = nil, _initialized = false, _warnedMouse = false }
+        _lastCursor = nil, _time = 0, _updateElapsed = 0, _camera = nil, _initialized = false }
 
     local function drop(block: boolean?)
         AimbotService._target = nil
-        AimbotService._remainder = Vector2.zero
         if block then AimbotService._blocked = true; AimbotService._toggled = false end
         state:SetTransient("AimbotTarget", nil)
     end
@@ -60,11 +57,6 @@ return function(services: any): any
             end
         end
         return best
-    end
-
-    local function clampAxis(step: number, remaining: number): number
-        if step * remaining <= 0 then return 0 end
-        return math.sign(remaining) * math.min(math.abs(step), math.abs(remaining))
     end
 
     local function stableLookAt(eye: Vector3, target: Vector3, currentUp: Vector3?): CFrame?
@@ -142,39 +134,11 @@ return function(services: any): any
         end
         AimbotService._lastCursor = point
         local alpha = AimbotService:SmoothingAlpha(dt, config.Smoothness)
-        if not config.UseCamera and not environment.Capabilities.MouseMove then
-            if not AimbotService._warnedMouse then
-                AimbotService._warnedMouse = true
-                bus:Publish("Notify", "Aimbot", "Relative mouse input is unavailable; using camera correction")
-            end
-            state:Set("Aimbot.UseCamera", true); config.UseCamera = true
-        end
-        if config.UseCamera then
-            local look = stableLookAt(camera.CFrame.Position, goal, camera.CFrame.UpVector)
-            if look then
-                cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(look, alpha), true)
-            end
-            AimbotService._remainder = Vector2.zero
-        else
-            cameraChanges:ReleaseProperties()
-            local remaining = screen - point
-            local delta = remaining * alpha
-            -- Relative mouse input only moves whole pixels, so the sub-pixel rest is carried forward
-            local remainder = AimbotService._remainder
-            if remaining.X * remainder.X < 0 then remainder = Vector2.new(0, remainder.Y) end
-            if remaining.Y * remainder.Y < 0 then remainder = Vector2.new(remainder.X, 0) end
-            local total = delta + remainder
-            local x = clampAxis(math.round(total.X), math.sign(remaining.X) * math.floor(math.abs(remaining.X)))
-            local y = clampAxis(math.round(total.Y), math.sign(remaining.Y) * math.floor(math.abs(remaining.Y)))
-            -- Clamp per-frame mouse steps to avoid camera spin when the target is far or
-            -- when a lower hitpart (Torso/HRP) sits near the bottom edge of the screen.
-            x = math.clamp(x, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
-            y = math.clamp(y, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
-            AimbotService._remainder = Vector2.new(math.clamp(total.X - x, -1, 1), math.clamp(total.Y - y, -1, 1))
-            if (x ~= 0 or y ~= 0) and not environment:MouseMove(x, y) then
-                state:Set("Aimbot.UseCamera", true)
-                bus:Publish("Notify", "Aimbot", "The executor rejected mouse input; using camera correction")
-            end
+        -- Aiming is camera correction only. The suite never moves the real cursor, so the player
+        -- keeps their mouse, their menu, and everything else on screen while the aimbot runs.
+        local look = stableLookAt(camera.CFrame.Position, goal, camera.CFrame.UpVector)
+        if look then
+            cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(look, alpha), true)
         end
     end
 

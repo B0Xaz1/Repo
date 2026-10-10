@@ -14,7 +14,7 @@ return function(services: any, tab: any): any
     slider(aim, "Shake Intensity", "Aimbot.ShakeIntensity", 0, 3, 0.05, "", nil)
     slider(aim, "Horizontal Prediction", "Aimbot.Prediction.Horizontal", 0, 1, 0.01, " s", nil)
     slider(aim, "Vertical Prediction", "Aimbot.Prediction.Vertical", 0, 1, 0.01, " s", nil)
-    toggle(aim, "Use Camera Lock (CFrame)", "Aimbot.UseCamera", nil)
+    section:Info(aim, "Aiming corrects the camera and the triggerbot activates your equipped tool. Your cursor is never moved and no clicks are sent.")
     local fov = section:Create(tab.LeftCol, "Aimbot FOV", "Aimbot.FOV")
     toggle(fov, "Show FOV", "Aimbot.FOV.Show", nil)
     slider(fov, "FOV Size", "Aimbot.FOV.Size", 10, 700, 1, " px", nil)

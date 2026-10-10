@@ -4,6 +4,10 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Fixed the Da Hood fake macro stalling out. Turning the character to face the glide no longer costs the momentum it just built, which was cancelling the push on every rendered frame.
+- The Da Hood macro now recovers from interruptions. Opening chat, recording a keybind, or losing window focus no longer ends a hold for good: the glide resumes by itself while the activation key and S are still down. A respawn, a rebind, or a mode change still needs a fresh press.
+- Da Hood ground detection is more forgiving. A floor the probe cannot see keeps a full push while the engine reports ground contact, steep geometry weakens the push instead of stopping it, and above the speed cap the glide keeps steering rather than going silent. Airborne velocity is still never written.
+- Added a live status line to the Da Hood panel showing the current speed and the reason a push is being held. A failing frame is now reported once instead of silently ending the macro for the rest of the session.
 - Removed injected input across the suite. No feature presses your mouse buttons, moves your cursor, or sends key events any more: triggerbot and the Murderers VS Sheriffs spam drivers simulate the weapon's own activation, so an automatic action can no longer click the menu, other in-game interface elements, or another window.
 - Aim assistance now always corrects the camera, which retires the "Use Camera Lock (CFrame)" control. Saved profiles load unchanged.
 - Simulated actions pause while a text field has focus and while Roblox is not the focused window. A skipped action now reports why once, instead of switching the feature off.

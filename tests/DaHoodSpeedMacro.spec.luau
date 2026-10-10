@@ -66,7 +66,8 @@ RaycastParams = { new = function() return {} end }
 
 local player = { CharacterRemoving = signal() }
 local keysDown = {}
-local input = { InputBegan = signal(), InputEnded = signal(), WindowFocusReleased = signal(), Focused = false }
+local input = { InputBegan = signal(), InputEnded = signal(), WindowFocused = signal(),
+    WindowFocusReleased = signal(), Focused = false }
 function input:GetFocusedTextBox() return if self.Focused then {} else nil end
 function input:IsKeyDown(key) return keysDown[key] == true end
 function input:IsMouseButtonPressed(key) return keysDown[key] == true end
@@ -87,10 +88,25 @@ local makeMacro = __SERVICE__
 local humanoid = {
     WalkSpeed = 18, AutoRotate = true, Health = 100, FloorMaterial = Enum.Material.Concrete, HipHeight = 2,
     MoveDirection = Vector3.new(-1, 0, 0), Sit = false, PlatformStand = false, MotionState = Enum.HumanoidStateType.Running,
+    Parent = {},
 }
 function humanoid:GetState() return self.MotionState end
-local root = { AssemblyLinearVelocity = Vector3.new(0, 7, 0), Position = Vector3.new(0, 4, 0), Size = Vector3.new(2, 2, 1) }
-root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.pi / 2, 0) -- initially facing backward
+local root = { AssemblyLinearVelocity = Vector3.new(0, 7, 0), Position = Vector3.new(0, 4, 0), Size = Vector3.new(2, 2, 1), Parent = {} }
+-- CFrame lives behind a metatable so the harness can model what the engine really does: teleporting
+-- an assembly can drop its velocity. A facing write that does not hand the momentum back shows up
+-- here as a character that turns and then stops moving.
+local rootStorage = { CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.pi / 2, 0) } -- initially facing backward
+setmetatable(root, {
+    __index = function(_table, key) return rootStorage[key] end,
+    __newindex = function(table, key, value)
+        if key == "CFrame" then
+            rootStorage.CFrame = value
+            rawset(table, "AssemblyLinearVelocity", Vector3.new(0, 0, 0))
+            return
+        end
+        rawset(table, key, value)
+    end,
+})
 local assets = { Humanoid = humanoid, RootPart = root, Character = {} }
 local values = { ["Game.DaHoodMacroEnabled"] = true, ["Game.DaHoodMacroKey"] = Enum.KeyCode.V, ["Game.DaHoodMacroMode"] = "Hold", ["Game.DaHoodMacroSpeed"] = 85 }
 local observations = {}
@@ -126,9 +142,14 @@ local function scope()
     function result:Dispose() self:RestoreProperties(); disposed = true end
     return result
 end
+local notices = {}
+local bus = { Publish = function(_self, channel, ...)
+    if channel == "Notify" then table.insert(notices, table.pack(...)) end
+end }
 local job, facingJob
 local services = { Get = function(_self, name)
     if name == "StateStore" then return state end
+    if name == "EventBus" then return bus end
     if name == "PlayerTracker" then return { GetLocalAssets = function() return assets end } end
     if name == "Disposer" then return scope() end
     if name == "TaskScheduler" then return {
@@ -234,16 +255,28 @@ humanoid.MotionState = Enum.HumanoidStateType.Jumping
 job(0.1)
 assert(same(root.AssemblyLinearVelocity, Vector3.new(0, 5, 0)), "jump state must not boost on stale floor data")
 humanoid.MotionState = Enum.HumanoidStateType.Running
+-- The humanoid's own contact report outranks the probe: a floor that is not queryable, a ledge, or
+-- a stance clipped into geometry used to stall the glide completely.
 groundHit = nil
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 job(0.1)
-assert(same(root.AssemblyLinearVelocity, Vector3.new(0, 5, 0)), "missing ground hit must not boost")
-groundHit = { Normal = Vector3.new(0, 0.75, 0) }
+assert(root.AssemblyLinearVelocity.X > 0, "a missed ground probe must not stall a grounded glide")
+humanoid.FloorMaterial = Enum.Material.Air
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 job(0.1)
-assert(same(root.AssemblyLinearVelocity, Vector3.new(0, 5, 0)), "steep slope must not boost")
+assert(same(root.AssemblyLinearVelocity, Vector3.new(0, 5, 0)), "a missed probe still never boosts airborne")
+humanoid.FloorMaterial = Enum.Material.Concrete
+
+groundHit = { Normal = Vector3.new(0, 0.2, 0) }
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
+job(0.1)
+local steepGain = root.AssemblyLinearVelocity.X
+assert(steepGain > 0, "steep geometry keeps a reduced push instead of stalling")
 groundHit = { Normal = Vector3.new(0, 0.87, 0) }
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 job(0.1)
 local inclineGain = root.AssemblyLinearVelocity.X
-assert(inclineGain > 0 and inclineGain < 70, "incline boost must be weaker than flat boost")
+assert(inclineGain > steepGain and inclineGain < 70, "a shallower slope pushes harder than a steep one")
 groundHit = { Normal = Vector3.new(0, 1, 0) }
 root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 job(0.1)
@@ -305,7 +338,7 @@ root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 press(Enum.KeyCode.V)
 for _ = 1, 90 do job(1 / 60) end
 assert(math.abs(root.AssemblyLinearVelocity.X - 400) < 0.001, "speed must stay inside slider bounds")
-local nextRoot = { AssemblyLinearVelocity = Vector3.new(9, 12, 0) }
+local nextRoot = { AssemblyLinearVelocity = Vector3.new(9, 12, 0), Parent = {} }
 assets = { Humanoid = humanoid, RootPart = nextRoot, Character = {} }
 job(1)
 assert(same(nextRoot.AssemblyLinearVelocity, Vector3.new(9, 12, 0)), "hold must not transfer to a new character")
@@ -355,6 +388,77 @@ job(1 / 60)
 facingJob(1 / 60)
 assert(root.AssemblyLinearVelocity.X > beforeModeChange.X, "S then V also works in hold mode")
 assert(humanoid.AutoRotate == false, "active macro owns the facing rotation")
+-- Interruptions the player did not ask for must not end the hold for good.
+input.WindowFocused:Fire()
+state:Set("Game.DaHoodMacroSpeed", 120)
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
+input.Focused = true
+job(1 / 60)
+assert(macro:GetStatus().Armed == false, "opening chat pauses the hold")
+local paused = root.AssemblyLinearVelocity
+job(1 / 60)
+assert(same(root.AssemblyLinearVelocity, paused), "a paused hold pushes nothing")
+input.Focused = false
+job(1 / 60)
+assert(macro:GetStatus().Armed == true, "closing chat resumes a hold that is still keyed down")
+assert(root.AssemblyLinearVelocity.X > 0, "the resumed hold pushes again")
+
+-- Losing the window ends the hold, and only focus returning brings it back.
+input.WindowFocusReleased:Fire()
+job(1 / 60)
+assert(macro:GetStatus().Armed == false, "losing window focus stops the hold")
+local unfocused = root.AssemblyLinearVelocity
+job(1 / 60)
+assert(same(root.AssemblyLinearVelocity, unfocused), "an unfocused window never resumes a hold")
+input.WindowFocused:Fire()
+job(1 / 60)
+assert(macro:GetStatus().Armed == true, "focus returns the hold")
+
+-- A respawn still needs a fresh press: the hold never follows onto a new character.
+player.CharacterRemoving:Fire()
+job(1 / 60)
+assert(macro:GetStatus().Armed == false, "a respawn ends the hold")
+local respawned = root.AssemblyLinearVelocity
+job(1 / 60)
+assert(same(root.AssemblyLinearVelocity, respawned), "a new character is never adopted mid-hold")
+release(Enum.KeyCode.V)
+press(Enum.KeyCode.V)
+job(1 / 60)
+assert(root.AssemblyLinearVelocity.X > 0, "a fresh press arms the new character")
+
+-- Turning to face the glide must not cost the glide its momentum.
+camera.CFrame.LookVector = Vector3.new(0, 0, -1)
+root.AssemblyLinearVelocity = Vector3.new(90, 5, 0)
+local beforeFacing = root.AssemblyLinearVelocity
+local lookBefore = root.CFrame.LookVector
+facingJob(1 / 60)
+assert(same(root.AssemblyLinearVelocity, beforeFacing), "a facing write hands the momentum straight back")
+assert(not same(root.CFrame.LookVector, lookBefore), "the character still turns toward the camera")
+camera.CFrame.LookVector = Vector3.new(1, 0, 0)
+
+-- Above the slider cap the glide keeps steering instead of going silent.
+state:Set("Game.DaHoodMacroSpeed", 60)
+root.AssemblyLinearVelocity = Vector3.new(200, 5, 0)
+job(1 / 60)
+local overCap = root.AssemblyLinearVelocity
+assert(overCap.X > 0 and overCap.X <= 200.001 and overCap.Y == 5, "over the cap the push steers without adding speed")
+
+-- A frame that throws must not end the macro: five consecutive throws would open the scheduler's
+-- circuit breaker and leave the character turning with no push for the rest of the session.
+state:Set("Game.DaHoodMacroSpeed", 120)
+root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
+local realGetState = humanoid.GetState
+humanoid.GetState = function() error("simulated engine failure") end
+local noticesBefore = #notices
+job(1 / 60)
+assert(#notices > noticesBefore, "a failing frame reports itself")
+assert(macro:GetStatus().Error ~= nil, "the failure is visible in the panel status")
+assert(macro:GetStatus().Armed == true, "a failing frame does not disarm the macro")
+humanoid.GetState = realGetState
+job(1 / 60)
+assert(root.AssemblyLinearVelocity.X > 0, "the glide recovers on the next healthy frame")
+assert(macro:GetStatus().Error == nil, "a healthy frame clears the reported error")
+
 local beforeDestroy = root.AssemblyLinearVelocity
 macro:Destroy()
 assert(disposed and same(root.AssemblyLinearVelocity, beforeDestroy), "destroy must leave momentum intact")

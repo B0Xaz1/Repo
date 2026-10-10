@@ -9,6 +9,12 @@ export type Registration = {
 local CONFIG = table.freeze({
     REGISTRATIONS = {
         {
+            Name = "Da Hood",
+            PluginModule = "src/Plugins/DaHood/Mechanics.luau",
+            Description = "Hold-key ground velocity boost with adjustable speed and reduced incline assistance",
+            PlaceIds = { 2788229376 }, UniverseIds = {},
+        },
+        {
             Name = "Prison Life",
             PluginModule = "src/Plugins/PrisonLife/Mechanics.luau",
             Description = "Prison Life command center: roles, armory, routes, doors, macros, and diagnostics",

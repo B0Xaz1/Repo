@@ -1,0 +1,6 @@
+local registry = require("../src/Plugins/PluginRegistry")()
+local match = registry:Resolve(2788229376, 0)
+assert(match and match.Name == "Da Hood")
+assert(match.PluginModule == "src/Plugins/DaHood/Mechanics.luau")
+assert(registry:Resolve(1, 0) == nil)
+print("Da Hood registry scenarios passed")

@@ -46,6 +46,7 @@ local CONFIG = deepFreeze({
             FastFireDelay = 0.001, ForceRangeValue = 10000,
             DoorPhase = false, PhaseTransparency = 0.65,
             FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
+            DaHoodMacroEnabled = false, DaHoodMacroKey = Enum.KeyCode.V, DaHoodMacroSpeed = 100,
             MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
             MvSKnifeThrowSpeed = 0,
             MvSKnifeSpamThrow = false,
@@ -78,7 +79,7 @@ local CONFIG = deepFreeze({
     },
     GAME_BOOLEAN_FLAGS = {
         "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
-        "Game.DoorPhase", "Game.FakeMacro",
+        "Game.DoorPhase", "Game.FakeMacro", "Game.DaHoodMacroEnabled",
         "Game.MvSEsp", "Game.MvSKnife", "Game.MvSKnifeSpamThrow", "Game.MvSRevolver", "Game.MvSGunSpamShoot", "Game.MvSAutoEquip", "Game.MvSAutoQueue",
         "Game.ZombieAura", "Game.ZombieAutoEquip", "Game.ZombieFarm",
     },
@@ -87,6 +88,7 @@ local CONFIG = deepFreeze({
         ["Aimbot.Triggerbot.Delay"] = { 0, 2 },
         ["Aimbot.Triggerbot.MaxDistance"] = { 50, 10000 },
         ["Extras.SpinBot.Speed"] = { 0, 3000 },
+        ["Game.DaHoodMacroSpeed"] = { 16, 200 },
     },
 })
 

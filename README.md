@@ -16,6 +16,19 @@ AI tools were used during development, including for code and documentation. The
 
 Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
 
+### Try the Da Hood development branch
+
+To run the version on `arena/60a84a4d-repo` rather than `main`, use this branch-specific loadstring in a compatible Luau execution environment:
+
+```lua
+local env = (type(getgenv) == "function" and getgenv()) or _G
+if type(env.B0XazUnload) == "function" then env.B0XazUnload() end
+env.B0XazRef = "arena/60a84a4d-repo"
+loadstring(game:HttpGet("https://raw.githubusercontent.com/B0Xaz1/Repo/arena/60a84a4d-repo/loader.luau"))()
+```
+
+The branch reference is also used for the plugin modules; setting it before running the loader is necessary. This snippet is for testing the development branch, not the stable `main` release.
+
 ## Menu and profiles
 
 The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
@@ -26,6 +39,7 @@ The Default profile restores default settings and cannot be overwritten. Local s
 
 Game-specific controls are available for:
 
+- **Da Hood (place 2788229376):** hold-key fake macro with adjustable ground velocity. It eases off on inclines and leaves airborne velocity alone; this does not imitate the game’s macro and may be overridden by the server.
 - **Prison Life:** armory, weapon options, doors, macros, map locations, and player watch.
 - **Prison Fight:** door controls and weapon macros.
 - **Murderers VS Sheriffs DUELS:** enemy visuals, combat controls, and queue options.

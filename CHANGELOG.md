@@ -4,7 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
-- Added a Da Hood (place 2788229376) fake macro: configurable activation key (default V), Hold/Toggle mode, and ground-velocity speed slider in the Game tab. S is required for a boost in either mode; V alone never changes velocity. S now pushes forward relative to the camera instead of following S's normal backward MoveDirection; steering curves through existing momentum. Inclines weaken the push, and airborne momentum remains untouched. This does not reproduce the game's macro glitch.
+- Added a Da Hood (place 2788229376) fake macro: configurable activation key (default V), Hold/Toggle mode, and ground-velocity speed slider in the Game tab. S is required for a boost in either mode; V alone never changes velocity. S pushes forward relative to the camera and the character turns to face the glide. Acceleration is quicker, the speed slider reaches 400 (new default 180), and turns retain momentum. Inclines weaken the push, and airborne velocity remains untouched. This does not reproduce the game's macro glitch.
 
 - Switched to the MIT License, which permits use, modification, and redistribution subject to retaining the copyright and permission notice.
 - Documented the use of AI tools during development.

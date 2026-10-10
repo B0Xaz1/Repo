@@ -46,7 +46,7 @@ local CONFIG = deepFreeze({
             FastFireDelay = 0.001, ForceRangeValue = 10000,
             DoorPhase = false, PhaseTransparency = 0.65,
             FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
-            DaHoodMacroEnabled = false, DaHoodMacroKey = Enum.KeyCode.V, DaHoodMacroMode = "Hold", DaHoodMacroSpeed = 100,
+            DaHoodMacroEnabled = false, DaHoodMacroKey = Enum.KeyCode.V, DaHoodMacroMode = "Hold", DaHoodMacroSpeed = 180,
             MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
             MvSKnifeThrowSpeed = 0,
             MvSKnifeSpamThrow = false,
@@ -88,7 +88,7 @@ local CONFIG = deepFreeze({
         ["Aimbot.Triggerbot.Delay"] = { 0, 2 },
         ["Aimbot.Triggerbot.MaxDistance"] = { 50, 10000 },
         ["Extras.SpinBot.Speed"] = { 0, 3000 },
-        ["Game.DaHoodMacroSpeed"] = { 16, 200 },
+        ["Game.DaHoodMacroSpeed"] = { 16, 400 },
     },
 })
 

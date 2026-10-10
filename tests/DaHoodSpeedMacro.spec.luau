@@ -32,6 +32,18 @@ Vector3 = { new = function(x, y, z) return setmetatable({ X = x, Y = y, Z = z },
 function vectorMethods:Lerp(other, alpha) return self + (other - self) * alpha end
 function vectorMethods:Dot(other) return self.X * other.X + self.Y * other.Y + self.Z * other.Z end
 local function same(a, b) return a.X == b.X and a.Y == b.Y and a.Z == b.Z end
+local frameMt = {}
+function frameMt.__index(frame, key)
+    if key == "LookVector" then return Vector3.new(-math.sin(frame.Yaw), 0, -math.cos(frame.Yaw)) end
+    return nil
+end
+function frameMt.__mul(frame, angles)
+    return setmetatable({ Position = frame.Position, Yaw = angles.Yaw }, frameMt)
+end
+CFrame = {
+    new = function(position) return setmetatable({ Position = position, Yaw = 0 }, frameMt) end,
+    Angles = function(_x, y, _z) return { Yaw = y } end,
+}
 
 local keyCode = { Name = "KeyCode" }
 local inputType = { Name = "UserInputType" }
@@ -73,11 +85,12 @@ end }
 
 local makeMacro = __SERVICE__
 local humanoid = {
-    WalkSpeed = 18, Health = 100, FloorMaterial = Enum.Material.Concrete, HipHeight = 2,
+    WalkSpeed = 18, AutoRotate = true, Health = 100, FloorMaterial = Enum.Material.Concrete, HipHeight = 2,
     MoveDirection = Vector3.new(-1, 0, 0), Sit = false, PlatformStand = false, MotionState = Enum.HumanoidStateType.Running,
 }
 function humanoid:GetState() return self.MotionState end
 local root = { AssemblyLinearVelocity = Vector3.new(0, 7, 0), Position = Vector3.new(0, 4, 0), Size = Vector3.new(2, 2, 1) }
+root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.pi / 2, 0) -- initially facing backward
 local assets = { Humanoid = humanoid, RootPart = root, Character = {} }
 local values = { ["Game.DaHoodMacroEnabled"] = true, ["Game.DaHoodMacroKey"] = Enum.KeyCode.V, ["Game.DaHoodMacroMode"] = "Hold", ["Game.DaHoodMacroSpeed"] = 85 }
 local observations = {}
@@ -98,22 +111,40 @@ local function scope()
     function result:CreateChild() return scope() end
     function result:ConnectImmediate(event, callback) event:Connect(callback) end
     function result:Add(value) return value end
-    function result:Dispose() disposed = true end
+    function result:SetProperty(object, property, value)
+        self.originals = self.originals or {}
+        if not self.originals[object] then self.originals[object] = {} end
+        if self.originals[object][property] == nil then self.originals[object][property] = object[property] end
+        object[property] = value
+    end
+    function result:RestoreProperties()
+        for object, properties in pairs(self.originals or {}) do
+            for property, original in pairs(properties) do object[property] = original end
+        end
+        self.originals = nil
+    end
+    function result:Dispose() self:RestoreProperties(); disposed = true end
     return result
 end
-local job
+local job, facingJob
 local services = { Get = function(_self, name)
     if name == "StateStore" then return state end
     if name == "PlayerTracker" then return { GetLocalAssets = function() return assets end } end
     if name == "Disposer" then return scope() end
-    if name == "TaskScheduler" then return { RegisterHeartbeat = function(_self, _name, priority, callback)
-        assert(priority > 10, "macro must run after universal movement")
-        job = callback
-        return { Disconnect = function() end }
-    end } end
+    if name == "TaskScheduler" then return {
+        RegisterHeartbeat = function(_self, _name, priority, callback)
+            assert(priority > 10, "macro must run after universal movement")
+            job = callback
+            return { Disconnect = function() end }
+        end,
+        RegisterCamera = function(_self, _name, _priority, callback)
+            facingJob = callback
+            return { Disconnect = function() end }
+        end,
+    } end
     error("unexpected dependency " .. name)
 end }
-local macro = makeMacro(services, { Macro = { DefaultSpeed = 100, MinSpeed = 16, MaxSpeed = 200 } })
+local macro = makeMacro(services, { Macro = { DefaultSpeed = 180, MinSpeed = 16, MaxSpeed = 400 } })
 macro:Initialize()
 local function press(key, processed)
     keysDown[key] = true
@@ -135,13 +166,20 @@ release(Enum.KeyCode.V)
 press(Enum.KeyCode.V)
 job(1 / 60)
 assert(same(root.AssemblyLinearVelocity, start), "holding V alone must never boost")
+facingJob(1 / 60)
+assert(humanoid.AutoRotate == true, "V alone must not change facing")
 press(Enum.KeyCode.S)
 job(1 / 60)
+for _ = 1, 12 do facingJob(1 / 60) end
+assert(humanoid.AutoRotate == false and root.CFrame.LookVector:Dot(camera.CFrame.LookVector) > 0.95,
+    "V + S should turn the player to face camera-forward travel")
 assert(root.AssemblyLinearVelocity.X > 0 and root.AssemblyLinearVelocity.X < 85, "V + S must move camera-forward, not S-backward")
 assert(humanoid.WalkSpeed == 18 and root.AssemblyLinearVelocity.Y == 7, "never change WalkSpeed or vertical velocity")
 local whileMoving = root.AssemblyLinearVelocity
 release(Enum.KeyCode.S)
+facingJob(1 / 60)
 job(1 / 60)
+assert(humanoid.AutoRotate == true, "releasing S should restore the usual rotation")
 assert(same(root.AssemblyLinearVelocity, whileMoving), "letting go of S stops pushing without cancelling V")
 press(Enum.KeyCode.S)
 -- Forward follows horizontal camera look even when the camera is pitched or turned.
@@ -174,9 +212,14 @@ humanoid.MoveDirection = Vector3.new(-1, 0, 0)
 -- Airborne: preserve every velocity component across repeated frames, even after releasing.
 root.AssemblyLinearVelocity = Vector3.new(48, 23, -9)
 humanoid.FloorMaterial = Enum.Material.Air
+local airFacing = root.CFrame.LookVector
+camera.CFrame.LookVector = Vector3.new(0, 0, -1)
+facingJob(1 / 60)
 job(0.1)
 job(0.1)
+assert(same(root.CFrame.LookVector, airFacing), "facing should not be forced while airborne")
 assert(same(root.AssemblyLinearVelocity, Vector3.new(48, 23, -9)), "no writes while airborne")
+camera.CFrame.LookVector = Vector3.new(1, 0, 0)
 release(Enum.KeyCode.V)
 assert(same(root.AssemblyLinearVelocity, Vector3.new(48, 23, -9)), "release does not erase airborne momentum")
 press(Enum.KeyCode.V)
@@ -261,7 +304,7 @@ state:Set("Game.DaHoodMacroSpeed", 500)
 root.AssemblyLinearVelocity = Vector3.new(0, 5, 0)
 press(Enum.KeyCode.V)
 for _ = 1, 90 do job(1 / 60) end
-assert(math.abs(root.AssemblyLinearVelocity.X - 200) < 0.001, "speed must stay inside slider bounds")
+assert(math.abs(root.AssemblyLinearVelocity.X - 400) < 0.001, "speed must stay inside slider bounds")
 local nextRoot = { AssemblyLinearVelocity = Vector3.new(9, 12, 0) }
 assets = { Humanoid = humanoid, RootPart = nextRoot, Character = {} }
 job(1)
@@ -309,8 +352,11 @@ state:Set("Game.DaHoodMacroKey", Enum.KeyCode.V)
 press(Enum.KeyCode.S)
 press(Enum.KeyCode.V)
 job(1 / 60)
+facingJob(1 / 60)
 assert(root.AssemblyLinearVelocity.X > beforeModeChange.X, "S then V also works in hold mode")
+assert(humanoid.AutoRotate == false, "active macro owns the facing rotation")
 local beforeDestroy = root.AssemblyLinearVelocity
 macro:Destroy()
 assert(disposed and same(root.AssemblyLinearVelocity, beforeDestroy), "destroy must leave momentum intact")
+assert(humanoid.AutoRotate == true, "destroy must restore AutoRotate")
 print("Da Hood V + S hold/toggle scenarios passed")

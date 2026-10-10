@@ -3,7 +3,8 @@ local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    PUSH_RATE = 1.8, -- seconds^-1; accelerates along input rather than steering velocity toward it
+    PUSH_RATE = 4, -- stronger camera-forward ground acceleration, still additive for drifting
+    FACING_RESPONSE = 18, -- smooth yaw toward camera without snapping or moving the root
     MAX_STEP = 0.05, -- avoid an oversized impulse after a delayed frame
     NO_BOOST_NORMAL_Y = 0.8, -- roughly 37 degrees: no boost on steep inclines
     FULL_BOOST_NORMAL_Y = 0.985, -- roughly 10 degrees: full boost on nearly flat ground
@@ -14,6 +15,7 @@ return function(services: any, manifest: any): any
     local state = services:Get("StateStore")
     local tracker = services:Get("PlayerTracker")
     local scope = services:Get("Disposer"):CreateChild("DaHood.SpeedMacro")
+    local facingOwner = scope:CreateChild("Camera-facing glide")
     local groundRay = RaycastParams.new()
     groundRay.FilterType = Enum.RaycastFilterType.Exclude
     groundRay.IgnoreWater = true
@@ -44,7 +46,53 @@ return function(services: any, manifest: any): any
     function Macro:Stop()
         self._armed = false
         self._humanoid, self._root, self._character = nil, nil, nil
+        facingOwner:RestoreProperties() -- return AutoRotate to its previous owner/value
         -- Never zero or restore velocity: existing momentum (especially in the air) is physical.
+    end
+
+    local function cameraForward(): Vector3?
+        local camera = Workspace.CurrentCamera
+        if not camera then return nil end
+        local look = camera.CFrame.LookVector
+        local horizontal = Vector3.new(look.X, 0, look.Z)
+        return if horizontal.Magnitude >= 0.05 then horizontal.Unit else nil
+    end
+
+    local function face(dt: number)
+        if not Macro._armed or not UIS:IsKeyDown(Enum.KeyCode.S) or UIS:GetFocusedTextBox()
+            or state:GetTransient("IsBindingKey") then
+            facingOwner:RestoreProperties()
+            return
+        end
+        local key = boundKey()
+        if not key or state:Peek("Game.DaHoodMacroEnabled") ~= true
+            or (activationMode() == "Hold" and not isDown(key)) then
+            Macro:Stop()
+            return
+        end
+        local assets = tracker:GetLocalAssets()
+        if not assets or assets.Humanoid ~= Macro._humanoid or assets.RootPart ~= Macro._root
+            or assets.Character ~= Macro._character or assets.Humanoid.Health <= 0 then
+            Macro:Stop()
+            return
+        end
+        local humanoid, root = assets.Humanoid, assets.RootPart
+        if humanoid.Sit or humanoid.PlatformStand then facingOwner:RestoreProperties(); return end
+        local forward = cameraForward()
+        if not forward then facingOwner:RestoreProperties(); return end
+        facingOwner:SetProperty(humanoid, "AutoRotate", false, true)
+        -- Keep the character facing where S propels it, not where normal S walking points.
+        -- Only rotate on the ground; airborne momentum and orientation are left alone.
+        local motionState = humanoid:GetState()
+        if humanoid.FloorMaterial == Enum.Material.Air or motionState == Enum.HumanoidStateType.Freefall
+            or motionState == Enum.HumanoidStateType.Jumping or motionState == Enum.HumanoidStateType.Flying
+            or motionState == Enum.HumanoidStateType.Swimming then return end
+        local currentLook = root.CFrame.LookVector
+        local yaw = math.atan2(-currentLook.X, -currentLook.Z)
+        local targetYaw = math.atan2(-forward.X, -forward.Z)
+        local gap = (targetYaw - yaw + math.pi) % (2 * math.pi) - math.pi
+        local alpha = 1 - math.exp(-CONFIG.FACING_RESPONSE * math.clamp(dt, 0, CONFIG.MAX_STEP))
+        root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, yaw + gap * alpha, 0)
     end
 
     local function apply(dt: number)
@@ -65,18 +113,14 @@ return function(services: any, manifest: any): any
         local motionState = humanoid:GetState()
         if motionState == Enum.HumanoidStateType.Freefall or motionState == Enum.HumanoidStateType.Jumping
             or motionState == Enum.HumanoidStateType.Flying or motionState == Enum.HumanoidStateType.Swimming then return end
-        local camera = Workspace.CurrentCamera
-        if not camera then return end
-        local look = camera.CFrame.LookVector
-        local cameraForward = Vector3.new(look.X, 0, look.Z)
-        if cameraForward.Magnitude < 0.05 then return end
-        cameraForward = cameraForward.Unit
+        local forward = cameraForward()
+        if not forward then return end
         -- S normally moves backward. The macro instead pushes forward along the camera;
         -- side input can bend the glide without changing its forward direction.
         local movement = humanoid.MoveDirection
         local planarMovement = Vector3.new(movement.X, 0, movement.Z)
-        local sideways = planarMovement - cameraForward * planarMovement:Dot(cameraForward)
-        local glideDirection = (cameraForward + sideways * 0.35).Unit
+        local sideways = planarMovement - forward * planarMovement:Dot(forward)
+        local glideDirection = (forward + sideways * 0.35).Unit
 
         local groundDistance = math.max(3, humanoid.HipHeight + root.Size.Y / 2 + CONFIG.GROUND_CHECK_EXTRA)
         local hit = Workspace:Raycast(root.Position, Vector3.new(0, -groundDistance, 0), groundRay)
@@ -91,9 +135,9 @@ return function(services: any, manifest: any): any
         local horizontal = Vector3.new(current.X, 0, current.Z)
         -- Counter only ordinary S walking speed so the first grounded frame can move forward,
         -- but let larger existing backward momentum bleed off over time rather than snapping.
-        local backward = math.max(0, -horizontal:Dot(cameraForward))
+        local backward = math.max(0, -horizontal:Dot(forward))
         local walkCorrection = math.min(backward, math.max(0, humanoid.WalkSpeed))
-        local impulse = cameraForward * walkCorrection
+        local impulse = forward * walkCorrection
             + glideDirection * (speed * CONFIG.PUSH_RATE * math.clamp(dt, 0, CONFIG.MAX_STEP) * incline)
         local boosted = horizontal + impulse
         local currentSpeed = horizontal.Magnitude
@@ -126,6 +170,7 @@ return function(services: any, manifest: any): any
             apply(1 / 60)
         end)
         scope:ConnectImmediate(UIS.InputEnded, function(input: InputObject)
+            if input.KeyCode == Enum.KeyCode.S then facingOwner:RestoreProperties() end
             local key = boundKey()
             if self._armed and activationMode() == "Hold" and key and matches(input, key) then self:Stop() end
         end)
@@ -136,6 +181,7 @@ return function(services: any, manifest: any): any
         end))
         scope:Add(state:Observe("Game.DaHoodMacroKey", function() self:Stop() end))
         scope:Add(state:Observe("Game.DaHoodMacroMode", function() self:Stop() end))
+        scope:Add(services:Get("TaskScheduler"):RegisterCamera("Game.DaHood.MacroFacing", 20, face))
         scope:Add(services:Get("TaskScheduler"):RegisterHeartbeat("Game.DaHood.SpeedMacro", 20, function(dt: number)
             if not self._armed then return end
             local key = boundKey()

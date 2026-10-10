@@ -39,7 +39,7 @@ The Default profile restores default settings and cannot be overwritten. Local s
 
 Game-specific controls are available for:
 
-- **Da Hood (place 2788229376):** hold-key, glide-inspired fake macro with an adjustable ground speed cap. Hold S to slide backward and turn the camera to steer; the boost adds momentum rather than snapping to your movement direction. It eases off on inclines and never writes airborne velocity. This is not the game's animation/zoom glitch, and the server may override local motion.
+- **Da Hood (place 2788229376):** glide-inspired fake macro with an adjustable ground speed cap. **Hold** mode requires the activation key (V by default) and S together; **Toggle** mode lets V arm/disarm the macro, but S is still required to move. V alone does not boost. Turn the camera to steer the backward glide; inclines weaken the push, and airborne velocity is untouched. This is not the game's animation/zoom glitch, and the server may override local motion.
 - **Prison Life:** armory, weapon options, doors, macros, map locations, and player watch.
 - **Prison Fight:** door controls and weapon macros.
 - **Murderers VS Sheriffs DUELS:** enemy visuals, combat controls, and queue options.

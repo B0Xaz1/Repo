@@ -17,15 +17,20 @@ return function(services: any, manifest: any): any
     local groundRay = RaycastParams.new()
     groundRay.FilterType = Enum.RaycastFilterType.Exclude
     groundRay.IgnoreWater = true
-    local Macro = { _held = false, _humanoid = nil, _root = nil, _character = nil, _initialized = false }
+    local Macro = { _armed = false, _humanoid = nil, _root = nil, _character = nil, _initialized = false }
 
     local function boundKey(): EnumItem?
         local key = state:Peek("Game.DaHoodMacroKey")
         if typeof(key) ~= "EnumItem" then return nil end
-        if key.EnumType == Enum.KeyCode and key ~= Enum.KeyCode.Unknown then return key end
+        -- S is the required movement input; binding activation to S would bypass V + S.
+        if key.EnumType == Enum.KeyCode and key ~= Enum.KeyCode.Unknown and key ~= Enum.KeyCode.S then return key end
         if key == Enum.UserInputType.MouseButton1 or key == Enum.UserInputType.MouseButton2
             or key == Enum.UserInputType.MouseButton3 then return key end
         return nil
+    end
+
+    local function activationMode(): string
+        return if state:Peek("Game.DaHoodMacroMode") == "Toggle" then "Toggle" else "Hold"
     end
 
     local function matches(input: InputObject, key: EnumItem): boolean
@@ -37,13 +42,13 @@ return function(services: any, manifest: any): any
     end
 
     function Macro:Stop()
-        self._held = false
+        self._armed = false
         self._humanoid, self._root, self._character = nil, nil, nil
         -- Never zero or restore velocity: existing momentum (especially in the air) is physical.
     end
 
     local function apply(dt: number)
-        if not Macro._held then return end
+        if not Macro._armed then return end
         local assets = tracker:GetLocalAssets()
         -- A hold belongs to the character it began on. Never transfer it to a respawn.
         if not assets or assets.Humanoid ~= Macro._humanoid or assets.RootPart ~= Macro._root
@@ -52,6 +57,8 @@ return function(services: any, manifest: any): any
             return
         end
 
+        -- Activation only arms the macro. S is required for every velocity write in both modes.
+        if not UIS:IsKeyDown(Enum.KeyCode.S) then return end
         local humanoid, root = assets.Humanoid, assets.RootPart
         -- In freefall / flight / swimming, do not write velocity at all: preserve the whole vector.
         if humanoid.FloorMaterial == Enum.Material.Air or humanoid.Sit or humanoid.PlatformStand then return end
@@ -94,20 +101,22 @@ return function(services: any, manifest: any): any
         if self._initialized then return end
         self._initialized = true
         scope:ConnectImmediate(UIS.InputBegan, function(input: InputObject, processed: boolean)
-            if processed or self._held or state:Peek("Game.DaHoodMacroEnabled") ~= true
+            if processed or state:Peek("Game.DaHoodMacroEnabled") ~= true
                 or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             local key = boundKey()
             if not key or not matches(input, key) then return end
+            if activationMode() == "Toggle" and self._armed then self:Stop(); return end
+            if self._armed then return end
             local assets = tracker:GetLocalAssets()
             if not assets or assets.Humanoid.Health <= 0 then return end
-            self._humanoid, self._root, self._character, self._held =
+            self._humanoid, self._root, self._character, self._armed =
                 assets.Humanoid, assets.RootPart, assets.Character, true
             groundRay.FilterDescendantsInstances = { assets.Character }
             apply(1 / 60)
         end)
         scope:ConnectImmediate(UIS.InputEnded, function(input: InputObject)
             local key = boundKey()
-            if self._held and key and matches(input, key) then self:Stop() end
+            if self._armed and activationMode() == "Hold" and key and matches(input, key) then self:Stop() end
         end)
         scope:ConnectImmediate(UIS.WindowFocusReleased, function() self:Stop() end)
         scope:ConnectImmediate(Players.LocalPlayer.CharacterRemoving, function() self:Stop() end)
@@ -115,10 +124,12 @@ return function(services: any, manifest: any): any
             if enabled ~= true then self:Stop() end
         end))
         scope:Add(state:Observe("Game.DaHoodMacroKey", function() self:Stop() end))
+        scope:Add(state:Observe("Game.DaHoodMacroMode", function() self:Stop() end))
         scope:Add(services:Get("TaskScheduler"):RegisterHeartbeat("Game.DaHood.SpeedMacro", 20, function(dt: number)
-            if not self._held then return end
+            if not self._armed then return end
             local key = boundKey()
-            if state:Peek("Game.DaHoodMacroEnabled") ~= true or not key or not isDown(key)
+            if state:Peek("Game.DaHoodMacroEnabled") ~= true or not key
+                or (activationMode() == "Hold" and not isDown(key))
                 or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then
                 self:Stop()
                 return

@@ -46,7 +46,7 @@ local CONFIG = deepFreeze({
             FastFireDelay = 0.001, ForceRangeValue = 10000,
             DoorPhase = false, PhaseTransparency = 0.65,
             FakeMacro = false, FakeMacroKey = Enum.KeyCode.X, FakeMacroMode = "Toggle", FakeMacroDelay = 0.03,
-            DaHoodMacroEnabled = false, DaHoodMacroKey = Enum.KeyCode.V, DaHoodMacroSpeed = 100,
+            DaHoodMacroEnabled = false, DaHoodMacroKey = Enum.KeyCode.V, DaHoodMacroMode = "Hold", DaHoodMacroSpeed = 100,
             MvSEsp = false, MvSKnife = false, MvSKnifeCooldown = 0.45,
             MvSKnifeThrowSpeed = 0,
             MvSKnifeSpamThrow = false,

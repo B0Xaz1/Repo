@@ -11,7 +11,7 @@ local CONFIG = table.freeze({
         {
             Name = "Da Hood",
             PluginModule = "src/Plugins/DaHood/Mechanics.luau",
-            Description = "Hold-key ground velocity boost with adjustable speed and reduced incline assistance",
+            Description = "V + S camera-forward ground glide with Hold/Toggle activation and adjustable speed",
             PlaceIds = { 2788229376 }, UniverseIds = {},
         },
         {

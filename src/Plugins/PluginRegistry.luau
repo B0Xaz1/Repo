@@ -9,6 +9,12 @@ export type Registration = {
 local CONFIG = table.freeze({
     REGISTRATIONS = {
         {
+            Name = "Da Hood",
+            PluginModule = "src/Plugins/DaHood/Mechanics.luau",
+            Description = "V + S camera-forward ground glide with Hold/Toggle activation and adjustable speed",
+            PlaceIds = { 2788229376 }, UniverseIds = {},
+        },
+        {
             Name = "Prison Life",
             PluginModule = "src/Plugins/PrisonLife/Mechanics.luau",
             Description = "Prison Life command center: roles, armory, routes, doors, macros, and diagnostics",
@@ -33,12 +39,6 @@ local CONFIG = table.freeze({
             PluginModule = "src/Plugins/ZombieAttack/Mechanics.luau",
             Description = "Zombie Attack kill aura: rate-gated shots at the nearest live zombie through the game's own gun remote",
             PlaceIds = { 1240123653, 1632210982 }, UniverseIds = {},
-        },
-        {
-            Name = "Da Hood",
-            PluginModule = "src/Plugins/DaHood/Mechanics.luau",
-            Description = "Da Hood adapter placeholder. Add logic here later.",
-            PlaceIds = { 2788229376 }, UniverseIds = {},
         },
     },
 })

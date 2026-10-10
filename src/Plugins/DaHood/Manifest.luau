@@ -1,20 +1,9 @@
 return function(_services: any?): any
-    local CONFIG = {
+    return table.freeze({
         Name = "Da Hood",
-
         PlaceIds = { 2788229376 },
         UniverseIds = {},
-
         TagPrefix = "B0XazDaHood",
-    }
-
-    local function freezeDeep(value: any): any
-        if type(value) == "table" then
-            for _, child in pairs(value) do freezeDeep(child) end
-            table.freeze(value)
-        end
-        return value
-    end
-
-    return freezeDeep(CONFIG)
+        Macro = table.freeze({ MinSpeed = 16, MaxSpeed = 400, DefaultSpeed = 180, DefaultKey = Enum.KeyCode.V, DefaultMode = "Hold" }),
+    })
 end

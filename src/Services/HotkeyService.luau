@@ -22,6 +22,7 @@ local CONFIG = table.freeze({
         { Label = "Menu", Path = "Settings.MenuKeybind" }, { Label = "Unload", Path = "Settings.UnloadKeybind" },
         { Label = "Aimbot", Path = "Aimbot.Keybind" }, { Label = "Triggerbot", Path = "Aimbot.Triggerbot.Keybind" },
         { Label = "Macro", Path = "Game.FakeMacroKey" },
+        { Label = "Da Hood macro", Path = "Game.DaHoodMacroKey" },
     },
 })
 

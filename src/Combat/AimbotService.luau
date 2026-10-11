@@ -172,9 +172,12 @@ return function(services: any): any
             x = math.clamp(x, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
             y = math.clamp(y, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
             AimbotService._remainder = Vector2.new(math.clamp(total.X - x, -1, 1), math.clamp(total.Y - y, -1, 1))
-            if (x ~= 0 or y ~= 0) and not environment:MouseMove(x, y) then
-                state:Set("Aimbot.UseCamera", true)
-                bus:Publish("Notify", "Aimbot", "The executor rejected mouse input; using camera correction")
+            if x ~= 0 or y ~= 0 then
+                local moved, moveReason = environment:MouseMove(x, y)
+                if not moved then
+                    state:Set("Aimbot.UseCamera", true)
+                    bus:Publish("Notify", "Aimbot", `Virtual mouse input is unavailable ({moveReason or "unknown reason"}); using camera correction`)
+                end
             end
         end
     end

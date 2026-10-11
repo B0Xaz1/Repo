@@ -6,8 +6,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
 - Added Balanced and Maximum performance presets, a visual-quality restore action, manual reapply controls, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
-- Simplified frame rate control to one Uncap FPS action. It now tries each supported executor FPS-cap API with a high ceiling only, avoiding aliases that silently translate zero into a 60-FPS cap; the request is reasserted while the menu is visible.
-- Restored client-contained virtual mouse movement for input-driven features and refined pointer safety so passive HUD elements no longer block gameplay input. Interactive Roblox UI, text entry, menus, and unfocused windows remain protected.
+- Simplified frame rate control to one Uncap FPS action. It tries each supported executor FPS-cap API with a high ceiling only and, when available, applies the Roblox scheduler target fallback for clients whose setter leaves the client at 60 FPS. The request is reasserted while the menu is visible.
+- Restored client-contained virtual mouse movement for input-driven features and refined pointer safety so passive HUD and active HUD-root frames no longer block gameplay input. Interactive Roblox UI, text entry, menus, and unfocused windows remain protected; mouse-aim feedback now reports the actual unavailable reason.
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.
 - The entire menu top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session, with a high-contrast confirmation label.

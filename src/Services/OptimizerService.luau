@@ -17,11 +17,11 @@ local CONFIG = table.freeze({
 })
 
 return function(services: any): any
-    local state, environment = services:Get("StateStore"), services:Get("Environment")
+    local state, environment, bus = services:Get("StateStore"), services:Get("Environment"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("OptimizerService")
     local changes = scope:CreateChild("Optimizations")
     local OptimizerService = { _caches = {}, _applied = {}, _revision = 0, _initialized = false,
-        _applyRequested = false, _applyWorkerActive = false, _fpsCap = nil }
+        _applyRequested = false, _applyWorkerActive = false, _fpsCap = nil, _fpsFocusRevision = 0 }
 
     for _, flag in ipairs(CONFIG.FLAGS) do OptimizerService._caches[flag] = {} end
 
@@ -184,6 +184,20 @@ return function(services: any): any
         return true, if normalized == 0 then "Frame rate is uncapped" else `Frame rate cap set to {normalized} FPS`
     end
 
+    -- Opening or focusing Roblox UI can reset some executor caps to 60 after the first write.
+    -- Reassert after the menu transition settles, rather than polling every frame while it is open.
+    function OptimizerService:ReassertFpsCapAfterMenuFocus()
+        self._fpsFocusRevision += 1
+        local revision = self._fpsFocusRevision
+        local function reassert()
+            if scope:IsDisposed() or revision ~= self._fpsFocusRevision or not state:Peek("Settings.MenuVisible") then return end
+            self:ApplyFpsCap(state:Peek("Performance.FpsCap"), true)
+        end
+        reassert()
+        scope:Delay(0.15, reassert)
+        scope:Delay(0.6, reassert)
+    end
+
     function OptimizerService:FlushMemory(): (boolean, string)
         local collected = pcall(function() collectgarbage("collect") end)
         return collected, if collected then "Garbage collection requested" else "This client restricts forced collection; Lua will collect automatically"
@@ -195,9 +209,15 @@ return function(services: any): any
         for _, flag in ipairs(CONFIG.FLAGS) do scope:Add(state:Observe(`Performance.{flag}`, function() OptimizerService:RequestApply() end)) end
         scope:Add(state:Observe("Performance.FpsCap", function(value: number)
             local ok, message = OptimizerService:ApplyFpsCap(value)
-            if not ok and value ~= 0 then services:Get("EventBus"):Publish("Notify", "Performance", message) end
+            if not ok and value ~= 0 then bus:Publish("Notify", "Performance", message) end
         end))
-        scope:Add(services:Get("EventBus"):Subscribe("SettingsHydrated", function()
+        scope:Add(state:Observe("Settings.MenuVisible", function(visible: boolean)
+            if visible then OptimizerService:ReassertFpsCapAfterMenuFocus() end
+        end))
+        scope:Add(bus:Subscribe("TabSelected", function()
+            if state:Peek("Settings.MenuVisible") then OptimizerService:ReassertFpsCapAfterMenuFocus() end
+        end))
+        scope:Add(bus:Subscribe("SettingsHydrated", function()
             OptimizerService:RequestApply()
             OptimizerService:ApplyFpsCap(state:Peek("Performance.FpsCap"), true)
         end))

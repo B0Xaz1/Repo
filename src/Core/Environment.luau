@@ -6,8 +6,6 @@ local GuiService = game:GetService("GuiService")
 local CONFIG = table.freeze({
     ROOT = "B0XazUniversal/",
     CONFIGS_SUBFOLDER = "Configs",
-    FPS_MIN = 5,
-    FPS_MAX = 1000,
     -- Some executors interpret zero as their default 60 FPS rather than unlimited.
     -- Requesting the supported ceiling is the portable representation of "uncapped".
     FPS_UNCAPPED = 1000,
@@ -195,12 +193,11 @@ return function(disposer: any): any
 
     function Environment:HasFpsCap(): boolean return fps ~= nil end
 
-    function Environment:SetFpsCap(value: number): boolean
+    function Environment:UncapFps(): boolean
         if not fps then return false end
         -- Do not send zero through as an executor cap. Several implementations treat it as
         -- their 60-FPS default even while reporting that no cap is active.
-        local target = if value <= 0 then CONFIG.FPS_UNCAPPED else math.clamp(math.round(value), CONFIG.FPS_MIN, CONFIG.FPS_MAX)
-        return pcall(fps, target)
+        return pcall(fps, CONFIG.FPS_UNCAPPED)
     end
 
     function Environment:IsMobile(): boolean return UIS.TouchEnabled and not UIS.KeyboardEnabled end

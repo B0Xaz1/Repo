@@ -6,7 +6,7 @@ return function(services: any, tab: any): any
     local dropdown = load("src/UI/Components/Dropdown.luau", services)
     local color = load("src/UI/Components/ColorPicker.luau", services)
     local textbox = load("src/UI/Components/Textbox.luau", services)
-    local environment, lighting, state = services:Get("Environment"), services:Get("LightingService"), services:Get("StateStore")
+    local environment, lighting = services:Get("Environment"), services:Get("LightingService")
     local optimizer = services:Get("OptimizerService")
     local esp = section:Create(tab.LeftCol, "ESP features", "ESP")
     if not services:Get("DrawingPool").Available then
@@ -46,16 +46,11 @@ return function(services: any, tab: any): any
         toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
     end
 
-    local framePacing = section:Create(tab.RightCol, "Frame pacing", "Performance")
-    section:Info(framePacing, "The cap applies immediately in 5-FPS steps. Use 0 to request the executor's high uncapped ceiling instead of its 60-FPS fallback.")
-    slider(framePacing, "Frame rate cap", "Performance.FpsCap", 0, 1000, 5, " FPS", function(value: number) optimizer:ApplyFpsCap(value) end)
-    textbox:CreateButton(framePacing, "Apply current frame rate cap", function() return optimizer:ApplyFpsCap(state:Get("Performance.FpsCap"), true) end)
-    textbox:CreateButton(framePacing, "Uncap frame rate", function()
-        state:Set("Performance.FpsCap", 0)
-        return optimizer:ApplyFpsCap(0, true)
-    end)
+    local frameRate = section:Create(tab.RightCol, "Frame rate")
+    section:Info(frameRate, "Remove the executor frame cap. The suite requests a high ceiling rather than the executor's 60-FPS fallback.")
+    textbox:CreateButton(frameRate, "Uncap FPS", function() return optimizer:UncapFps(true) end)
     if not environment:HasFpsCap() then
-        section:Info(framePacing, "This executor does not expose a frame-cap API. Rendering options still work.")
+        section:Info(frameRate, "This executor does not expose a frame-cap API. Rendering options still work.")
     end
 
     local maintenance = section:Create(tab.RightCol, "Performance maintenance")

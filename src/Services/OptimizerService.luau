@@ -21,7 +21,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("OptimizerService")
     local changes = scope:CreateChild("Optimizations")
     local OptimizerService = { _caches = {}, _applied = {}, _revision = 0, _initialized = false,
-        _applyRequested = false, _applyWorkerActive = false, _fpsCap = nil, _fpsFocusRevision = 0 }
+        _applyRequested = false, _applyWorkerActive = false, _fpsUncapped = false, _fpsFocusRevision = 0 }
 
     for _, flag in ipairs(CONFIG.FLAGS) do OptimizerService._caches[flag] = {} end
 
@@ -171,17 +171,14 @@ return function(services: any): any
         return true, "Performance visual changes are being restored"
     end
 
-    function OptimizerService:ApplyFpsCap(value: number, force: boolean?): (boolean, string)
-        local requested = tonumber(value) or 0
-        local normalized = if requested <= 0 then 0 else math.clamp(math.round(requested), 5, 1000)
-        if self._fpsCap == normalized and not force then
-            return true, if normalized == 0 then "Frame rate is uncapped" else `Frame rate cap is {normalized} FPS`
-        end
+    function OptimizerService:UncapFps(force: boolean?): (boolean, string)
+        if self._fpsUncapped and not force then return true, "Frame rate is uncapped" end
         if not environment:HasFpsCap() then return false, "FPS-cap support is unavailable on this executor" end
-        local ok = environment:SetFpsCap(normalized)
-        if not ok then return false, "The executor rejected the FPS cap" end
-        self._fpsCap = normalized
-        return true, if normalized == 0 then "Frame rate is uncapped" else `Frame rate cap set to {normalized} FPS`
+        -- Environment requests the executor's high supported ceiling rather than its 60-FPS default.
+        local ok = environment:UncapFps()
+        if not ok then return false, "The executor rejected the uncapped frame rate request" end
+        self._fpsUncapped = true
+        return true, "Frame rate is uncapped"
     end
 
     -- Opening or focusing Roblox UI can reset some executor caps to 60 after the first write.
@@ -191,7 +188,7 @@ return function(services: any): any
         local revision = self._fpsFocusRevision
         local function reassert()
             if scope:IsDisposed() or revision ~= self._fpsFocusRevision or not state:Peek("Settings.MenuVisible") then return end
-            self:ApplyFpsCap(state:Peek("Performance.FpsCap"), true)
+            self:UncapFps(true)
         end
         reassert()
         scope:Delay(0.15, reassert)
@@ -207,10 +204,6 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         for _, flag in ipairs(CONFIG.FLAGS) do scope:Add(state:Observe(`Performance.{flag}`, function() OptimizerService:RequestApply() end)) end
-        scope:Add(state:Observe("Performance.FpsCap", function(value: number)
-            local ok, message = OptimizerService:ApplyFpsCap(value)
-            if not ok and value ~= 0 then bus:Publish("Notify", "Performance", message) end
-        end))
         scope:Add(state:Observe("Settings.MenuVisible", function(visible: boolean)
             if visible then OptimizerService:ReassertFpsCapAfterMenuFocus() end
         end))
@@ -219,7 +212,7 @@ return function(services: any): any
         end))
         scope:Add(bus:Subscribe("SettingsHydrated", function()
             OptimizerService:RequestApply()
-            OptimizerService:ApplyFpsCap(state:Peek("Performance.FpsCap"), true)
+            OptimizerService:UncapFps(true)
         end))
         scope:ConnectImmediate(Workspace.DescendantAdded, function(object: Instance)
             local active = activeFeatures()
@@ -230,11 +223,11 @@ return function(services: any): any
             if anyActive(active) then applyToInstance(object, active) end
         end)
         self:RequestApply()
-        self:ApplyFpsCap(state:Peek("Performance.FpsCap"), true)
+        self:UncapFps(true)
     end
 
     function OptimizerService:Destroy() scope:Dispose() end
 
-    scope:Add(function() OptimizerService:RestoreAll(); environment:SetFpsCap(0) end)
+    scope:Add(function() OptimizerService:RestoreAll(); environment:UncapFps() end)
     return OptimizerService
 end

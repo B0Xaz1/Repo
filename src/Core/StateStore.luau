@@ -39,7 +39,7 @@ local CONFIG = deepFreeze({
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
         Extras = { Hitbox = { Enabled = false, Size = 5 }, SpinBot = { Enabled = false, Speed = 180 },
             AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
-        Performance = { FpsCap = 0, NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
+        Performance = { NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
             NoPostProcessing = false, NoShadows = false, NoParticles = false, NoLights = false, NoHighlights = false },
         Game = {
             NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
@@ -88,7 +88,6 @@ local CONFIG = deepFreeze({
         ["Aimbot.Triggerbot.Delay"] = { 0, 2 },
         ["Aimbot.Triggerbot.MaxDistance"] = { 50, 10000 },
         ["Extras.SpinBot.Speed"] = { 0, 3000 },
-        ["Performance.FpsCap"] = { 0, 1000 },
         ["Game.DaHoodMacroSpeed"] = { 16, 400 },
     },
 })

@@ -14,13 +14,13 @@ AI tools were used during development, including for code and documentation. The
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. On first launch, choose an edition in the in-game picker, then open the menu with **Right Shift** and enable the features you want.
 
-The picker offers **Full** (all workspaces, commands, and supported-experience adapters) and **Lite** (the Command Deck shell and universal controls without game adapters, the Game workspace, or Commands). Its Remember control saves a Full or Lite choice locally; leave it off to be asked again next time. In **Settings → Launch behavior**, set the next-launch preference to **Ask every launch**, **Lite**, or **Full**. Edition preferences are separate from saved profiles, and require local file support to persist.
+The picker offers **Full** (all workspaces, commands, and supported-experience adapters) and **Lite** (the menu shell and universal controls without game adapters, the Game workspace, or Commands). Its Remember control saves a Full or Lite choice locally; leave it off to be asked again next time. In **Settings → Launch behavior**, set the next-launch preference to **Ask every launch**, **Lite**, or **Full**. Edition preferences are separate from saved profiles, and require local file support to persist.
 
 The loader and queued rejoin bootstrap use an immutable full Git commit, not the mutable `main` branch or an overrideable base URL. To intentionally run a reviewed different revision, set `B0XazRef` to its full 40-character commit ID before launching. Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
 
 ## Menu and profiles
 
-In Full, the Command Deck has an Overview workspace plus tabs for Combat, Visuals, Movement, Players, Commands, Utility, Settings, and Game. Lite keeps the universal workspaces and omits Commands and Game. Use search to find a control; on desktop press **Ctrl/Cmd + K** to focus it, and press **Escape** to clear it. Touch devices use a horizontally scrollable workspace picker. Star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
+In Full, the menu has an Overview workspace plus tabs for Combat, Visuals, Movement, Players, Commands, Utility, Settings, and Game. Lite keeps the universal workspaces and omits Commands and Game. Use search to find a control; on desktop press **Ctrl/Cmd + K** to focus it, and press **Escape** to clear it. Touch devices use a horizontally scrollable workspace picker. Star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
 
 The Default profile restores default settings and cannot be overwritten. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
 

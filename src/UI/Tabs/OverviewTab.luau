@@ -1,8 +1,13 @@
+local CONFIG = table.freeze({
+    CHANGELOG_REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
+    MAX_CHANGELOG_BYTES = 256 * 1024,
+})
+
 return function(services: any, tab: any): any
     local dom, theme, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("EventBus")
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
-    local config = services:Get("ConfigService")
+    local config, environment = services:Get("ConfigService"), services:Get("Environment")
     local plugins = if services:Has("PluginManager") then services:Get("PluginManager") else nil
     local scope = services:Get("Disposer"):CreateChild("Overview tab")
 
@@ -45,16 +50,75 @@ return function(services: any, tab: any): any
 
     local pinned = section:Create(tab.LeftCol, "Pinned controls")
     section:Info(pinned, "Use ☆ beside a control to keep it at the top of its workspace. Pinned controls are saved with your configuration.")
+    local workspace = section:Create(tab.LeftCol, "Workspace")
+    section:Info(workspace, "Search is available from the menu bar at any time. Results stay in the current workspace so you can adjust settings without losing context.")
+    section:Info(workspace, "Use the − button to minimize the menu. The × button asks before unloading the suite and restoring leased properties.")
 
     local changes = section:Create(tab.RightCol, "What changed in this revamp")
-    section:Info(changes, "Command Deck now uses a structured command bar, navigation workspace, and an Overview landing page.")
-    section:Info(changes, "Midnight is monochrome, the main deck has visible rounded surfaces, and the old floating ESP preview was removed.")
-    section:Info(changes, "Touch devices use a horizontal workspace picker and a larger floating menu control. Desktop users can press Ctrl/Cmd + K to focus search.")
-    section:Info(changes, "Profile changes now defer expensive interface reflow until settings finish applying, so saved UI scale changes stay responsive.")
+    local status = section:Info(changes, "Loading patch notes for this build…")
 
-    local workspace = section:Create(tab.RightCol, "Workspace")
-    section:Info(workspace, "Search is available from the command bar at any time. Results stay in the current workspace so you can adjust settings without losing context.")
-    section:Info(workspace, "Use the − button to minimize the deck. The × button unloads the suite and restores leased properties.")
+    -- Release notes stay in CHANGELOG.md. The Overview reads the same immutable revision as
+    -- the running menu, so this panel never needs a duplicate, manually maintained summary.
+    local function changelogUrl(): string?
+        local ref = environment.Globals.B0XazRef
+        if type(ref) ~= "string" or #ref ~= 40 or not ref:match("^[0-9a-fA-F]+$") then return nil end
+        return `{CONFIG.CHANGELOG_REPOSITORY}{ref:lower()}/CHANGELOG.md`
+    end
+
+    local function trim(value: string): string
+        return value:gsub("^%s+", ""):gsub("%s+$", "")
+    end
+
+    local function readCurrentPatchNotes(markdown: string): { string }
+        local _, sectionEnd = markdown:find("## Unreleased", 1, true)
+        if not sectionEnd then return {} end
+        local bodyStart = markdown:find("\n", sectionEnd, true)
+        if not bodyStart then return {} end
+        local nextHeading = markdown:find("\n## ", bodyStart + 1, true)
+        local body = markdown:sub(bodyStart + 1, if nextHeading then nextHeading - 1 else #markdown)
+        local notes = {}
+        for line in body:gmatch("[^\r\n]+") do
+            local note = line:match("^%s*%-%s+(.+)$")
+            if note then
+                note = trim(note:gsub("`", ""):gsub("%*%*", ""))
+                if note ~= "" then table.insert(notes, note) end
+            end
+        end
+        return notes
+    end
+
+    local function fetchPatchNotes(url: string): string?
+        local response = environment:Request({ Url = url, Method = "GET" })
+        if response and tonumber(response.StatusCode) == 200 and type(response.Body) == "string" then return response.Body end
+        -- Some executors support game:HttpGet but not the generic request API. This fallback
+        -- remains pinned to the validated immutable revision above.
+        local ok, body = pcall(function() return game:HttpGet(url) end)
+        return if ok and type(body) == "string" then body else nil
+    end
+
+    scope:Spawn(function()
+        local url = changelogUrl()
+        if not url then
+            status:Set("Patch notes are unavailable because this build does not have an immutable revision.")
+            return
+        end
+        local markdown = fetchPatchNotes(url)
+        if scope:IsDisposed() then return end
+        if type(markdown) ~= "string" or #markdown > CONFIG.MAX_CHANGELOG_BYTES then
+            status:Set("Patch notes could not be loaded for this build.")
+            return
+        end
+        local notes = readCurrentPatchNotes(markdown)
+        if #notes == 0 then
+            status:Set("No current patch notes were found for this build.")
+            return
+        end
+        status:Set(`Current patch notes · {#notes} updates`)
+        for _, note in ipairs(notes) do
+            if scope:IsDisposed() then return end
+            section:Info(changes, `•  {note}`)
+        end
+    end)
 
     return { Name = tab.Name }
 end

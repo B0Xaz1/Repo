@@ -410,7 +410,8 @@ return function(services: any): any
         local function button(text: string, position: UDim2, token: string): TextButton
             local item = dom:Create("TextButton", { Parent = dialog, AutoButtonColor = false, Selectable = true, BorderSizePixel = 0, Position = position,
                 Size = UDim2.new(0.5, -22, 0, 32), Text = text, Font = Enum.Font.GothamMedium, TextSize = 11, ZIndex = 23, BackgroundColor3 = theme:GetToken(token) })
-            theme:BindToken(item, "BackgroundColor3", token); theme:BindToken(item, "TextColor3", "Text")
+            theme:BindToken(item, "BackgroundColor3", token)
+            theme:BindToken(item, "TextColor3", if token == "Danger" then "Bg" else "Text")
             theme:BindToken(dom:CreateStroke(item, theme:GetToken("BorderDim")), "Color", "BorderDim")
             dom:Create("UICorner", { Parent = item, CornerRadius = UDim.new(0, 6) })
             return item
@@ -540,7 +541,7 @@ return function(services: any): any
         theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 12) })
         theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
-        local header = dom:Create("Frame", { Parent = main, Name = "CommandBar", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, CONFIG.HEADER_HEIGHT),
+        local header = dom:Create("Frame", { Parent = main, Name = "MenuBar", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, CONFIG.HEADER_HEIGHT),
             BackgroundTransparency = 1 })
         -- Keep the top edge visibly rounded even though the header spans the full window width.
         local headerSurface = dom:Create("Frame", { Parent = header, Name = "HeaderSurface", BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), BackgroundColor3 = theme:GetToken("Panel") })
@@ -626,9 +627,9 @@ return function(services: any): any
                 if UIEngine._searchActive then UIEngine:ClearSearch() else UIEngine:CloseAllDropdownsExcept(nil) end
             end
         end)
-        -- The entire command bar is a deliberate drag surface; controls stay above it so search,
+        -- The entire menu bar is a deliberate drag surface; controls stay above it so search,
         -- minimize, and the guarded unload button retain their direct click targets.
-        local dragHandle = dom:Create("Frame", { Parent = header, Name = "CommandBarDragHandle", BackgroundTransparency = 1, Active = true, Size = UDim2.fromScale(1, 1), ZIndex = 2 })
+        local dragHandle = dom:Create("Frame", { Parent = header, Name = "MenuBarDragHandle", BackgroundTransparency = 1, Active = true, Size = UDim2.fromScale(1, 1), ZIndex = 2 })
         self:MakeDraggable(main, dragHandle)
 
         -- Touch devices use a horizontally scrollable workspace picker instead of a cramped side rail.

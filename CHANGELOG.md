@@ -4,17 +4,18 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
-- Redesigned the in-game Full/Lite edition picker with clearer hierarchy, larger choice cards, a responsive neutral Command Deck panel, and an explicit remember state.
-- The entire Command Deck top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session.
+- Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.
+- The entire menu top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session, with a high-contrast confirmation label.
 - Added a lightweight in-game Full/Lite edition picker. It can remember a Full or Lite choice locally, or leave the player to choose on each loader launch.
 - Added the **Edition next launch** setting with Ask every launch, Lite, and Full choices. Edition preferences are separate from profiles; relaunches and queued teleports retain the active edition.
-- Lite keeps the Command Deck shell and universal controls while omitting Commands, the Game workspace, and all game-specific plugin adapter discovery and UI. Full preserves the complete existing experience.
-- Continued the Command Deck revamp: touch devices now use a horizontal workspace picker, desktop search supports Ctrl/Cmd + K and Escape, and focused controls are selectable for keyboard and gamepad navigation.
+- Lite keeps the menu shell and universal controls while omitting Commands, the Game workspace, and all game-specific plugin adapter discovery and UI. Full preserves the complete existing experience.
+- Continued the menu revamp: touch devices now use a horizontal workspace picker, desktop search supports Ctrl/Cmd + K and Escape, and focused controls are selectable for keyboard and gamepad navigation.
 - Made Compact the default interface density, added profile-apply status feedback and recovery controls for interface layout, Midnight, and confirmed full defaults.
-- Removed Overview quick actions, kept the in-menu “What changed in this revamp” summary, and moved the Full-edition Game workspace to the end of the navigation order.
+- Overview now loads every current patch-note bullet directly from the immutable build's CHANGELOG.md under “What changed in this revamp,” while Workspace sits below Pinned controls.
+- Removed Overview quick actions and moved the Full-edition Game workspace to the end of the navigation order.
 - Refined the monochrome Midnight theme and removed the floating ESP preview window.
 
-- Reworked the suite into a Command Deck workspace with a navigation rail, command bar, Overview dashboard, contextual page headings, and dedicated minimize and unload controls. The visual system, themes, profiles, search, favorites, and existing controls remain compatible.
+- Reworked the suite into a menu workspace with a navigation rail, command bar, Overview dashboard, contextual page headings, and dedicated minimize and unload controls. The visual system, themes, profiles, search, favorites, and existing controls remain compatible.
 
 - Hardened automated input: removed executor-native mouse clicks and cursor movement, so automated clicks now use Roblox virtual input only. Automated combat input pauses while the suite menu, a text field, keybind recording, Roblox UI under the pointer, or a non-focused Roblox window would make input unsafe.
 - Added a gameplay-only mouse capture toggle in Movement. It centers the cursor while Roblox gameplay is focused and releases it for the suite menu, Roblox UI, text entry, keybind capture, or another desktop window.

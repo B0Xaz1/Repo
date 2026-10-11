@@ -6,8 +6,7 @@ local GuiService = game:GetService("GuiService")
 local CONFIG = table.freeze({
     ROOT = "B0XazUniversal/",
     CONFIGS_SUBFOLDER = "Configs",
-    -- Executors disagree on zero: it can mean unlimited or the default 60 FPS.
-    -- An uncap request clears zero first, then sets this high ceiling as the final value.
+    -- A high ceiling avoids executor implementations that treat zero as a 60-FPS fallback.
     FPS_UNCAPPED = 1000,
     CLICK_RELEASE_DELAY = 0.03,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
@@ -48,7 +47,20 @@ return function(disposer: any): any
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
-    local fps = first(probe("setfpscap"), probe("set_fps_cap"), probe("setfps"))
+    -- Executors expose several spellings, and some publish a no-op alias beside the working one.
+    -- Keep distinct setters so UncapFps can request the same high ceiling through each supported API.
+    local fpsSetters, seenFpsSetters = {}, {}
+    local function addFpsSetter(candidate: any)
+        if type(candidate) ~= "function" or seenFpsSetters[candidate] then return end
+        seenFpsSetters[candidate] = true
+        table.insert(fpsSetters, candidate)
+    end
+    for _, name in ipairs({ "setfpscap", "set_fps_cap", "setfps", "set_fps_limit", "setfpslimit" }) do
+        addFpsSetter(probe(name))
+        addFpsSetter(member(globals, name))
+        addFpsSetter(member(syn, name))
+        addFpsSetter(member(fluxus, name))
+    end
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
@@ -78,9 +90,9 @@ return function(disposer: any): any
             Files = write ~= nil and read ~= nil, WriteFile = write ~= nil, ReadFile = read ~= nil,
             -- Native mouse APIs are deliberately never used. They can be implemented as OS-level
             -- input by an executor and must not move or click outside the Roblox client.
-            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = false, NativeClick = false,
+            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = virtualInput ~= nil, NativeClick = false,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
-            QueueTeleport = queue ~= nil, FpsCap = fps ~= nil,
+            QueueTeleport = queue ~= nil, FpsCap = #fpsSetters > 0,
             VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
             Drawing = type(drawing) == "table" and type(drawing.new) == "function",
         }),
@@ -168,10 +180,14 @@ return function(disposer: any): any
         return nil
     end
 
-    -- Relative native mouse movement is intentionally disabled. Executors commonly expose this
-    -- as an OS-level cursor API, so mouse-mode aim falls back to the in-client camera path.
-    function Environment:MouseMove(_x: number, _y: number): boolean
-        return false
+    -- Pointer movement is synthesized through Roblox only. It never calls executor/OS cursor APIs.
+    function Environment:MouseMove(x: number, y: number): boolean
+        local allowed = self:CanSimulatePointerInput()
+        if not allowed then return false end
+        local point = UIS:GetMouseLocation()
+        return pcall(function()
+            virtualInput:SendMouseMoveEvent(math.round(point.X + x), math.round(point.Y + y), game)
+        end)
     end
 
     function Environment:SetClipboard(text: string): (boolean, string?)
@@ -191,15 +207,16 @@ return function(disposer: any): any
         return pcall(queue, source)
     end
 
-    function Environment:HasFpsCap(): boolean return fps ~= nil end
+    function Environment:HasFpsCap(): boolean return #fpsSetters > 0 end
 
     function Environment:UncapFps(): boolean
-        if not fps then return false end
-        -- Clear APIs that use zero for unlimited, then make the high ceiling the final value for
-        -- APIs that instead interpret zero as their 60-FPS fallback.
-        local cleared = pcall(fps, 0)
-        local raised = pcall(fps, CONFIG.FPS_UNCAPPED)
-        return raised or cleared
+        local applied = false
+        -- Never finish with zero: several APIs silently turn it into a 60-FPS cap. Every distinct
+        -- setter receives the same high ceiling, so alternate executor aliases get a chance to work.
+        for _, setter in ipairs(fpsSetters) do
+            if pcall(setter, CONFIG.FPS_UNCAPPED) then applied = true end
+        end
+        return applied
     end
 
     function Environment:IsMobile(): boolean return UIS.TouchEnabled and not UIS.KeyboardEnabled end
@@ -264,8 +281,16 @@ return function(disposer: any): any
         return windowFocused
     end
 
+    local function isInteractiveGui(object: any): boolean
+        if not (typeof(object) == "Instance" and object:IsA("GuiObject")) then return false end
+        if object:IsA("GuiButton") or object:IsA("TextBox") then return true end
+        local active = false
+        pcall(function() active = object.Active == true end)
+        return active
+    end
+
     -- Pointer capture must yield whenever Roblox cannot safely receive gameplay mouse input.
-    -- Fail closed if the GUI query is unavailable so a lock never traps a cursor over a menu.
+    -- Passive HUD is safe; buttons, text entry, active frames, and failed GUI queries block it.
     function Environment:CanLockPointer(): boolean
         if not windowFocused or UIS:GetFocusedTextBox() ~= nil then return false end
         local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
@@ -274,21 +299,27 @@ return function(disposer: any): any
         local checked, objects = pcall(function()
             return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
         end)
-        return checked and type(objects) == "table" and #objects == 0
+        if not checked or type(objects) ~= "table" then return false end
+        for _, object in ipairs(objects) do if isInteractiveGui(object) then return false end end
+        return true
     end
 
-    -- Synthetic pointer input is allowed only when it stays inside a focused Roblox client and
-    -- the pointer is not over any Roblox GUI. Failing closed avoids turning a combat click into
-    -- a menu/CoreGui click on executors with incomplete GUI APIs.
+    -- Synthetic pointer input stays inside a focused Roblox client. Passive HUD and drawing-only
+    -- frames do not block it, but any button, text box, active frame, or Roblox menu does.
     function Environment:CanSimulatePointerInput(): (boolean, string?)
         if not virtualInput then return false, "Virtual input is unavailable" end
         if not windowFocused then return false, "Roblox is not the focused window" end
+        if UIS:GetFocusedTextBox() then return false, "A text box has focus" end
+        local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
+        if menuChecked and menuOpen == true then return false, "Roblox menu is open" end
         local point = UIS:GetMouseLocation()
         local checked, objects = pcall(function()
             return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
         end)
         if not checked or type(objects) ~= "table" then return false, "Pointer safety check is unavailable" end
-        if #objects > 0 then return false, "Pointer is over Roblox UI" end
+        for _, object in ipairs(objects) do
+            if isInteractiveGui(object) then return false, "Pointer is over interactive Roblox UI" end
+        end
         return true
     end
 

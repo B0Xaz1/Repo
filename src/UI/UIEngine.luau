@@ -60,6 +60,7 @@ return function(services: any): any
         for _, tab in ipairs(UIEngine._tabs) do
             tab.Columns.Visible, tab.ResultsCol.Visible = true, false
             tab.Favorites.Visible = (tab.FavoriteCount or 0) > 0
+            if tab.Dashboard then tab.Dashboard.Visible = tab.HasDashboard == true end
         end
     end
 
@@ -174,6 +175,7 @@ return function(services: any): any
             self._searchActive = true
             active.Columns.Visible, active.ResultsCol.Visible = false, true
             active.Favorites.Visible = false
+            if active.Dashboard then active.Dashboard.Visible = false end
             for _, record in ipairs(results) do
                 local group = `{record.TabName} / {record.SectionName}`
                 if group ~= previousGroup then
@@ -528,6 +530,7 @@ return function(services: any): any
             end)
             local factory = load(entry.Path)
             local ok, result = pcall(factory, services, tab)
+            tab.HasDashboard = dashboard.Visible
             if not ok then
                 bus:Publish("Notify", "Tab failed", `{entry.Name}: {tostring(result)}`, 6)
                 local sectionOk, sectionComponent = pcall(load, "src/UI/Components/Section.luau", services)

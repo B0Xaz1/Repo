@@ -4,6 +4,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Redesigned the in-game Full/Lite edition picker with clearer hierarchy, larger choice cards, a responsive neutral Command Deck panel, and an explicit remember state.
+- The entire Command Deck top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session.
 - Added a lightweight in-game Full/Lite edition picker. It can remember a Full or Lite choice locally, or leave the player to choose on each loader launch.
 - Added the **Edition next launch** setting with Ask every launch, Lite, and Full choices. Edition preferences are separate from profiles; relaunches and queued teleports retain the active edition.
 - Lite keeps the Command Deck shell and universal controls while omitting Commands, the Game workspace, and all game-specific plugin adapter discovery and UI. Full preserves the complete existing experience.

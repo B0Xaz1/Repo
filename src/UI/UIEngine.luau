@@ -43,7 +43,7 @@ return function(services: any): any
     local bus, load = services:Get("EventBus"), services:Get("Require")
     local scope = services:Get("Disposer"):CreateChild("UIEngine")
     local UIEngine = { _root = nil, _main = nil, _tabs = {}, _tabByName = {}, _active = nil, _controls = {}, _dropdowns = {}, _layout = {},
-        _favoriteIds = {}, _query = "", _searchHeaders = {}, _searchActive = false, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
+        _favoriteIds = {}, _query = "", _searchHeaders = {}, _searchActive = false, _toasts = {}, _pending = {}, _toastId = 0, _unloadConfirm = nil, _initialized = false, _constructing = false }
     local resizeQueued, resizeAfterHydration = false, false
 
     local function viewport(): Vector2 return if Workspace.CurrentCamera then Workspace.CurrentCamera.ViewportSize else CONFIG.FALLBACK_VIEWPORT end
@@ -366,6 +366,65 @@ return function(services: any): any
         end)
     end
 
+    function UIEngine:DismissUnloadConfirmation()
+        local owner = self._unloadConfirm
+        if not owner then return end
+        self._unloadConfirm = nil
+        owner:Dispose()
+    end
+
+    function UIEngine:RequestUnload()
+        if self._unloadConfirm or scope:IsDisposed() then return end
+        local unload = environment.Globals.B0XazUnload
+        if type(unload) ~= "function" then
+            self:Notify("Unload unavailable", "The current executor did not expose the suite unload API.")
+            return
+        end
+        if not self._root then return end
+
+        local owner = scope:CreateChild("Unload confirmation")
+        self._unloadConfirm = owner
+        local shade = dom:Create("Frame", { Parent = self._root, Name = "UnloadConfirmation", Active = true, BorderSizePixel = 0,
+            BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.36, Size = UDim2.fromScale(1, 1), ZIndex = 20 })
+        owner:Add(function()
+            if UIEngine._unloadConfirm == owner then UIEngine._unloadConfirm = nil end
+            dom:DestroyInstance(shade)
+        end)
+        local dialog = dom:Create("Frame", { Parent = shade, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.new(0.86, 0, 0, 196), BackgroundColor3 = theme:GetToken("Panel"), ZIndex = 21 })
+        theme:BindToken(dialog, "BackgroundColor3", "Panel")
+        local constraint = dom:Create("UISizeConstraint", { Parent = dialog, MinSize = Vector2.new(280, 196), MaxSize = Vector2.new(410, 196) })
+        dom:Create("UICorner", { Parent = dialog, CornerRadius = UDim.new(0, 9) })
+        theme:BindToken(dom:CreateStroke(dialog, theme:GetToken("Border")), "Color", "Border")
+        local eyebrow = dom:Create("TextLabel", { Parent = dialog, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 16), Size = UDim2.new(1, -36, 0, 14),
+            Text = "END SESSION", Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("TextMuted"), ZIndex = 22 })
+        local title = dom:Create("TextLabel", { Parent = dialog, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 33), Size = UDim2.new(1, -36, 0, 25),
+            Text = "Unload B0Xaz Universal?", Font = Enum.Font.GothamMedium, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("Text"), ZIndex = 22 })
+        local message = dom:Create("TextLabel", { Parent = dialog, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 65), Size = UDim2.new(1, -36, 0, 42),
+            Text = "This fully ends the session and restores supported changes. The menu will close.", Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextColor3 = theme:GetToken("TextDim"), ZIndex = 22 })
+        theme:BindToken(eyebrow, "TextColor3", "TextMuted"); theme:BindToken(title, "TextColor3", "Text"); theme:BindToken(message, "TextColor3", "TextDim")
+        local divider = dom:Create("Frame", { Parent = dialog, BorderSizePixel = 0, Position = UDim2.fromOffset(18, 120), Size = UDim2.new(1, -36, 0, 1), BackgroundColor3 = theme:GetToken("BorderDim"), ZIndex = 22 })
+        theme:BindToken(divider, "BackgroundColor3", "BorderDim")
+
+        local function button(text: string, position: UDim2, token: string): TextButton
+            local item = dom:Create("TextButton", { Parent = dialog, AutoButtonColor = false, Selectable = true, BorderSizePixel = 0, Position = position,
+                Size = UDim2.new(0.5, -22, 0, 32), Text = text, Font = Enum.Font.GothamMedium, TextSize = 11, ZIndex = 23, BackgroundColor3 = theme:GetToken(token) })
+            theme:BindToken(item, "BackgroundColor3", token); theme:BindToken(item, "TextColor3", "Text")
+            theme:BindToken(dom:CreateStroke(item, theme:GetToken("BorderDim")), "Color", "BorderDim")
+            dom:Create("UICorner", { Parent = item, CornerRadius = UDim.new(0, 6) })
+            return item
+        end
+        local cancel = button("Cancel", UDim2.fromOffset(18, 144), "Elem")
+        local confirm = button("Unload & restore", UDim2.new(0.5, 4, 0, 144), "Danger")
+        owner:Connect(cancel.Activated, function() UIEngine:DismissUnloadConfirmation() end)
+        owner:Connect(confirm.Activated, function()
+            UIEngine:DismissUnloadConfirmation()
+            local ok, err = pcall(unload)
+            if not ok then UIEngine:Notify("Unload failed", tostring(err)) end
+        end)
+    end
+
     local function resize()
         if not UIEngine._main then return end
         local screen = viewport()
@@ -501,10 +560,7 @@ return function(services: any): any
             Font = Enum.Font.GothamMedium, TextSize = 17, ZIndex = 3 })
         theme:BindToken(minimize, "TextColor3", "TextMuted"); theme:BindToken(close, "TextColor3", "TextMuted")
         scope:Connect(minimize.Activated, function() state:Set("Settings.MenuVisible", false) end)
-        scope:Connect(close.Activated, function()
-            if type(environment.Globals.B0XazUnload) == "function" then environment.Globals.B0XazUnload()
-            else state:Set("Settings.MenuVisible", false) end
-        end)
+        scope:Connect(close.Activated, function() UIEngine:RequestUnload() end)
         local search = dom:Create("TextBox", { Parent = header, BorderSizePixel = 0, Position = UDim2.new(1, -260, 0, 14), Size = UDim2.fromOffset(190, 24), ClearTextOnFocus = false, Selectable = true,
             Text = "", PlaceholderText = if environment:IsMobile() then "Search controls…" else "Search controls…  Ctrl + K", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3 })
         self._searchBox = search
@@ -552,6 +608,10 @@ return function(services: any): any
         end
         scope:ConnectImmediate(UIS.InputBegan, function(input: InputObject, processed: boolean)
             if processed or state:GetTransient("IsBindingKey") then return end
+            if input.KeyCode == Enum.KeyCode.Escape and UIEngine._unloadConfirm then
+                UIEngine:DismissUnloadConfirmation()
+                return
+            end
             if input.KeyCode == Enum.KeyCode.K and commandModifierDown() then
                 local focused = UIS:GetFocusedTextBox()
                 if not focused or focused == search then UIEngine:FocusSearch() end
@@ -566,7 +626,9 @@ return function(services: any): any
                 if UIEngine._searchActive then UIEngine:ClearSearch() else UIEngine:CloseAllDropdownsExcept(nil) end
             end
         end)
-        local dragHandle = dom:Create("Frame", { Parent = header, BackgroundTransparency = 1, Active = true, Size = UDim2.new(0, 198, 1, 0), ZIndex = 1 })
+        -- The entire command bar is a deliberate drag surface; controls stay above it so search,
+        -- minimize, and the guarded unload button retain their direct click targets.
+        local dragHandle = dom:Create("Frame", { Parent = header, Name = "CommandBarDragHandle", BackgroundTransparency = 1, Active = true, Size = UDim2.fromScale(1, 1), ZIndex = 2 })
         self:MakeDraggable(main, dragHandle)
 
         -- Touch devices use a horizontally scrollable workspace picker instead of a cramped side rail.

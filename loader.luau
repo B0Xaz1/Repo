@@ -142,58 +142,80 @@ local function showEditionPicker(): string?
         return "Full"
     end
 
+    -- The launcher intentionally uses the same neutral, rounded-panel language as Midnight.
+    -- It is self-contained because the ThemeEngine is not available until after selection.
     local shade = Instance.new("Frame")
-    shade.BackgroundColor3, shade.BackgroundTransparency, shade.BorderSizePixel = Color3.fromRGB(0, 0, 0), 0.25, 0
+    shade.Active, shade.BorderSizePixel, shade.ZIndex = true, 0, 1
+    shade.BackgroundColor3, shade.BackgroundTransparency = Color3.fromRGB(0, 0, 0), 0.34
     shade.Size, shade.Parent = UDim2.fromScale(1, 1), gui
-    local card = Instance.new("Frame")
-    card.AnchorPoint, card.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
-    card.Size, card.BackgroundColor3, card.BorderSizePixel = UDim2.new(0.86, 0, 0, 286), Color3.fromRGB(15, 16, 20), 0
-    card.Parent = shade
-    local sizeConstraint = Instance.new("UISizeConstraint")
-    sizeConstraint.MaxSize, sizeConstraint.Parent = Vector2.new(430, 286), card
-    makeCorner(card, 10)
-    local stroke = Instance.new("UIStroke")
-    stroke.Color, stroke.Transparency, stroke.Parent = Color3.fromRGB(67, 71, 82), 0.25, card
 
-    makeLabel(card, "B0Xaz Universal", UDim2.fromOffset(20, 18), UDim2.new(1, -40, 0, 24), Enum.Font.GothamMedium, 18, Color3.fromRGB(242, 244, 248))
-    makeLabel(card, "Choose how this Command Deck launch should run.", UDim2.fromOffset(20, 47), UDim2.new(1, -40, 0, 32), Enum.Font.Gotham, 11, Color3.fromRGB(168, 174, 186))
+    local panel = Instance.new("Frame")
+    panel.AnchorPoint, panel.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
+    panel.Size, panel.BackgroundColor3, panel.BorderSizePixel, panel.ZIndex = UDim2.new(0.9, 0, 0, 342), Color3.fromRGB(12, 12, 14), 0, 2
+    panel.Parent = shade
+    local constraint = Instance.new("UISizeConstraint")
+    constraint.MinSize, constraint.MaxSize, constraint.Parent = Vector2.new(300, 342), Vector2.new(536, 342), panel
+    makeCorner(panel, 12)
+    local panelStroke = Instance.new("UIStroke")
+    panelStroke.Color, panelStroke.Transparency, panelStroke.Thickness, panelStroke.Parent = Color3.fromRGB(67, 67, 73), 0.12, 1, panel
 
-    local function choiceButton(text: string, position: UDim2, accent: Color3): TextButton
+    local topRule = Instance.new("Frame")
+    topRule.BackgroundColor3, topRule.BorderSizePixel, topRule.Position, topRule.Size, topRule.ZIndex = Color3.fromRGB(238, 238, 240), 0, UDim2.fromOffset(20, 18), UDim2.new(0, 28, 0, 2), 3
+    topRule.Parent = panel
+    makeCorner(topRule, 2)
+    local eyebrow = makeLabel(panel, "B0XAZ UNIVERSAL  /  LAUNCH EDITION", UDim2.fromOffset(56, 13), UDim2.new(1, -76, 0, 14), Enum.Font.GothamMedium, 9, Color3.fromRGB(148, 148, 154))
+    eyebrow.ZIndex, eyebrow.TextYAlignment = 3, Enum.TextYAlignment.Center
+    local title = makeLabel(panel, "Choose your Command Deck", UDim2.fromOffset(20, 35), UDim2.new(1, -40, 0, 27), Enum.Font.GothamMedium, 19, Color3.fromRGB(250, 250, 252))
+    title.ZIndex, title.TextYAlignment = 3, Enum.TextYAlignment.Center
+    local summary = makeLabel(panel, "Full includes everything. Lite keeps universal controls.", UDim2.fromOffset(20, 65), UDim2.new(1, -40, 0, 18), Enum.Font.Gotham, 11, Color3.fromRGB(182, 182, 188))
+    summary.ZIndex, summary.TextYAlignment, summary.TextWrapped, summary.TextTruncate = 3, Enum.TextYAlignment.Center, false, Enum.TextTruncate.AtEnd
+    local divider = Instance.new("Frame")
+    divider.BackgroundColor3, divider.BorderSizePixel, divider.Position, divider.Size, divider.ZIndex = Color3.fromRGB(44, 44, 49), 0, UDim2.fromOffset(20, 95), UDim2.new(1, -40, 0, 1), 3
+    divider.Parent = panel
+
+    local function choiceCard(kind: string, titleText: string, body: string, footer: string, position: UDim2): TextButton
         local button = Instance.new("TextButton")
-        button.AutoButtonColor, button.BorderSizePixel = false, 0
-        button.Position, button.Size = position, UDim2.new(0.5, -25, 0, 86)
-        button.BackgroundColor3, button.TextColor3 = Color3.fromRGB(28, 30, 37), Color3.fromRGB(236, 238, 244)
-        button.Font, button.TextSize, button.TextWrapped = Enum.Font.GothamMedium, 12, true
-        button.TextXAlignment, button.TextYAlignment, button.Text = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top, text
-        button.Parent = card
-        makeCorner(button, 7)
-        local buttonStroke = Instance.new("UIStroke")
-        buttonStroke.Color, buttonStroke.Transparency, buttonStroke.Parent = accent, 0.3, button
-        local padding = Instance.new("UIPadding")
-        padding.PaddingTop, padding.PaddingRight = UDim.new(0, 11), UDim.new(0, 10)
-        padding.PaddingBottom, padding.PaddingLeft = UDim.new(0, 9), UDim.new(0, 10)
-        padding.Parent = button
+        button.AutoButtonColor, button.Selectable, button.BorderSizePixel, button.ZIndex = false, true, 0, 4
+        button.BackgroundColor3, button.Position, button.Size, button.Text = Color3.fromRGB(23, 23, 26), position, UDim2.new(0.5, -29, 0, 114), ""
+        button.Parent = panel
+        makeCorner(button, 8)
+        local border = Instance.new("UIStroke")
+        border.Color, border.Transparency, border.Thickness, border.Parent = Color3.fromRGB(67, 67, 73), 0.24, 1, button
+        local kindLabel = makeLabel(button, kind, UDim2.fromOffset(13, 10), UDim2.new(1, -26, 0, 12), Enum.Font.GothamMedium, 9, Color3.fromRGB(150, 150, 156))
+        kindLabel.ZIndex, kindLabel.TextYAlignment = 5, Enum.TextYAlignment.Center
+        local choiceTitle = makeLabel(button, titleText, UDim2.fromOffset(13, 26), UDim2.new(1, -26, 0, 22), Enum.Font.GothamMedium, 15, Color3.fromRGB(248, 248, 250))
+        choiceTitle.ZIndex, choiceTitle.TextYAlignment = 5, Enum.TextYAlignment.Center
+        local description = makeLabel(button, body, UDim2.fromOffset(13, 52), UDim2.new(1, -26, 0, 33), Enum.Font.Gotham, 10, Color3.fromRGB(188, 188, 194))
+        description.ZIndex, description.TextYAlignment = 5, Enum.TextYAlignment.Top
+        local capability = makeLabel(button, footer, UDim2.fromOffset(13, 91), UDim2.new(1, -26, 0, 12), Enum.Font.GothamMedium, 8, Color3.fromRGB(142, 142, 148))
+        capability.ZIndex, capability.TextYAlignment = 5, Enum.TextYAlignment.Center
+        button.MouseEnter:Connect(function()
+            button.BackgroundColor3, border.Color, border.Transparency = Color3.fromRGB(32, 32, 36), Color3.fromRGB(216, 216, 220), 0.08
+        end)
+        button.MouseLeave:Connect(function()
+            button.BackgroundColor3, border.Color, border.Transparency = Color3.fromRGB(23, 23, 26), Color3.fromRGB(67, 67, 73), 0.24
+        end)
         return button
     end
 
-    local lite = choiceButton("LITE\nUniversal shell and controls.\nNo adapters, Game, or Commands.", UDim2.fromOffset(20, 91), Color3.fromRGB(118, 184, 255))
-    local full = choiceButton("FULL\nAll workspaces, adapters,\nand Commands.", UDim2.new(0.5, 5, 0, 91), Color3.fromRGB(187, 135, 255))
+    local lite = choiceCard("LEAN SETUP", "Lite", "Core shell + tools.\nNo Game or Commands.", "NO GAME / COMMANDS", UDim2.fromOffset(20, 112))
+    local full = choiceCard("COMPLETE SETUP", "Full", "Every workspace.\nAdapters + Commands.", "FULL COMMAND DECK", UDim2.new(0.5, 9, 0, 112))
     local remember = Instance.new("TextButton")
     local canRemember, remembered = type(readFile) == "function" and type(writeFile) == "function", false
-    remember.AutoButtonColor, remember.BorderSizePixel = false, 0
-    remember.Position, remember.Size = UDim2.fromOffset(20, 191), UDim2.new(1, -40, 0, 32)
-    remember.BackgroundColor3, remember.TextColor3 = Color3.fromRGB(31, 34, 41), Color3.fromRGB(205, 209, 218)
-    remember.Font, remember.TextSize, remember.TextXAlignment = Enum.Font.Gotham, 11, Enum.TextXAlignment.Center
-    remember.Parent = card
-    makeCorner(remember, 6)
+    remember.AutoButtonColor, remember.Selectable, remember.BorderSizePixel, remember.ZIndex = false, true, 0, 4
+    remember.BackgroundColor3, remember.Position, remember.Size = Color3.fromRGB(18, 18, 21), UDim2.fromOffset(20, 244), UDim2.new(1, -40, 0, 36)
+    remember.Font, remember.TextSize, remember.TextXAlignment, remember.Parent = Enum.Font.GothamMedium, 10, Enum.TextXAlignment.Left, panel
+    makeCorner(remember, 7)
     local rememberStroke = Instance.new("UIStroke")
-    rememberStroke.Color, rememberStroke.Transparency, rememberStroke.Parent = Color3.fromRGB(75, 80, 92), 0.4, remember
+    rememberStroke.Color, rememberStroke.Transparency, rememberStroke.Parent = Color3.fromRGB(52, 52, 58), 0.28, remember
+    local rememberPadding = Instance.new("UIPadding")
+    rememberPadding.PaddingLeft, rememberPadding.PaddingRight, rememberPadding.Parent = UDim.new(0, 12), UDim.new(0, 12), remember
     local function renderRemember()
         if canRemember then
-            remember.Text = if remembered then "Remember this choice: On" else "Remember this choice: Off"
-            remember.TextColor3 = if remembered then Color3.fromRGB(156, 211, 255) else Color3.fromRGB(205, 209, 218)
+            remember.Text = if remembered then "REMEMBER THIS CHOICE     ON" else "REMEMBER THIS CHOICE     OFF"
+            remember.TextColor3 = if remembered then Color3.fromRGB(244, 244, 246) else Color3.fromRGB(178, 178, 184)
         else
-            remember.Text, remember.TextColor3 = "Remembering is unavailable in this executor", Color3.fromRGB(143, 148, 160)
+            remember.Text, remember.TextColor3 = "REMEMBERING IS UNAVAILABLE IN THIS EXECUTOR", Color3.fromRGB(136, 136, 142)
         end
     end
     renderRemember()
@@ -203,7 +225,8 @@ local function showEditionPicker(): string?
             renderRemember()
         end)
     end
-    makeLabel(card, "You can change this next-launch preference later in Settings.", UDim2.fromOffset(20, 238), UDim2.new(1, -40, 0, 30), Enum.Font.Gotham, 10, Color3.fromRGB(143, 148, 160))
+    local hint = makeLabel(panel, "You can change the next-launch preference later in Settings.", UDim2.fromOffset(20, 298), UDim2.new(1, -40, 0, 18), Enum.Font.Gotham, 10, Color3.fromRGB(135, 135, 141))
+    hint.ZIndex, hint.TextYAlignment, hint.TextXAlignment, hint.TextWrapped, hint.TextTruncate = 3, Enum.TextYAlignment.Center, Enum.TextXAlignment.Center, false, Enum.TextTruncate.AtEnd
 
     local selection: string? = nil
     local function selectEdition(edition: string)

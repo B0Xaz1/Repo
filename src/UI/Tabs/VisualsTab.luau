@@ -31,8 +31,6 @@ return function(services: any, tab: any): any
     toggle(chams, "Use team color", "Chams.UseTeamColor", nil)
     color(chams, "Fill color", "Chams.FillColor", nil)
     color(chams, "Outline color", "Chams.OutlineColor", nil)
-    local preview = load("src/UI/Modals/VisualsPreview.luau", services)
-    preview:Mount(services:Get("UIEngine")._root)
     local performance = section:Create(tab.RightCol, "Performance", "Performance")
     for _, entry in ipairs({ { "Remove textures", "NoTextures" }, { "Simple materials", "LowMaterials" }, { "Disable shadows", "NoShadows" },
         { "Disable particles", "NoParticles" }, { "Optimize terrain", "OptimizeTerrain" }, { "Disable post-processing", "NoPostProcessing" } }) do

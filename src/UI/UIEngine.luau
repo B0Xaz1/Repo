@@ -43,6 +43,7 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("UIEngine")
     local UIEngine = { _root = nil, _main = nil, _tabs = {}, _tabByName = {}, _active = nil, _controls = {}, _dropdowns = {}, _layout = {},
         _favoriteIds = {}, _query = "", _searchHeaders = {}, _searchActive = false, _toasts = {}, _pending = {}, _toastId = 0, _initialized = false, _constructing = false }
+    local resizeQueued, resizeAfterHydration = false, false
 
     local function viewport(): Vector2 return if Workspace.CurrentCamera then Workspace.CurrentCamera.ViewportSize else CONFIG.FALLBACK_VIEWPORT end
 
@@ -362,11 +363,10 @@ return function(services: any): any
         local controlWidth = 58
         if layout.Header then
             layout.Header.Size = UDim2.new(1, 0, 0, headerHeight)
-            layout.BrandMark.Position = UDim2.fromOffset(if compact then 12 else 16, math.max(7, math.floor((headerHeight - 18) / 2)))
-            layout.Brand.Position = UDim2.fromOffset(if compact then 38 else 42, math.max(7, math.floor((headerHeight - 20) / 2)))
-            layout.Brand.Size = UDim2.fromOffset(if compact then 138 else 178, 20)
-            layout.Context.Position = UDim2.fromOffset(if compact then 154 else 210, math.max(8, math.floor((headerHeight - 18) / 2)))
-            layout.Context.Size = UDim2.new(1, -(searchWidth + controlWidth + if compact then 174 else 234), 0, 18)
+            layout.Brand.Position = UDim2.fromOffset(if compact then 12 else 18, math.max(7, math.floor((headerHeight - 20) / 2)))
+            layout.Brand.Size = UDim2.fromOffset(if compact then 140 else 180, 20)
+            layout.Context.Position = UDim2.fromOffset(if compact then 158 else 198, math.max(8, math.floor((headerHeight - 18) / 2)))
+            layout.Context.Size = UDim2.new(1, -(searchWidth + controlWidth + if compact then 178 else 222), 0, 18)
             layout.Context.Visible = width >= 500 and not compact
             layout.Search.Position = UDim2.new(1, -(searchWidth + controlWidth + 12), 0, math.max(7, math.floor((headerHeight - 24) / 2)))
             layout.Search.Size = UDim2.fromOffset(searchWidth, 24)
@@ -403,6 +403,25 @@ return function(services: any): any
         UIEngine._toastRoot.Size = UDim2.new(0, math.min(CONFIG.TOAST_WIDTH, screen.X - 32), 1, -40)
     end
 
+    -- Reflowing a scaled tree is expensive. During a config hydrate, wait until every
+    -- setting has been applied, then perform one resize on the next scheduler turn.
+    local function requestResize(_value: any?, _previous: any?, metadata: any?)
+        if metadata and metadata.Hydrating then
+            resizeAfterHydration = true
+            return
+        end
+        resize()
+    end
+
+    local function resizeAfterConfigHydration()
+        if not resizeAfterHydration or resizeQueued or scope:IsDisposed() then return end
+        resizeAfterHydration, resizeQueued = false, true
+        scope:Delay(0, function()
+            resizeQueued = false
+            if not scope:IsDisposed() then resize() end
+        end)
+    end
+
     function UIEngine:ConstructInterface()
         if self._root or self._constructing then return end
         self._constructing = true
@@ -414,18 +433,14 @@ return function(services: any): any
         local main = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
             Size = UDim2.fromOffset(CONFIG.WINDOW_WIDTH, CONFIG.WINDOW_HEIGHT), BackgroundColor3 = theme:GetToken("Bg"), Active = true, ClipsDescendants = true, Visible = false })
         self._main = main
-        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 9) })
+        theme:BindToken(main, "BackgroundColor3", "Bg"); dom:Create("UICorner", { Parent = main, CornerRadius = UDim.new(0, 12) })
         theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
         local header = dom:Create("Frame", { Parent = main, Name = "CommandBar", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, CONFIG.HEADER_HEIGHT),
             BackgroundColor3 = theme:GetToken("Panel") })
         theme:BindToken(header, "BackgroundColor3", "Panel")
-        local brandMark = dom:Create("Frame", { Parent = header, BorderSizePixel = 0, Position = UDim2.fromOffset(16, 16), Size = UDim2.fromOffset(18, 18), BackgroundColor3 = theme:GetToken("Accent") })
-        theme:BindToken(brandMark, "BackgroundColor3", "Accent"); dom:Create("UICorner", { Parent = brandMark, CornerRadius = UDim.new(0, 5) })
-        local brandGlyph = dom:Create("TextLabel", { Parent = brandMark, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Text = "B", Font = Enum.Font.GothamBold, TextSize = 10 })
-        theme:BindToken(brandGlyph, "TextColor3", "Bg")
-        local brand = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(42, 16), Size = UDim2.fromOffset(178, 20),
-            Text = "B0Xaz  /  Command Deck", Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+        local brand = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 16), Size = UDim2.fromOffset(180, 20),
+            Text = "B0Xaz Universal", Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
         theme:BindToken(brand, "TextColor3", "Text")
         local context = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(210, 17), Size = UDim2.new(1, -434, 0, 18),
             Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
@@ -443,7 +458,7 @@ return function(services: any): any
         local search = dom:Create("TextBox", { Parent = header, BorderSizePixel = 0, Position = UDim2.new(1, -260, 0, 14), Size = UDim2.fromOffset(190, 24), ClearTextOnFocus = false,
             Text = "", PlaceholderText = "Search controls…", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3 })
         self._searchBox = search
-        self._layout.Header, self._layout.BrandMark, self._layout.Brand, self._layout.Context = header, brandMark, brand, context
+        self._layout.Header, self._layout.Brand, self._layout.Context = header, brand, context
         self._layout.Search, self._layout.Minimize, self._layout.Close = search, minimize, close
         theme:BindToken(search, "BackgroundColor3", "Elem"); theme:BindToken(search, "TextColor3", "Text"); theme:BindToken(search, "PlaceholderColor3", "TextMuted")
         theme:BindToken(dom:CreateStroke(search, theme:GetToken("BorderDim")), "Color", "BorderDim")
@@ -465,7 +480,7 @@ return function(services: any): any
         scope:Add(bus:Subscribe("PluginChanged", updateContext))
         scope:Add(bus:Subscribe("ProfilesChanged", updateContext))
         scope:Add(bus:Subscribe("ActiveProfileChanged", updateContext))
-        local dragHandle = dom:Create("Frame", { Parent = header, BackgroundTransparency = 1, Active = true, Size = UDim2.new(0, 210, 1, 0), ZIndex = 1 })
+        local dragHandle = dom:Create("Frame", { Parent = header, BackgroundTransparency = 1, Active = true, Size = UDim2.new(0, 198, 1, 0), ZIndex = 1 })
         self:MakeDraggable(main, dragHandle)
 
         local rail = dom:Create("ScrollingFrame", { Parent = main, Name = "NavigationRail", BorderSizePixel = 0, Position = UDim2.fromOffset(0, CONFIG.HEADER_HEIGHT),
@@ -550,7 +565,7 @@ return function(services: any): any
             footer.Text = `{environment:FormatKeybindName(state:Get("Settings.MenuKeybind"))}  menu     {environment:FormatKeybindName(state:Get("Settings.UnloadKeybind"))}  unload`
         end
         updateFooter(); scope:Add(state:Observe("Settings.MenuKeybind", updateFooter)); scope:Add(state:Observe("Settings.UnloadKeybind", updateFooter))
-        scope:Add(state:Observe("Settings.CompactMenu", resize))
+        scope:Add(state:Observe("Settings.CompactMenu", requestResize))
         self._versionLabel = dom:Create("TextLabel", { Parent = main, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 1, -18), Size = UDim2.fromOffset(72, 14),
             Text = `v{services.Version}`, Font = Enum.Font.Code, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Right })
         theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
@@ -569,7 +584,8 @@ return function(services: any): any
         end
         scope:Add(state:Observe("Settings.MenuVisible", updateVisibility)); scope:Add(state:Observe("Settings.ShowMenuIcon", function() updateVisibility(state:Get("Settings.MenuVisible")) end))
         updateVisibility(state:Get("Settings.MenuVisible"))
-        scope:Add(state:Observe("Settings.UIScale", resize))
+        scope:Add(state:Observe("Settings.UIScale", requestResize))
+        scope:Add(bus:Subscribe("SettingsHydrated", resizeAfterConfigHydration))
         local function bindViewport()
             scope:Unbind("Viewport")
             if Workspace.CurrentCamera then

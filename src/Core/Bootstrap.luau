@@ -24,9 +24,9 @@ return function(context: any)
 
     local lastInputCheck = 0
     local inputCheckInterval = 0.05
-    master:Connect(UIS.InputBegan, function(input: InputObject, _processed: boolean)
+    master:Connect(UIS.InputBegan, function(input: InputObject, processed: boolean)
         local now = os.clock()
-        if now - lastInputCheck < inputCheckInterval then return end
+        if processed or now - lastInputCheck < inputCheckInterval then return end
         lastInputCheck = now
         if state:GetTransient("IsBindingKey") or UIS:GetFocusedTextBox() then return end
         if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end

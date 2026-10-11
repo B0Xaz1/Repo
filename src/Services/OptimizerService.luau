@@ -14,7 +14,8 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("OptimizerService")
     local changes = scope:CreateChild("Optimizations")
     local OptimizerService = { _textureCache = {}, _materialCache = {}, _shadowCache = {}, _particleCache = {},
-        _postFxCache = {}, _terrainDefaults = {}, _revision = 0, _initialized = false }
+        _postFxCache = {}, _terrainDefaults = {}, _revision = 0, _initialized = false,
+        _applyRequested = false, _applyWorkerActive = false }
 
     local function cacheWrite(cache: any, object: Instance, property: string, value: any)
         if not cache[object] then cache[object] = {} end
@@ -79,6 +80,23 @@ return function(services: any): any
         end
     end
 
+    -- State observers can fire once per performance flag during a profile load. Keep a
+    -- single worker and coalesce changes which arrive in the same scheduler turn.
+    function OptimizerService:RequestApply()
+        self._applyRequested = true
+        if self._applyWorkerActive then return end
+        self._applyWorkerActive = true
+        scope:Spawn(function()
+            while not scope:IsDisposed() and self._applyRequested do
+                task.wait()
+                self._applyRequested = false
+                local applied, applyError = pcall(function() self:Apply() end)
+                if not applied then warn(`[B0Xaz] Optimizer apply failed: {tostring(applyError)}`) end
+            end
+            self._applyWorkerActive = false
+        end)
+    end
+
     function OptimizerService:ApplyFpsCap(value: number): (boolean, string)
         if not environment:HasFpsCap() then return false, "FPS-cap support is unavailable on this executor" end
         local ok = environment:SetFpsCap(value)
@@ -93,7 +111,7 @@ return function(services: any): any
     function OptimizerService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        for _, flag in ipairs(CONFIG.FLAGS) do scope:Add(state:Observe(`Performance.{flag}`, function() OptimizerService:Apply() end)) end
+        for _, flag in ipairs(CONFIG.FLAGS) do scope:Add(state:Observe(`Performance.{flag}`, function() OptimizerService:RequestApply() end)) end
         scope:Add(state:Observe("Performance.FpsCap", function(value: number)
             local ok, message = OptimizerService:ApplyFpsCap(value)
             if not ok and value ~= 0 then services:Get("EventBus"):Publish("Notify", "Performance", message) end

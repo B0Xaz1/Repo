@@ -25,7 +25,7 @@ return function(services: any, Duel: any?): any
     local config = manifest.Esp
     local scope = Disposer:CreateChild(`{manifest.Name}.Esp`)
 
-    local Esp = { _gui = nil, _pool = {}, _visible = 0, _opponents = {}, _opponentsAt = -math.huge }
+    local Esp = { _gui = nil, _pool = {}, _visible = 0, _opponents = {}, _opponentsAt = -math.huge, _renderScope = nil }
 
     local function setIfChanged(object: any, property: string, value: any)
         if object[property] ~= value then object[property] = value end
@@ -151,7 +151,7 @@ return function(services: any, Duel: any?): any
     local function paint()
         local used = 0
         local camera = Workspace.CurrentCamera
-        if StateStore:Get("Game.MvSEsp") == true and LocalPlayer.Team ~= nil and LocalPlayer:GetAttribute(manifest.Match.Attribute) ~= nil and camera then
+        if StateStore:Peek("Game.MvSEsp") == true and LocalPlayer.Team ~= nil and LocalPlayer:GetAttribute(manifest.Match.Attribute) ~= nil and camera then
             local now = os.clock()
             if now - Esp._opponentsAt >= CONFIG.OPPONENT_REFRESH_INTERVAL then
                 Esp._opponents = Duel.Targets:GetOpponents()
@@ -172,6 +172,36 @@ return function(services: any, Duel: any?): any
         for index = used + 1, #Esp._pool do hideVisual(Esp._pool[index]) end
     end
 
+    function Esp:SetEnabled(enabled: boolean)
+        if not self._gui then return end
+        if self._gui.Enabled ~= enabled then self._gui.Enabled = enabled end
+        if self._renderScope then
+            self._renderScope:Dispose()
+            self._renderScope = nil
+        end
+        if not enabled then
+            self._opponents = {}
+            self._opponentsAt = -math.huge
+            self._visible = 0
+            for _, visual in ipairs(self._pool) do hideVisual(visual) end
+            return
+        end
+
+        -- Projection only needs to exist while the feature is active. Disposing this
+        -- child removes the RenderStepped connection instead of waking it while ESP is off.
+        local renderScope = scope:CreateChild("Render")
+        self._renderScope = renderScope
+        local clock = 0
+        renderScope:Add(RunService.RenderStepped:Connect(function(delta: number)
+            clock += delta
+            if clock < config.Interval then return end
+            clock = 0
+            if not self._gui or not self._gui.Enabled then return end
+            pcall(paint)
+        end))
+        pcall(paint)
+    end
+
     function Esp:Initialize()
         self._gui = createGui()
         for index = 1, config.MaxVisuals do
@@ -179,19 +209,10 @@ return function(services: any, Duel: any?): any
         end
         self._gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
         scope:Add(self._gui)
-
-        local clock = 0
-        scope:Add(RunService.RenderStepped:Connect(function(delta: number)
-            clock += delta
-            if clock < config.Interval then return end
-            clock = 0
-            if not self._gui then return end
-            local enabled = StateStore:Get("Game.MvSEsp") == true
-            if self._gui.Enabled ~= enabled then self._gui.Enabled = enabled end
-            pcall(paint)
+        scope:Add(StateStore:Observe("Game.MvSEsp", function(value: boolean)
+            self:SetEnabled(value == true)
         end))
-
-        pcall(paint)
+        self:SetEnabled(StateStore:Peek("Game.MvSEsp") == true)
     end
 
     function Esp:GetCounts(): any

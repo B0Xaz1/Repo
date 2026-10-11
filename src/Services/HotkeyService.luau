@@ -10,6 +10,8 @@ local CONFIG = table.freeze({
     SERVER_HOP_RECENT_LIMIT = 8,
     SERVER_LIST_URL = "https://games.roblox.com/v1/games/",
     SERVER_LIST_LIMIT = 100,
+    LOADER_REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
+    DEFAULT_REF = "8afdfb414db5754ded06cd9ab6b01b5c3729c292",
     BIND_TARGETS = {
         { Key = "Fly", Label = "Flight", Path = "Movement.FlyEnabled" }, { Key = "Freecam", Label = "Freecam", Path = "Movement.FreecamEnabled" },
         { Key = "Fullbright", Label = "Fullbright", Path = "Visuals.Fullbright" },
@@ -60,11 +62,15 @@ return function(services: any): any
         return nil
     end
 
-    -- Rejoin bootstrap handed to queue-on-teleport; it is emitted as one minified statement
+    -- Rejoin bootstrap handed to queue-on-teleport. It re-downloads the immutable
+    -- loader rather than accepting a mutable BaseURL or direct init URL from globals.
     function HotkeyService:BuildTeleportSource(): string
-        local globals = environment.Globals
-        return string.format('local g=_G;if type(getgenv)=="function" then local o,v=pcall(getgenv);if o then g=v end end;g.B0XazRef=%q;g.B0XazBaseURL=%q;local d=os.clock()+60;while not game:IsLoaded() or not game:GetService("Players").LocalPlayer do if os.clock()>d then return end;task.wait(.1) end;for a=1,5 do local o,s=pcall(function() return game:HttpGet(%q.."?t="..os.time().."_"..a) end);if o and type(s)=="string" and #s>=10 and not s:find("404"..": Not Found",1,true) then local f=loadstring(s,"@B0XazInit");if f then pcall(f);break end end;task.wait(a*.7) end',
-            tostring(globals.B0XazRef or ""), tostring(globals.B0XazBaseURL or ""), tostring(globals.B0XazInitURL or ""))
+        local rawRef = environment.Globals.B0XazRef
+        local ref = if type(rawRef) == "string" and #rawRef == 40 and rawRef:match("^[0-9a-fA-F]+$")
+            then rawRef:lower() else CONFIG.DEFAULT_REF
+        local loaderUrl = `{CONFIG.LOADER_REPOSITORY}{ref}/loader.luau`
+        return string.format('local g=_G;if type(getgenv)=="function" then local o,v=pcall(getgenv);if o and type(v)=="table" then g=v end end;g.B0XazRef=%q;local d=os.clock()+60;while not game:IsLoaded() or not game:GetService("Players").LocalPlayer do if os.clock()>d then return end;task.wait(.1) end;for a=1,5 do local o,s=pcall(function() return game:HttpGet(%q.."?t="..os.time().."_"..a) end);if o and type(s)=="string" and #s>=10 and not s:find("404"..": Not Found",1,true) then local f=loadstring(s,"@B0XazLoader");if f then pcall(f);break end end;task.wait(a*.7) end',
+            ref, loaderUrl)
     end
 
     function HotkeyService:QueueLoader(): boolean
@@ -138,8 +144,8 @@ return function(services: any): any
     function HotkeyService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Connect(UIS.InputBegan, function(event: InputObject, _processed: boolean)
-            if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
+        scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
+            if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
             for _, entry in ipairs(CONFIG.BIND_TARGETS) do
                 if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
                     state:Set(entry.Path, not state:Get(entry.Path))

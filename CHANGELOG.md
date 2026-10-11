@@ -4,6 +4,11 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Hardened automated input: removed executor-native mouse clicks and cursor movement, so automated clicks now use Roblox virtual input only. Automated combat input pauses while the suite menu, a text field, keybind recording, Roblox UI under the pointer, or a non-focused Roblox window would make input unsafe.
+- Reduced idle and per-frame overhead across Murderers VS Sheriffs, Zombie Attack, no-clip, Wall Walk, ESP, and performance optimization. Queue retry delay now controls automatic requeue attempts.
+- Improved property restoration for one-shot teleports, temporary attacks, freecam, and Prison Life door rescans.
+- Hardened remote loading and queued relaunches by pinning downloads to immutable full commit IDs instead of mutable branch or base-URL overrides.
+
 - Added a Da Hood (place 2788229376) fake macro: configurable activation key (default V), Hold/Toggle mode, and ground-velocity speed slider in the Game tab. S is required for a boost in either mode; V alone never changes velocity. S pushes forward relative to the camera and the character turns to face the glide. Acceleration is quicker, the speed slider reaches 400 (new default 180), and turns retain momentum. Inclines weaken the push, and airborne velocity remains untouched. This does not reproduce the game's macro glitch.
 
 - Switched to the MIT License, which permits use, modification, and redistribution subject to retaining the copyright and permission notice.

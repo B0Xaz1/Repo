@@ -13,13 +13,14 @@ return function(services: any): any
     local state, scheduler, tracker = services:Get("StateStore"), services:Get("TaskScheduler"), services:Get("PlayerTracker")
     local scope = services:Get("Disposer"):CreateChild("FreecamService")
     local cameraChanges, characterChanges = scope:CreateChild("Freecam camera"), scope:CreateChild("Freecam character")
-    local FreecamService = { _active = false, _yaw = 0, _pitch = 0, _position = Vector3.zero, _initialized = false }
+    local FreecamService = { _active = false, _camera = nil, _yaw = 0, _pitch = 0, _position = Vector3.zero, _initialized = false }
 
     function FreecamService:Stop()
-        self._active = false
+        self._active, self._camera = false, nil
         characterChanges:RestoreProperties()
+        -- MouseBehavior is leased in Start, so restoration returns to the game or another
+        -- feature's current owner instead of forcing Roblox's Default mouse mode.
         cameraChanges:RestoreProperties()
-        UIS.MouseBehavior = Enum.MouseBehavior.Default
     end
 
     local function freezeCharacter()
@@ -41,7 +42,7 @@ return function(services: any): any
         self._yaw, self._pitch, self._position = y, math.clamp(x, -CONFIG.PITCH_LIMIT, CONFIG.PITCH_LIMIT), camera.CFrame.Position
         cameraChanges:SetProperty(camera, "CameraType", Enum.CameraType.Scriptable)
         cameraChanges:SetProperty(UIS, "MouseBehavior", Enum.MouseBehavior.LockCurrentPosition)
-        self._active = true
+        self._active, self._camera = true, camera
         return true, "Freecam enabled"
     end
 
@@ -54,6 +55,10 @@ return function(services: any): any
             if not camera then FreecamService:Stop(); return end
             if not self._active then self:Start() end
             if not self._active then return end
+            if self._camera ~= camera then
+                self._camera = camera
+                cameraChanges:SetProperty(camera, "CameraType", Enum.CameraType.Scriptable)
+            end
             freezeCharacter()
             local delta = UIS:GetMouseDelta()
             self._yaw -= delta.X * CONFIG.MOUSE_SENSITIVITY
@@ -72,7 +77,7 @@ return function(services: any): any
             local speed = math.clamp(state:Peek("Movement.FreecamSpeed"), CONFIG.SPEED_MIN, CONFIG.SPEED_MAX)
             if UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift) then speed += CONFIG.SPEED_BOOST end
             self._position += direction * speed * math.min(dt, 0.1)
-            camera.CFrame = CFrame.new(self._position) * rotation
+            cameraChanges:SetProperty(camera, "CFrame", CFrame.new(self._position) * rotation, true)
         end)
         local function sync(value: boolean) job.Enabled = value == true; if not value then self:Stop() end end
         scope:Add(state:Observe("Movement.FreecamEnabled", sync)); sync(state:Peek("Movement.FreecamEnabled") == true)

@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -34,6 +35,8 @@ return function(services: any, Duel: any?): any
         _equipSlot = 1,
         _lastSpamShot = 0,
         _lastSpamThrow = 0,
+        _knifeMove = nil,
+        _gunMove = nil,
     }
 
     local function resolveRemote(path: { string }): any
@@ -75,24 +78,49 @@ return function(services: any, Duel: any?): any
         end)
     end
 
+    local function attackCFrame(target: any, config: any): CFrame
+        return CFrame.lookAt(
+            target.Root.Position - target.Root.CFrame.LookVector * config.BackOffset + Vector3.new(0, config.UpOffset, 0),
+            target.Root.Position
+        )
+    end
+
+    -- Attack movement is temporary. A child property lease prevents it from clobbering
+    -- another movement owner and restores the preceding CFrame on completion or teardown.
+    local function beginAttackMove(name: string, root: BasePart, target: any, config: any): any
+        local targetFrame = attackCFrame(target, config)
+        local move = scope:CreateChild(name)
+        move:SetProperty(root, "CFrame", targetFrame, true)
+        return move
+    end
+
+    local function stopAttackMove(field: string, busyField: string)
+        local move = Attack[field]
+        Attack[field] = nil
+        if move then move:Dispose() end
+        Attack[busyField] = false
+    end
+
     local function knifeHit(target: any)
         Attack._knifeBusy = true
         local mine = LocalPlayer.Character
         local myRoot = mine and mine:FindFirstChild("HumanoidRootPart")
-        if myRoot and Attack._knifeRemote then
-            local original = myRoot.CFrame
+        if myRoot and myRoot:IsA("BasePart") and Attack._knifeRemote then
+            local moved, move = pcall(beginAttackMove, "Knife attack move", myRoot, target, knifeConfig)
+            if not moved then Attack._knifeBusy = false; return end
+            Attack._knifeMove = move
             pcall(function()
-                myRoot.CFrame = CFrame.lookAt(target.Root.Position - target.Root.CFrame.LookVector * knifeConfig.BackOffset + Vector3.new(0, knifeConfig.UpOffset, 0), target.Root.Position)
-
                 if knifeConfig.SimulateClick then
                     local knife = getKnife()
                     if knife then pcall(function() knife:Activate() end) end
                 end
                 RunService.Heartbeat:Wait()
+                if scope:IsDisposed() or StateStore:Peek("Game.MvSKnife") ~= true or not target.Part.Parent then return end
                 Attack._knifeRemote:FireServer(target.Part)
                 task.wait(knifeConfig.Settle)
             end)
-            if myRoot.Parent then myRoot.CFrame = original end
+            if Attack._knifeMove == move then stopAttackMove("_knifeMove", "_knifeBusy") end
+            return
         end
         Attack._knifeBusy = false
     end
@@ -101,18 +129,21 @@ return function(services: any, Duel: any?): any
         Attack._gunBusy = true
         local mine = LocalPlayer.Character
         local myRoot = mine and mine:FindFirstChild("HumanoidRootPart")
-        if myRoot and Attack._gunRemote then
-            local original = myRoot.CFrame
+        if myRoot and myRoot:IsA("BasePart") and Attack._gunRemote then
+            local moved, move = pcall(beginAttackMove, "Gun attack move", myRoot, target, gunConfig)
+            if not moved then Attack._gunBusy = false; return end
+            Attack._gunMove = move
             pcall(function()
-                myRoot.CFrame = CFrame.lookAt(target.Root.Position - target.Root.CFrame.LookVector * gunConfig.BackOffset + Vector3.new(0, gunConfig.UpOffset, 0), target.Root.Position)
                 RunService.Heartbeat:Wait()
+                if scope:IsDisposed() or StateStore:Peek("Game.MvSRevolver") ~= true or not target.Part.Parent then return end
                 local head = mine:FindFirstChild("Head")
                 local origin = if head then (head.CFrame * CFrame.new(0, head.Size.Y / 2, head.Size.Z / 2)).Position else myRoot.Position
                 local hitPosition = target.Part.Position
                 Attack._gunRemote:FireServer(origin, hitPosition, target.Part, hitPosition)
                 task.wait(gunConfig.Settle)
             end)
-            if myRoot.Parent then myRoot.CFrame = original end
+            if Attack._gunMove == move then stopAttackMove("_gunMove", "_gunBusy") end
+            return
         end
         Attack._gunBusy = false
     end
@@ -123,8 +154,25 @@ return function(services: any, Duel: any?): any
         return math.max(value, minimum)
     end
 
+    -- Game automation must yield to UI interaction. This covers the suite menu, text entry,
+    -- keybind capture, and a Roblox window that has lost focus before any tool/input action runs.
+    local function automationInputBlocked(): boolean
+        return StateStore:Peek("Settings.MenuVisible") == true
+            or UserInputService:GetFocusedTextBox() ~= nil
+            or StateStore:GetTransient("IsBindingKey") == true
+            or not Environment:HasWindowFocus()
+    end
+
+    local function hasActiveAutomation(): boolean
+        return StateStore:Peek("Game.MvSAutoEquip") == true
+            or StateStore:Peek("Game.MvSKnife") == true
+            or StateStore:Peek("Game.MvSKnifeSpamThrow") == true
+            or StateStore:Peek("Game.MvSRevolver") == true
+            or StateStore:Peek("Game.MvSGunSpamShoot") == true
+    end
+
     local function processAutoEquip(now: number)
-        if StateStore:Get("Game.MvSAutoEquip") ~= true then return end
+        if StateStore:Peek("Game.MvSAutoEquip") ~= true then return end
         if now - Attack._lastEquipSwap < CONFIG.EQUIP_SWAP_INTERVAL then return end
 
         local char = LocalPlayer.Character
@@ -228,14 +276,14 @@ return function(services: any, Duel: any?): any
         local shotInterval = math.max(CONFIG.MIN_SHOT_INTERVAL, math.min(customCd > 0 and customCd or gunAttrCd, currentCooldown("Game.MvSGunCooldown", gunConfig.DefaultCooldown, gunConfig.MinCooldown)))
 
         if now - Attack._lastSpamShot < shotInterval then return end
+        -- A tool activation alone stays in Roblox, but the follow-up click must also be safe:
+        -- VirtualInputManager only, focused Roblox window, and no Roblox GUI under the pointer.
+        if not Environment:CanSimulatePointerInput() then return end
         Attack._lastSpamShot = now
-
         pcall(function()
             gun:Activate()
         end)
-        if Environment then
-            Environment:MouseClick()
-        end
+        Environment:MouseClick()
     end
 
     local function processKnifeSpamThrow(now: number, knife: Tool?)
@@ -258,6 +306,10 @@ return function(services: any, Duel: any?): any
     end
 
     local function tick(now: number)
+        if automationInputBlocked() or not hasActiveAutomation() then
+            Attack._enemies = 0
+            return
+        end
         processAutoEquip(now)
 
         local knife = getKnife()
@@ -272,29 +324,37 @@ return function(services: any, Duel: any?): any
             processGunSpamShoot(now, gun)
         end
 
+        local knifeKiller = StateStore:Peek("Game.MvSKnife") == true
+        local revolver = StateStore:Peek("Game.MvSRevolver") == true
+        -- Spam/equip modes only need local tools; avoid a full player scan until an attack
+        -- driver actually needs an opponent.
+        if not knifeKiller and not revolver then
+            Attack._enemies = 0
+            return
+        end
         local targets = Duel.Targets:GetAttackList()
         Attack._enemies = #targets
         if #targets == 0 then return end
 
-        if StateStore:Get("Game.MvSKnife") == true and not Attack._knifeBusy and Attack._knifeRemote and knife then
+        if knifeKiller and not Attack._knifeBusy and Attack._knifeRemote and knife then
             local cooldown = currentCooldown("Game.MvSKnifeCooldown", knifeConfig.DefaultCooldown, knifeConfig.MinCooldown)
             for _, target in ipairs(targets) do
                 if not Attack._knifeLast[target.Character] or now - Attack._knifeLast[target.Character] > cooldown then
                     Attack._knifeLast[target.Character] = now
-                    task.spawn(knifeHit, target)
+                    scope:Spawn(knifeHit, target)
                     break
                 end
             end
         end
 
-        if StateStore:Get("Game.MvSRevolver") == true and not Attack._gunBusy and Attack._gunRemote and gun and now >= Attack._gunNextShot then
+        if revolver and not Attack._gunBusy and Attack._gunRemote and gun and now >= Attack._gunNextShot then
             local cooldown = currentCooldown("Game.MvSGunCooldown", gunConfig.DefaultCooldown, gunConfig.MinCooldown)
             for _, target in ipairs(targets) do
                 if not Attack._gunLast[target.Character] or now - Attack._gunLast[target.Character] > cooldown then
                     Attack._gunLast[target.Character] = now
 
                     Attack._gunNextShot = now + math.max(tonumber(gun:GetAttribute(gunConfig.CooldownAttribute)) or gunConfig.DefaultCooldown, gunConfig.MinCooldown)
-                    task.spawn(gunHit, target)
+                    scope:Spawn(gunHit, target)
                     break
                 end
             end
@@ -302,6 +362,8 @@ return function(services: any, Duel: any?): any
     end
 
     function Attack:Reset(reason: string?)
+        stopAttackMove("_knifeMove", "_knifeBusy")
+        stopAttackMove("_gunMove", "_gunBusy")
         self._knifeLast, self._gunLast, self._gunNextShot = {}, {}, 0
     end
 
@@ -314,8 +376,13 @@ return function(services: any, Duel: any?): any
         end))
 
         scope:Add(LocalPlayer.CharacterAdded:Connect(function()
-            self._knifeBusy, self._gunBusy = false, false
             self:Reset("respawn")
+        end))
+        scope:Add(StateStore:Observe("Game.MvSKnife", function(value: boolean)
+            if value ~= true then stopAttackMove("_knifeMove", "_knifeBusy") end
+        end))
+        scope:Add(StateStore:Observe("Game.MvSRevolver", function(value: boolean)
+            if value ~= true then stopAttackMove("_gunMove", "_gunBusy") end
         end))
     end
 

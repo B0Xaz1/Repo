@@ -7,6 +7,7 @@ return function(services: any, Duel: any?): any
     local StateStore = services:Get("StateStore")
     local Disposer = services:Get("Disposer")
     local EventBus = services:Get("EventBus")
+    local LocomotionService = services:Get("LocomotionService")
     local LocalPlayer = Players.LocalPlayer
 
     local Duel = Duel or {}
@@ -53,13 +54,23 @@ return function(services: any, Duel: any?): any
         HOLD_DISTANCE = 3.5,
         PAD_PROXIMITY = 5,
         TOUCH_DEBOUNCE = 0.3,
-        FULL_RETRY_INTERVAL = 1.5,
+        MIN_QUEUE_RETRY_INTERVAL = 0.1,
         RAYCAST_DEPTH = 6,
         FALLBACK_MODE = "1v1",
         FALLBACK_REMOTE_NAMES = { "Queue", "QueueRemote", "JoinQueue", "EnterQueue", "Matchmaking", "Queue1v1", "QueueDuel" },
         FOOT_PART_NAMES = { "HumanoidRootPart", "LeftFoot", "RightFoot", "LowerTorso" },
         MODE_CAPACITY = { ["1v1"] = 1, ["2v2"] = 2, ["3v3"] = 3, ["4v4"] = 4 },
     })
+
+    local function queueRetryInterval(): number
+        local configured = tonumber(StateStore:Peek("Game.MvSQueueDelay"))
+        if not configured then
+            return CONFIG.TOUCH_DEBOUNCE
+        end
+        -- The UI expresses Queue Delay in seconds. Clamp it so a bad profile value
+        -- cannot turn touch events into a tight retry loop.
+        return math.max(CONFIG.MIN_QUEUE_RETRY_INTERVAL, configured)
+    end
 
     local function getPierFolder(): Instance?
         local lobby = Workspace:FindFirstChild("Lobby")
@@ -241,15 +252,11 @@ return function(services: any, Duel: any?): any
             return true, self._lastStatusMessage
         end
 
-        pcall(function()
-            if char.PivotTo then
-                char:PivotTo(CFrame.new(targetPos))
-            else
-                root.CFrame = CFrame.new(targetPos)
-            end
-            root.AssemblyLinearVelocity = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-        end)
+        local moved, moveMessage = LocomotionService:Teleport(CFrame.new(targetPos))
+        if not moved then
+            self._lastStatusMessage = moveMessage
+            return false, moveMessage
+        end
 
         self._lastStatusMessage = `Moved to {mode} strand #{strandIndex}{strandIndex == 2 and " (strand 1 full)" or ""}`
         return true, self._lastStatusMessage
@@ -279,7 +286,9 @@ return function(services: any, Duel: any?): any
 
         local success, msg = self:TeleportToQueue(mode)
         if success then
-            task.spawn(tryQueueRemote, mode)
+            scope:Spawn(function()
+                tryQueueRemote(mode)
+            end)
             return true, msg
         end
 
@@ -293,7 +302,7 @@ return function(services: any, Duel: any?): any
 
         if isPierPart(hit) then
             local now = os.clock()
-            if now - self._lastAttempt >= CONFIG.TOUCH_DEBOUNCE then
+            if now - self._lastAttempt >= queueRetryInterval() then
                 self._lastAttempt = now
                 self._state = "Queued"
                 self._queueAttempts += 1
@@ -356,7 +365,7 @@ return function(services: any, Duel: any?): any
             local bestPos, strandIdx, isFull = AutoQueue:GetBestPosition(mode)
 
             if isFull or not bestPos then
-                if now - AutoQueue._lastAttempt >= CONFIG.FULL_RETRY_INTERVAL then
+                if now - AutoQueue._lastAttempt >= queueRetryInterval() then
                     AutoQueue._lastAttempt = now
                     AutoQueue:TriggerQueue()
                 end
@@ -368,7 +377,7 @@ return function(services: any, Duel: any?): any
             local distToTarget = root and (root.Position - bestPos).Magnitude or 9999
 
             if distToTarget > CONFIG.HOLD_DISTANCE then
-                if now - AutoQueue._lastAttempt >= CONFIG.TOUCH_DEBOUNCE then
+                if now - AutoQueue._lastAttempt >= queueRetryInterval() then
                     AutoQueue._lastAttempt = now
                     AutoQueue._state = "Queued"
                     AutoQueue._queueAttempts += 1

@@ -45,11 +45,9 @@ return function(disposer: any): any
     local getHui = first(probe("gethui"))
     local write, read, exists = first(probe("writefile")), first(probe("readfile")), first(probe("isfile"))
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
-    local move = first(probe("mousemoverel"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
     local fps = first(probe("setfpscap"), probe("set_fps_cap"), probe("setfps"))
-    local click = first(probe("mouse1click"))
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
@@ -71,15 +69,17 @@ return function(disposer: any): any
     local cachedParent: Instance? = nil
     local virtualInput: any = nil
     pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
-    local mousePressed = false
+    local mousePressed, windowFocused = false, true
 
     local Environment = {
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
         Capabilities = table.freeze({
             Files = write ~= nil and read ~= nil, WriteFile = write ~= nil, ReadFile = read ~= nil,
-            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = move ~= nil,
+            -- Native mouse APIs are deliberately never used. They can be implemented as OS-level
+            -- input by an executor and must not move or click outside the Roblox client.
+            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = false, NativeClick = false,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
-            QueueTeleport = queue ~= nil, FpsCap = fps ~= nil, NativeClick = click ~= nil,
+            QueueTeleport = queue ~= nil, FpsCap = fps ~= nil,
             VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
             Drawing = type(drawing) == "table" and type(drawing.new) == "function",
         }),
@@ -167,9 +167,10 @@ return function(disposer: any): any
         return nil
     end
 
-    function Environment:MouseMove(x: number, y: number): boolean
-        if not move then return false end
-        return pcall(move, math.round(x), math.round(y))
+    -- Relative native mouse movement is intentionally disabled. Executors commonly expose this
+    -- as an OS-level cursor API, so mouse-mode aim falls back to the in-client camera path.
+    function Environment:MouseMove(_x: number, _y: number): boolean
+        return false
     end
 
     function Environment:SetClipboard(text: string): (boolean, string?)
@@ -254,17 +255,39 @@ return function(disposer: any): any
         return result, nil
     end
 
-    function Environment:MouseClick(): boolean
-        if click then return pcall(click) end
-        -- Without a native click API the press/release pair is synthesized, and mousePressed
-        -- keeps a delayed release from overlapping the next press
-        if not virtualInput or mousePressed then return false end
+    function Environment:HasWindowFocus(): boolean
+        return windowFocused
+    end
+
+    -- Synthetic pointer input is allowed only when it stays inside a focused Roblox client and
+    -- the pointer is not over any Roblox GUI. Failing closed avoids turning a combat click into
+    -- a menu/CoreGui click on executors with incomplete GUI APIs.
+    function Environment:CanSimulatePointerInput(): (boolean, string?)
+        if not virtualInput then return false, "Virtual input is unavailable" end
+        if not windowFocused then return false, "Roblox is not the focused window" end
         local point = UIS:GetMouseLocation()
-        local sent = pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0) end)
-        if not sent then return false end
+        local checked, objects = pcall(function()
+            return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
+        end)
+        if not checked or type(objects) ~= "table" then return false, "Pointer safety check is unavailable" end
+        if #objects > 0 then return false, "Pointer is over Roblox UI" end
+        return true
+    end
+
+    function Environment:MouseClick(): (boolean, string?)
+        local allowed, reason = self:CanSimulatePointerInput()
+        if not allowed then return false, reason end
+        if mousePressed then return false, "A simulated click is already in progress" end
+        local point = UIS:GetMouseLocation()
+        local sent, sendError = pcall(function()
+            virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0)
+        end)
+        if not sent then return false, tostring(sendError) end
         mousePressed = true
         scope:Delay(CONFIG.CLICK_RELEASE_DELAY, function()
-            virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, false, game, 0)
+            if virtualInput then
+                pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, false, game, 0) end)
+            end
             mousePressed = false
         end)
         return true
@@ -278,6 +301,17 @@ return function(disposer: any): any
     end
 
     function Environment:Destroy() scope:Dispose() end
+
+    -- The focus flag prevents a queued automation action from being sent while another desktop
+    -- window is active. VirtualInputManager itself stays inside Roblox; this is an extra guard.
+    scope:ConnectImmediate(UIS.WindowFocusReleased, function()
+        windowFocused = false
+        if mousePressed and virtualInput then
+            mousePressed = false
+            pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
+        end
+    end)
+    scope:ConnectImmediate(UIS.WindowFocused, function() windowFocused = true end)
 
     scope:Add(function()
         if mousePressed and virtualInput then

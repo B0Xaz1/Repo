@@ -15,7 +15,7 @@ local CONFIG = table.freeze({
 
 return function(services: any): any
     local state, tracker, scheduler = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("TaskScheduler")
-    local bus = services:Get("EventBus")
+    local bus, environment = services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("ExtrasService")
     local guardChanges = scope:CreateChild("Anti-fling recovery")
     local virtualUser: any = nil
@@ -172,7 +172,10 @@ return function(services: any): any
         syncHitboxSpin()
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
         scope:Connect(Players.LocalPlayer.Idled, function()
-            if not state:Get("Settings.AntiAfk") or not virtualUser then return end
+            -- VirtualUser is Roblox-side input, but an idle nudge must never run while the user
+            -- is interacting with this UI or while Roblox is not the foreground window.
+            if not state:Get("Settings.AntiAfk") or not virtualUser or state:Peek("Settings.MenuVisible") == true
+                or state:GetTransient("IsBindingKey") == true or not environment:HasWindowFocus() then return end
             local sent = pcall(function()
                 virtualUser:CaptureController()
                 virtualUser:ClickButton2(Vector2.zero)

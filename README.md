@@ -10,11 +10,11 @@ AI tools were used during development, including for code and documentation. The
 
 ## Getting started
 
-1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/main/loader.luau).
+1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/8afdfb414db5754ded06cd9ab6b01b5c3729c292/loader.luau).
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. Open the menu with **Right Shift** and enable the features you want.
 
-Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
+The loader and queued rejoin bootstrap use an immutable full Git commit, not the mutable `main` branch or an overrideable base URL. To intentionally run a reviewed different revision, set `B0XazRef` to its full 40-character commit ID before launching. Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
 
 ## Menu and profiles
 

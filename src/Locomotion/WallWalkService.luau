@@ -13,6 +13,8 @@ local CONFIG = table.freeze({
     FEELER_RAYS = 9,
     FEELER_WEIGHTING = 8,
     TRANSITION = 0.15,
+    SURFACE_CHECK_INTERVAL = 1 / 20,
+    FLOOR_CHECK_INTERVAL = 1 / 30,
     FORCE_SCALE = 200 / 3,
 })
 
@@ -21,7 +23,8 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("WallWalkService")
     local changes = scope:CreateChild("Wall walk properties")
     local WallWalkService = { _active = false, _root = nil, _walkScope = nil, _collider = nil, _floor = nil, _gyro = nil, _force = nil,
-        _gravityUp = Vector3.yAxis, _lastPart = nil, _lastPartCFrame = CFrame.identity, _initialized = false }
+        _gravityUp = Vector3.yAxis, _targetGravityUp = Vector3.yAxis, _surfaceElapsed = 0, _floorElapsed = 0,
+        _lastPart = nil, _lastPartCFrame = CFrame.identity, _initialized = false }
 
     local function createObjects(character: Model, root: BasePart, humanoid: Humanoid, owner: any): (BasePart?, BasePart?, BodyGyro?, VectorForce?)
         local ok, model = pcall(function() return game:GetObjects(CONFIG.OBJECTS_ASSET)[1] end)
@@ -48,7 +51,9 @@ return function(services: any): any
         self._active, self._root = false, nil
         if self._walkScope then self._walkScope:Dispose(); self._walkScope = nil end
         self._collider, self._floor, self._gyro, self._force = nil, nil, nil, nil
-        self._gravityUp, self._lastPart, self._lastPartCFrame = Vector3.yAxis, nil, CFrame.identity
+        self._gravityUp, self._targetGravityUp = Vector3.yAxis, Vector3.yAxis
+        self._surfaceElapsed, self._floorElapsed = 0, 0
+        self._lastPart, self._lastPartCFrame = nil, CFrame.identity
         changes:RestoreProperties()
     end
 
@@ -112,8 +117,14 @@ return function(services: any): any
             end
             local originalHipHeight = changes:GetOriginal(humanoid, "HipHeight")
             if typeof(originalHipHeight) == "number" then changes:SetProperty(humanoid, "HipHeight", originalHipHeight + CONFIG.HIP_HEIGHT_OFFSET) end
-            local normal = findSurface(assets.Character, root, self._collider, self._gravityUp)
-            self._gravityUp = self._gravityUp:Lerp(normal, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit
+            -- Surface acquisition casts 34 rays. It need not run at the physics rate;
+            -- interpolate every frame toward a 20 Hz sample for stable movement.
+            self._surfaceElapsed += dt
+            if self._surfaceElapsed >= CONFIG.SURFACE_CHECK_INTERVAL then
+                self._surfaceElapsed = self._surfaceElapsed % CONFIG.SURFACE_CHECK_INTERVAL
+                self._targetGravityUp = findSurface(assets.Character, root, self._collider, self._gravityUp)
+            end
+            self._gravityUp = self._gravityUp:Lerp(self._targetGravityUp, math.clamp(CONFIG.TRANSITION * dt * 60, 0, 1)).Unit
             local camera = Workspace.CurrentCamera
             local cameraForward = camera and camera.CFrame.LookVector or root.CFrame.LookVector
             local cameraUp = camera and camera.CFrame.UpVector or Vector3.yAxis
@@ -131,15 +142,22 @@ return function(services: any): any
             local walkForce = if delta.Magnitude > 0.01 then delta.Unit * math.min(10000, CONFIG.FORCE_SCALE * root.AssemblyMass * delta.Magnitude / math.max(dt * 60, 1)) else Vector3.zero
             self._force.Force = walkForce + Workspace.Gravity * root.AssemblyMass * (Vector3.yAxis - self._gravityUp)
             self._gyro.CFrame = CFrame.lookAt(Vector3.zero, if worldMove.Magnitude > 0.01 then worldMove else forward, self._gravityUp)
-            local params = RaycastParams.new(); params.FilterType, params.FilterDescendantsInstances = Enum.RaycastFilterType.Exclude, { assets.Character }
-            local surface = Workspace:Raycast(self._collider.Position, -self._gravityUp * 1.1, params)
-            -- While the same surface stays underfoot the character rides its CFrame, so rotating
-            -- geometry carries them along instead of sliding off
-            if surface and self._lastPart == surface.Instance and self._lastPart.Parent then
-                local offset = self._lastPartCFrame:ToObjectSpace(root.CFrame)
-                root.CFrame = surface.Instance.CFrame:ToWorldSpace(offset)
+            -- The short floor probe is sampled separately from the wider surface fan.
+            -- Keeping it at 30 Hz is sufficient to carry the player on moving geometry
+            -- while avoiding another raycast every Heartbeat.
+            self._floorElapsed += dt
+            if self._floorElapsed >= CONFIG.FLOOR_CHECK_INTERVAL then
+                self._floorElapsed = self._floorElapsed % CONFIG.FLOOR_CHECK_INTERVAL
+                local params = RaycastParams.new(); params.FilterType, params.FilterDescendantsInstances = Enum.RaycastFilterType.Exclude, { assets.Character }
+                local surface = Workspace:Raycast(self._collider.Position, -self._gravityUp * 1.1, params)
+                -- While the same surface stays underfoot the character rides its CFrame, so rotating
+                -- geometry carries them along instead of sliding off.
+                if surface and self._lastPart == surface.Instance and self._lastPart.Parent then
+                    local offset = self._lastPartCFrame:ToObjectSpace(root.CFrame)
+                    root.CFrame = surface.Instance.CFrame:ToWorldSpace(offset)
+                end
+                self._lastPart, self._lastPartCFrame = if surface then surface.Instance else Workspace.Terrain, if surface then surface.Instance.CFrame else CFrame.identity
             end
-            self._lastPart, self._lastPartCFrame = if surface then surface.Instance else Workspace.Terrain, if surface then surface.Instance.CFrame else CFrame.identity
         end)
         local function sync(value: boolean) job.Enabled = value == true; if not value then self:Stop() end end
         scope:Add(state:Observe("Movement.WallWalkEnabled", sync)); sync(state:Peek("Movement.WallWalkEnabled") == true)

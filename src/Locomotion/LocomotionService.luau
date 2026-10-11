@@ -35,9 +35,11 @@ return function(services: any): any
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
     local noClipChanges = scope:CreateChild("No clip")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
+    local teleportChanges = scope:CreateChild("One-shot teleports")
     local touchTeleportScope = scope:CreateChild("Touch teleport")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
-        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0, _initialized = false }
+        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0,
+        _noClipCharacter = nil, _noClipWatch = nil, _initialized = false }
 
     local function suppress(duration: number)
         state:SetTransient("AntiFlingSuppressUntil", math.max(state:GetTransient("AntiFlingSuppressUntil") or 0, os.clock() + duration))
@@ -58,12 +60,21 @@ return function(services: any): any
         owner:SetProperty(root, "CFrame", target, true)
     end
 
+    -- A one-shot teleport must leave the character where it was placed. Release drops our lease
+    -- without restoring the prior CFrame, unlike a sustained movement feature such as fling.
+    local function teleportPermanently(root: BasePart, target: CFrame)
+        teleportRoot(teleportChanges, root, target)
+        teleportChanges:ReleaseProperty(root, "AssemblyLinearVelocity")
+        teleportChanges:ReleaseProperty(root, "AssemblyAngularVelocity")
+        teleportChanges:ReleaseProperty(root, "CFrame")
+    end
+
     function LocomotionService:Teleport(target: any): (boolean, string)
         local assets = tracker:GetLocalAssets()
         if not assets then return false, "Your character is not ready" end
         if typeof(target) == "Vector3" then target = CFrame.new(target) * assets.RootPart.CFrame.Rotation end
         if typeof(target) ~= "CFrame" then return false, "Teleport requires a CFrame or Vector3" end
-        teleportRoot(positionChanges, assets.RootPart, target)
+        teleportPermanently(assets.RootPart, target)
         return true, "Teleported"
     end
 
@@ -83,7 +94,7 @@ return function(services: any): any
             local assets = tracker:GetLocalAssets()
             if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
             LocomotionService._lastTouchTeleport = os.clock()
-            teleportRoot(positionChanges, assets.RootPart, target)
+            teleportPermanently(assets.RootPart, target)
         end
         for _, descendant in ipairs(character:GetDescendants()) do
             if descendant:IsA("BasePart") then touchTeleportScope:ConnectImmediate(descendant.Touched, onTouched) end
@@ -91,6 +102,34 @@ return function(services: any): any
         touchTeleportScope:ConnectImmediate(character.DescendantAdded, function(descendant: Instance)
             if descendant:IsA("BasePart") then touchTeleportScope:ConnectImmediate(descendant.Touched, onTouched) end
         end)
+    end
+
+    local function stopNoClip()
+        local watch = LocomotionService._noClipWatch
+        LocomotionService._noClipWatch, LocomotionService._noClipCharacter = nil, nil
+        if watch then watch:Dispose() end
+        noClipChanges:RestoreProperties()
+    end
+
+    local function startNoClip(character: Model)
+        if LocomotionService._noClipCharacter == character and LocomotionService._noClipWatch then return end
+        stopNoClip()
+        local watch = scope:CreateChild("No clip character")
+        LocomotionService._noClipCharacter, LocomotionService._noClipWatch = character, watch
+        local function apply(part: Instance)
+            if not part:IsA("BasePart") or not part.Parent then return end
+            noClipChanges:SetProperty(part, "CanCollide", false)
+            -- Reassert only when the game changes this particular part instead of walking the
+            -- whole character and writing every BasePart on every Heartbeat.
+            watch:ConnectImmediate(part:GetPropertyChangedSignal("CanCollide"), function()
+                if state:Peek("Movement.NoClip") == true and part.Parent and part.CanCollide then
+                    noClipChanges:SetProperty(part, "CanCollide", false, true)
+                end
+            end)
+        end
+        for _, descendant in ipairs(character:GetDescendants()) do apply(descendant) end
+        watch:ConnectImmediate(character.DescendantAdded, apply)
+        watch:ConnectImmediate(character.Destroying, stopNoClip)
     end
 
     function LocomotionService:TeleportToPlayer(player: Player): (boolean, string)
@@ -163,7 +202,7 @@ return function(services: any): any
         if not LocomotionService._flingTarget and not config.CFrameSpeed and not config.NoClip and config.Speed <= 0 and config.JumpPower <= 0
             and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
             if LocomotionService._applied then
-                characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties()
+                characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties()
                 worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
                 LocomotionService._applied = false
             end
@@ -172,17 +211,15 @@ return function(services: any): any
         LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
-            characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
+            characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
-        elseif not assets then characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
+        elseif not assets then characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
         if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
             if config.NoClip then
-                for _, descendant in ipairs(humanoid.Parent:GetDescendants()) do
-                    if descendant:IsA("BasePart") then noClipChanges:SetProperty(descendant, "CanCollide", false, true) end
-                end
+                startNoClip(assets.Character)
             else
-                noClipChanges:RestoreProperties()
+                stopNoClip()
             end
             local sprint = config.SprintEnabled and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and UIS:IsKeyDown(Enum.KeyCode.LeftShift)
             local speed = if sprint then config.SprintSpeed else config.Speed
@@ -284,6 +321,7 @@ return function(services: any): any
 
     scope:Add(function()
         stopFling()
+        stopNoClip()
         local assets = tracker:GetLocalAssets()
         if assets then
             pcall(function()

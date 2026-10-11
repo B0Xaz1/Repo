@@ -11,9 +11,11 @@ local CONFIG = table.freeze({
     COLOR_PROPERTIES = { "BackgroundColor3", "TextColor3", "ImageColor3", "Color", "ScrollBarImageColor3", "PlaceholderColor3" },
     PRESET_SPECS = {
         Midnight = {
-            Bg = Color3.fromRGB(12, 14, 20), Panel = Color3.fromRGB(19, 22, 30), Elem = Color3.fromRGB(27, 31, 42), ElemHover = Color3.fromRGB(37, 42, 56),
-            Side = Color3.fromRGB(15, 17, 24), Accent = Color3.fromRGB(168, 142, 255), Text = Color3.fromRGB(242, 241, 248), TextDim = Color3.fromRGB(177, 179, 195),
-            TextMuted = Color3.fromRGB(125, 130, 150), Border = Color3.fromRGB(50, 54, 70), BorderDim = Color3.fromRGB(37, 41, 54), ToggleOff = Color3.fromRGB(43, 47, 61),
+            -- A deliberately neutral monochrome palette: deep blacks, charcoal surfaces, and white focus states.
+            Bg = Color3.fromRGB(7, 7, 8), Panel = Color3.fromRGB(14, 14, 16), Elem = Color3.fromRGB(23, 23, 26), ElemHover = Color3.fromRGB(34, 34, 38),
+            Side = Color3.fromRGB(10, 10, 12), Accent = Color3.fromRGB(238, 238, 240), Text = Color3.fromRGB(250, 250, 252), TextDim = Color3.fromRGB(194, 194, 198),
+            TextMuted = Color3.fromRGB(132, 132, 138), Border = Color3.fromRGB(67, 67, 73), BorderDim = Color3.fromRGB(44, 44, 49), ToggleOff = Color3.fromRGB(55, 55, 60),
+            Success = Color3.fromRGB(230, 230, 232), Danger = Color3.fromRGB(194, 194, 198), Warning = Color3.fromRGB(164, 164, 170),
         },
         Graphite = {
             Bg = Color3.fromRGB(20, 22, 25), Panel = Color3.fromRGB(28, 31, 35), Elem = Color3.fromRGB(38, 42, 47), ElemHover = Color3.fromRGB(49, 54, 60),

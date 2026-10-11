@@ -376,6 +376,10 @@ return function(services: any): any
         if layout.Rail then
             layout.Rail.Position = UDim2.fromOffset(0, headerHeight)
             layout.Rail.Size = UDim2.new(0, railWidth, 1, -(headerHeight + footerHeight))
+            layout.RailSurface.Position, layout.RailSurface.Size = layout.Rail.Position, layout.Rail.Size
+            layout.RailTopFill.Position, layout.RailTopFill.Size = layout.Rail.Position, UDim2.new(0, railWidth, 0, 12)
+            layout.RailRightFill.Position = UDim2.fromOffset(12, headerHeight)
+            layout.RailRightFill.Size = UDim2.new(0, math.max(0, railWidth - 12), 1, -(headerHeight + footerHeight))
             layout.IndicatorHost.Position, layout.IndicatorHost.Size = layout.Rail.Position, layout.Rail.Size
             layout.Divider.Position = UDim2.fromOffset(railWidth, headerHeight + 10)
             layout.Divider.Size = UDim2.new(0, 1, 1, -(headerHeight + footerHeight + 20))
@@ -437,8 +441,13 @@ return function(services: any): any
         theme:BindToken(dom:CreateStroke(main, theme:GetToken("Border")), "Color", "Border")
         self._scale = dom:Create("UIScale", { Parent = main, Scale = 1 })
         local header = dom:Create("Frame", { Parent = main, Name = "CommandBar", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, CONFIG.HEADER_HEIGHT),
-            BackgroundColor3 = theme:GetToken("Panel") })
-        theme:BindToken(header, "BackgroundColor3", "Panel")
+            BackgroundTransparency = 1 })
+        -- Keep the top edge visibly rounded even though the header spans the full window width.
+        local headerSurface = dom:Create("Frame", { Parent = header, Name = "HeaderSurface", BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), BackgroundColor3 = theme:GetToken("Panel") })
+        theme:BindToken(headerSurface, "BackgroundColor3", "Panel")
+        dom:Create("UICorner", { Parent = headerSurface, CornerRadius = UDim.new(0, 12) })
+        local headerFill = dom:Create("Frame", { Parent = header, Name = "HeaderFill", BorderSizePixel = 0, Position = UDim2.fromOffset(0, 12), Size = UDim2.new(1, 0, 1, -12), BackgroundColor3 = theme:GetToken("Panel") })
+        theme:BindToken(headerFill, "BackgroundColor3", "Panel")
         local brand = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(18, 16), Size = UDim2.fromOffset(180, 20),
             Text = "B0Xaz Universal", Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
         theme:BindToken(brand, "TextColor3", "Text")
@@ -483,10 +492,20 @@ return function(services: any): any
         local dragHandle = dom:Create("Frame", { Parent = header, BackgroundTransparency = 1, Active = true, Size = UDim2.new(0, 198, 1, 0), ZIndex = 1 })
         self:MakeDraggable(main, dragHandle)
 
+        -- These layered side surfaces preserve a rounded lower-left outer corner without rounding
+        -- the rail's inner edge or disturbing its scrolling layout.
+        local railSurface = dom:Create("Frame", { Parent = main, Name = "NavigationRailSurface", BorderSizePixel = 0, Position = UDim2.fromOffset(0, CONFIG.HEADER_HEIGHT),
+            Size = UDim2.new(0, CONFIG.RAIL_WIDTH, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT)), BackgroundColor3 = theme:GetToken("Side") })
+        theme:BindToken(railSurface, "BackgroundColor3", "Side")
+        dom:Create("UICorner", { Parent = railSurface, CornerRadius = UDim.new(0, 12) })
+        local railTopFill = dom:Create("Frame", { Parent = main, Name = "NavigationRailTopFill", BorderSizePixel = 0, Position = railSurface.Position,
+            Size = UDim2.new(0, CONFIG.RAIL_WIDTH, 0, 12), BackgroundColor3 = theme:GetToken("Side") })
+        local railRightFill = dom:Create("Frame", { Parent = main, Name = "NavigationRailRightFill", BorderSizePixel = 0, Position = UDim2.fromOffset(12, CONFIG.HEADER_HEIGHT),
+            Size = UDim2.new(0, CONFIG.RAIL_WIDTH - 12, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT)), BackgroundColor3 = theme:GetToken("Side") })
+        theme:BindToken(railTopFill, "BackgroundColor3", "Side"); theme:BindToken(railRightFill, "BackgroundColor3", "Side")
         local rail = dom:Create("ScrollingFrame", { Parent = main, Name = "NavigationRail", BorderSizePixel = 0, Position = UDim2.fromOffset(0, CONFIG.HEADER_HEIGHT),
-            Size = UDim2.new(0, CONFIG.RAIL_WIDTH, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT)), BackgroundColor3 = theme:GetToken("Side"),
+            Size = UDim2.new(0, CONFIG.RAIL_WIDTH, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT)), BackgroundTransparency = 1,
             ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
-        theme:BindToken(rail, "BackgroundColor3", "Side")
         dom:CreatePadding(rail, 10, 10, 10, 10)
         local tabLayout = dom:Create("UIListLayout", { Parent = rail, FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
         local indicatorHost = dom:Create("Frame", { Parent = main, Name = "NavigationIndicatorHost", BackgroundTransparency = 1, ClipsDescendants = true, Active = false,
@@ -498,7 +517,8 @@ return function(services: any): any
         scope:ConnectImmediate(tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() UIEngine:UpdateTabIndicator(false) end)
         scope:ConnectImmediate(rail:GetPropertyChangedSignal("CanvasPosition"), function() UIEngine:UpdateTabIndicator(false) end)
         local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(CONFIG.RAIL_WIDTH, CONFIG.HEADER_HEIGHT + 10), Size = UDim2.new(0, 1, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT + 20)) })
-        self._layout.Rail, self._layout.IndicatorHost, self._layout.Divider = rail, indicatorHost, divider
+        self._layout.Rail, self._layout.RailSurface, self._layout.RailTopFill, self._layout.RailRightFill = rail, railSurface, railTopFill, railRightFill
+        self._layout.IndicatorHost, self._layout.Divider = indicatorHost, divider
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
 
         for index, entry in ipairs(CONFIG.TABS) do
@@ -571,11 +591,16 @@ return function(services: any): any
         theme:BindToken(self._versionLabel, "TextColor3", "TextMuted")
         self._toastRoot = dom:Create("Frame", { Parent = root, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -18), Size = UDim2.new(0, CONFIG.TOAST_WIDTH, 1, -40) })
         dom:Create("UIListLayout", { Parent = self._toastRoot, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder })
-        local reopen = dom:Create("TextButton", { Parent = root, BorderSizePixel = 0, Position = UDim2.new(0, 16, 1, -52), Size = UDim2.fromOffset(78, 34),
-            Text = "B0Xaz", TextSize = 13, Font = Enum.Font.GothamBold })
-        theme:BindToken(reopen, "BackgroundColor3", "Panel"); theme:BindToken(reopen, "TextColor3", "Accent")
+        local reopen = dom:Create("TextButton", { Parent = root, Name = "MenuButton", BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 18, 1, -18),
+            Size = UDim2.fromOffset(48, 48), Text = "", AutoButtonColor = false })
+        theme:BindToken(reopen, "BackgroundColor3", "Elem")
         theme:BindToken(dom:CreateStroke(reopen, theme:GetToken("Border")), "Color", "Border")
-        dom:Create("UICorner", { Parent = reopen, CornerRadius = UDim.new(0, 3) })
+        dom:Create("UICorner", { Parent = reopen, CornerRadius = UDim.new(1, 0) })
+        for index, y in ipairs({ 16, 23, 30 }) do
+            local line = dom:Create("Frame", { Parent = reopen, Name = `MenuLine{index}`, BorderSizePixel = 0, Position = UDim2.fromOffset(15, y), Size = UDim2.fromOffset(18, 2) })
+            theme:BindToken(line, "BackgroundColor3", "Accent")
+            dom:Create("UICorner", { Parent = line, CornerRadius = UDim.new(1, 0) })
+        end
         scope:Connect(reopen.Activated, function() state:Set("Settings.MenuVisible", not state:Get("Settings.MenuVisible")) end)
         local function updateVisibility(value: boolean)
             motion:Reveal(main, value)

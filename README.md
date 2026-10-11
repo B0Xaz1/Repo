@@ -10,7 +10,7 @@ AI tools were used during development, including for code and documentation. The
 
 ## Getting started
 
-1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/a7657694e4823a8292eba010d5fa561e6bec47f3/loader.luau).
+1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/7f9983c2fa21b30cd626ad28b563fd6924549f7d/loader.luau).
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. On first launch, choose an edition in the in-game picker, then open the menu with **Right Shift** and enable the features you want.
 

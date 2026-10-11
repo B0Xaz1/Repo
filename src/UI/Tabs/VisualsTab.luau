@@ -6,7 +6,8 @@ return function(services: any, tab: any): any
     local dropdown = load("src/UI/Components/Dropdown.luau", services)
     local color = load("src/UI/Components/ColorPicker.luau", services)
     local textbox = load("src/UI/Components/Textbox.luau", services)
-    local environment, lighting = services:Get("Environment"), services:Get("LightingService")
+    local environment, lighting, state = services:Get("Environment"), services:Get("LightingService"), services:Get("StateStore")
+    local optimizer = services:Get("OptimizerService")
     local esp = section:Create(tab.LeftCol, "ESP features", "ESP")
     if not services:Get("DrawingPool").Available then
         section:Info(esp, "Drawing is unavailable. ESP and telemetry overlays will not render; native chams can still work.")
@@ -31,16 +32,35 @@ return function(services: any, tab: any): any
     toggle(chams, "Use team color", "Chams.UseTeamColor", nil)
     color(chams, "Fill color", "Chams.FillColor", nil)
     color(chams, "Outline color", "Chams.OutlineColor", nil)
-    local performance = section:Create(tab.RightCol, "Performance", "Performance")
-    for _, entry in ipairs({ { "Remove textures", "NoTextures" }, { "Simple materials", "LowMaterials" }, { "Disable shadows", "NoShadows" },
-        { "Disable particles", "NoParticles" }, { "Optimize terrain", "OptimizeTerrain" }, { "Disable post-processing", "NoPostProcessing" } }) do
+    local performancePresets = section:Create(tab.RightCol, "Performance presets")
+    section:Info(performancePresets, "Presets apply a coordinated set of reversible visual changes. You can still adjust every option below.")
+    textbox:CreateButton(performancePresets, "Use balanced performance", function() return optimizer:ApplyPreset("Balanced") end)
+    textbox:CreateButton(performancePresets, "Use maximum performance", function() return optimizer:ApplyPreset("Maximum") end)
+    textbox:CreateButton(performancePresets, "Restore visual quality", function() return optimizer:RestoreVisualQuality() end)
+
+    local performance = section:Create(tab.RightCol, "Rendering performance", "Performance")
+    section:Info(performance, "Changes are streamed in one pass and restore only the category you turn off, avoiding repeated full-world resets.")
+    for _, entry in ipairs({ { "Hide texture detail", "NoTextures" }, { "Simple materials", "LowMaterials" }, { "Disable world shadows", "NoShadows" },
+        { "Disable particles", "NoParticles" }, { "Disable post-processing", "NoPostProcessing" }, { "Reduce terrain water", "OptimizeTerrain" },
+        { "Disable dynamic lights", "NoLights" }, { "Disable highlights", "NoHighlights" } }) do
         toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
     end
-    slider(performance, "FPS cap - 0 uncaps", "Performance.FpsCap", 0, 360, 15, " FPS", nil)
+
+    local framePacing = section:Create(tab.RightCol, "Frame pacing", "Performance")
+    section:Info(framePacing, "The cap applies immediately as you move the slider. Use 0 to remove the executor frame cap.")
+    slider(framePacing, "Frame rate cap", "Performance.FpsCap", 0, 360, 15, " FPS", function(value: number) optimizer:ApplyFpsCap(value) end)
+    textbox:CreateButton(framePacing, "Apply current frame rate cap", function() return optimizer:ApplyFpsCap(state:Get("Performance.FpsCap"), true) end)
+    textbox:CreateButton(framePacing, "Uncap frame rate", function()
+        state:Set("Performance.FpsCap", 0)
+        return optimizer:ApplyFpsCap(0, true)
+    end)
     if not environment:HasFpsCap() then
-        section:Info(performance, "FPS cap is unsupported by this executor.")
+        section:Info(framePacing, "This executor does not expose a frame-cap API. Rendering options still work.")
     end
-    textbox:CreateButton(performance, "Request memory collection", function() return services:Get("OptimizerService"):FlushMemory() end)
+
+    local maintenance = section:Create(tab.RightCol, "Performance maintenance")
+    textbox:CreateButton(maintenance, "Reapply current performance settings", function() return optimizer:Refresh() end)
+    textbox:CreateButton(maintenance, "Request memory collection", function() return optimizer:FlushMemory() end)
     local light = section:Create(tab.RightCol, "Cinematic lighting", "Lighting")
     toggle(light, "Fullbright", "Visuals.Fullbright", nil)
     dropdown(light, "Lighting mode", "Lighting.Mode", { "Off", "Static Day", "Static Night", "Dynamic" }, function(value: string) lighting:SetMode(value) end)

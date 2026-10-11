@@ -6,7 +6,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
 - Added Balanced and Maximum performance presets, a visual-quality restore action, manual reapply controls, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
-- Fixed the frame-rate cap workflow: slider changes apply directly, saved/profile settings are reapplied on load, and the menu now includes explicit apply and uncap actions.
+- Fixed the frame-rate cap workflow: slider changes apply directly in 5-FPS steps, supports up to 1000 FPS, saved/profile settings are reapplied on load, and “uncapped” now requests a high ceiling instead of executor implementations that silently fall back to 60 FPS. The menu also includes explicit apply and uncap actions.
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.
 - The entire menu top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session, with a high-contrast confirmation label.

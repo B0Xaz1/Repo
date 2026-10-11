@@ -173,7 +173,7 @@ return function(services: any): any
 
     function OptimizerService:ApplyFpsCap(value: number, force: boolean?): (boolean, string)
         local requested = tonumber(value) or 0
-        local normalized = if requested <= 0 then 0 else math.clamp(math.round(requested), 15, 1000)
+        local normalized = if requested <= 0 then 0 else math.clamp(math.round(requested), 5, 1000)
         if self._fpsCap == normalized and not force then
             return true, if normalized == 0 then "Frame rate is uncapped" else `Frame rate cap is {normalized} FPS`
         end

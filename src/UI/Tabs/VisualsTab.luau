@@ -47,8 +47,8 @@ return function(services: any, tab: any): any
     end
 
     local framePacing = section:Create(tab.RightCol, "Frame pacing", "Performance")
-    section:Info(framePacing, "The cap applies immediately as you move the slider. Use 0 to remove the executor frame cap.")
-    slider(framePacing, "Frame rate cap", "Performance.FpsCap", 0, 360, 15, " FPS", function(value: number) optimizer:ApplyFpsCap(value) end)
+    section:Info(framePacing, "The cap applies immediately in 5-FPS steps. Use 0 to request the executor's high uncapped ceiling instead of its 60-FPS fallback.")
+    slider(framePacing, "Frame rate cap", "Performance.FpsCap", 0, 1000, 5, " FPS", function(value: number) optimizer:ApplyFpsCap(value) end)
     textbox:CreateButton(framePacing, "Apply current frame rate cap", function() return optimizer:ApplyFpsCap(state:Get("Performance.FpsCap"), true) end)
     textbox:CreateButton(framePacing, "Uncap frame rate", function()
         state:Set("Performance.FpsCap", 0)

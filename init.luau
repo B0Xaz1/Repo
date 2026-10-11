@@ -4,7 +4,7 @@ local CONFIG = table.freeze({
     VERSION = "2.4.9",
     NOT_FOUND_BODY = "404" .. ": Not Found",
     -- Keep every module request on the immutable revision selected by loader.luau.
-    DEFAULT_REF = "ed45c8c6f00b8ee7fdb2ddb3101eaa1a8cddd157",
+    DEFAULT_REF = "a70ae7a083ea9437c90bc279ad6593051ab3175a",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
     READINESS_TIMEOUT = 15,
     READINESS_POLL = 0.1,

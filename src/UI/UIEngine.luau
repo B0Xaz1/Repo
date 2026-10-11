@@ -30,10 +30,10 @@ local CONFIG = table.freeze({
         { Name = "Visuals", Path = "src/UI/Tabs/VisualsTab.luau", Description = "Overlay, rendering, and performance controls." },
         { Name = "Movement", Path = "src/UI/Tabs/MovementTab.luau", Description = "Character, camera, and traversal controls." },
         { Name = "Players", Path = "src/UI/Tabs/PlayersTab.luau", Description = "Player actions, spectating, and lists." },
-        { Name = "Game", Path = "src/UI/Tabs/GameTab.luau", Description = "Experience-specific tools and adapters." },
         { Name = "Commands", Path = "src/UI/Tabs/CommandsTab.luau", Description = "Browse and run suite commands." },
         { Name = "Utility", Path = "src/UI/Tabs/UtilityTab.luau", Description = "Session helpers and safety tools." },
         { Name = "Settings", Path = "src/UI/Tabs/SettingsTab.luau", Description = "Profiles, appearance, and lifecycle settings." },
+        { Name = "Game", Path = "src/UI/Tabs/GameTab.luau", Description = "Experience-specific tools and adapters." },
     },
 })
 
@@ -606,7 +606,12 @@ return function(services: any): any
         self._layout.MobileTabs, self._layout.IndicatorHost, self._layout.Divider = mobileTabs, indicatorHost, divider
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
 
-        for index, entry in ipairs(CONFIG.TABS) do
+        local tabEntries = {}
+        for _, entry in ipairs(CONFIG.TABS) do
+            local excludedFromLite = entry.Name == "Commands" or entry.Name == "Game"
+            if services.Edition ~= "Lite" or not excludedFromLite then table.insert(tabEntries, entry) end
+        end
+        for index, entry in ipairs(tabEntries) do
             local button = dom:Create("TextButton", { Parent = rail, BackgroundColor3 = theme:GetToken("AccentDark"), BackgroundTransparency = 1, BorderSizePixel = 0,
                 Text = entry.Name, AutoButtonColor = false, Selectable = true, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
                 Size = UDim2.new(1, 0, 0, 34), LayoutOrder = index })

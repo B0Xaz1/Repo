@@ -4,9 +4,12 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Added a lightweight in-game Full/Lite edition picker. It can remember a Full or Lite choice locally, or leave the player to choose on each loader launch.
+- Added the **Edition next launch** setting with Ask every launch, Lite, and Full choices. Edition preferences are separate from profiles; relaunches and queued teleports retain the active edition.
+- Lite keeps the Command Deck shell and universal controls while omitting Commands, the Game workspace, and all game-specific plugin adapter discovery and UI. Full preserves the complete existing experience.
 - Continued the Command Deck revamp: touch devices now use a horizontal workspace picker, desktop search supports Ctrl/Cmd + K and Escape, and focused controls are selectable for keyboard and gamepad navigation.
-- Added Comfortable and Compact interface-density choices, profile-apply status feedback, and recovery controls for interface layout, Midnight, and confirmed full defaults.
-- Expanded Overview quick actions and added an in-menu “What changed in this revamp” summary.
+- Made Compact the default interface density, added profile-apply status feedback and recovery controls for interface layout, Midnight, and confirmed full defaults.
+- Removed Overview quick actions, kept the in-menu “What changed in this revamp” summary, and moved the Full-edition Game workspace to the end of the navigation order.
 - Refined the monochrome Midnight theme and removed the floating ESP preview window.
 
 - Reworked the suite into a Command Deck workspace with a navigation rail, command bar, Overview dashboard, contextual page headings, and dedicated minimize and unload controls. The visual system, themes, profiles, search, favorites, and existing controls remain compatible.

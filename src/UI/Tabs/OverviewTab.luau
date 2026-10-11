@@ -2,10 +2,8 @@ return function(services: any, tab: any): any
     local dom, theme, bus = services:Get("DOM"), services:Get("ThemeEngine"), services:Get("EventBus")
     local load = services:Get("Require")
     local section = load("src/UI/Components/Section.luau", services)
-    local textbox = load("src/UI/Components/Textbox.luau", services)
     local config = services:Get("ConfigService")
-    local plugins = services:Get("PluginManager")
-    local ui = services:Get("UIEngine")
+    local plugins = if services:Has("PluginManager") then services:Get("PluginManager") else nil
     local scope = services:Get("Disposer"):CreateChild("Overview tab")
 
     tab.Dashboard.Visible = true
@@ -32,36 +30,18 @@ return function(services: any, tab: any): any
 
     local readiness = createCard("SESSION", "Ready", "Your controls and profiles are available.", 0)
     local profile = createCard("CURRENT PROFILE", config:GetActiveProfile(), "Changes are saved with this workspace.", 1)
-    local experience = createCard("EXPERIENCE", plugins:GetActivePluginName(), "Adapter selected for this place.", 2)
+    local experience = createCard("EXPERIENCE", if plugins then plugins:GetActivePluginName() else "Universal Edition", if plugins then "Adapter selected for this place." else "Lite starts without game-specific adapters.", 2)
 
     local function refreshProfile()
         profile.Text = config:GetActiveProfile()
     end
     local function refreshExperience(name: string?)
-        experience.Text = name or plugins:GetActivePluginName()
+        experience.Text = name or (if plugins then plugins:GetActivePluginName() else "Universal Edition")
     end
     scope:Add(bus:Subscribe("ProfilesChanged", refreshProfile))
     scope:Add(bus:Subscribe("ActiveProfileChanged", refreshProfile))
     scope:Add(bus:Subscribe("PluginChanged", refreshExperience))
     readiness.Text = "Ready"
-
-    local quick = section:Create(tab.LeftCol, "Quick actions")
-    section:Info(quick, "Jump to a workspace or open the command search without changing your current settings.")
-    textbox:CreateButton(quick, "Search every control", function()
-        return ui:FocusSearch(), "Command search is ready"
-    end)
-    textbox:CreateButton(quick, "Open Visuals workspace", function()
-        ui:SelectTab("Visuals")
-        return true, "Opened Visuals workspace"
-    end)
-    textbox:CreateButton(quick, "Open Movement workspace", function()
-        ui:SelectTab("Movement")
-        return true, "Opened Movement workspace"
-    end)
-    textbox:CreateButton(quick, "Open profiles & settings", function()
-        ui:SelectTab("Settings")
-        return true, "Opened Settings workspace"
-    end)
 
     local pinned = section:Create(tab.LeftCol, "Pinned controls")
     section:Info(pinned, "Use ☆ beside a control to keep it at the top of its workspace. Pinned controls are saved with your configuration.")

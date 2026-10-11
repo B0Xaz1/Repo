@@ -34,11 +34,18 @@ local function resolveRef(value: any): string
     return CONFIG.DEFAULT_REF
 end
 
+local function resolveEdition(value: any): string
+    if type(value) == "string" and value:lower() == "lite" then return "Lite" end
+    return "Full"
+end
+
 local ref = resolveRef(globals.B0XazRef)
+local edition = resolveEdition(globals.B0XazEdition)
 local base = `{CONFIG.REPOSITORY}{ref}/`
 local initUrl = `{base}init.luau`
 local loaderUrl = `{base}loader.luau`
 globals.B0XazRef, globals.B0XazBaseURL = ref, base:sub(1, -2)
+globals.B0XazEdition = edition
 globals.B0XazInitURL, globals.B0XazLoaderURL = initUrl, loaderUrl
 
 local consoleFns = {}
@@ -76,7 +83,10 @@ function globals.B0XazRelaunch()
     if globals.B0XazLoaderBusy then return end
     -- Use this session's canonical URL instead of a mutable global override.
     local url = initUrl
+    local activeEdition = resolveEdition(globals.B0XazEdition)
     globals.B0XazUnload()
+    -- Relaunches stay in the active edition rather than re-opening a picker mid-session.
+    globals.B0XazEdition = activeEdition
     local ticket = {}
     globals.B0XazLoaderBusy = ticket
     local relaunched, relaunchError = pcall(function()
@@ -232,6 +242,7 @@ local booted, bootError = pcall(function()
             Globals = globals,
             SessionId = sessionId,
             Version = CONFIG.VERSION,
+            Edition = edition,
             Require = requireModule,
             Step = step,
         })

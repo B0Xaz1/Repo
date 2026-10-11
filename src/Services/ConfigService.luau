@@ -7,6 +7,8 @@ local CONFIG = table.freeze({
     AUTOSAVE_FILE = "Configs/_autoload.json",
     BACKUP_FILE = "Configs/_backup.json",
     AUTOSAVE_INTERVAL = 1.5,
+    EDITION_PREFERENCE_FILE = "edition-preference.json",
+    MAX_EDITION_PREFERENCE_BYTES = 4096,
     BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" },
 })
 
@@ -68,6 +70,27 @@ return function(services: any): any
         return (tostring(name):gsub('[/\\%.:%*%?<>|"%z\1-\31\127]', ""):gsub("^%s+", ""):gsub("%s+$", "")):sub(1, CONFIG.MAX_NAME_LENGTH)
     end
 
+    -- The launch edition lives outside profiles/autoload so changing a game configuration
+    -- can never silently change what the loader starts on a future launch.
+    local function normalizeEditionPreference(value: any): string
+        local normalized = tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if normalized == "lite" then return "Lite" end
+        if normalized == "full" then return "Full" end
+        return "Ask"
+    end
+
+    local function editionPreferenceLabel(preference: string): string
+        return if preference == "Ask" then "Ask every launch" else preference
+    end
+
+    local function readEditionPreference(): string
+        local raw = environment:ReadFile(CONFIG.EDITION_PREFERENCE_FILE)
+        if type(raw) ~= "string" or #raw > CONFIG.MAX_EDITION_PREFERENCE_BYTES then return "Ask" end
+        local ok, payload = pcall(function() return HttpService:JSONDecode(raw) end)
+        if not ok or type(payload) ~= "table" then return "Ask" end
+        return normalizeEditionPreference(payload.Edition)
+    end
+
     local function builtinKey(name: string): string?
         local key = string.lower(sanitize(name))
         return if CONFIG.BUILTIN_LABELS[key] then key else nil
@@ -122,6 +145,21 @@ return function(services: any): any
     end
 
     function ConfigService:SanitizeName(name: string): string return sanitize(name) end
+
+    function ConfigService:GetEditionPreference(): string
+        return readEditionPreference()
+    end
+
+    function ConfigService:SetEditionPreference(preference: any): (boolean, string)
+        if not environment.Capabilities.Files then return false, "Edition preferences require local file persistence" end
+        local normalized = normalizeEditionPreference(preference)
+        local ok, encoded = pcall(function()
+            return HttpService:JSONEncode({ Format = 1, Edition = normalized })
+        end)
+        if not ok then return false, tostring(encoded) end
+        local written, message = environment:WriteFile(CONFIG.EDITION_PREFERENCE_FILE, encoded)
+        return written, message or `Edition preference set to {editionPreferenceLabel(normalized)}`
+    end
 
     function ConfigService:Save(name: string): (boolean, string)
         local path, clean = pathFor(name)

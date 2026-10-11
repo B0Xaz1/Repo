@@ -5,6 +5,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 ## Unreleased
 
 - Hardened automated input: removed executor-native mouse clicks and cursor movement, so automated clicks now use Roblox virtual input only. Automated combat input pauses while the suite menu, a text field, keybind recording, Roblox UI under the pointer, or a non-focused Roblox window would make input unsafe.
+- Added a gameplay-only mouse capture toggle in Movement. It centers the cursor while Roblox gameplay is focused and releases it for the suite menu, Roblox UI, text entry, keybind capture, or another desktop window.
 - Reduced idle and per-frame overhead across Murderers VS Sheriffs, Zombie Attack, no-clip, Wall Walk, ESP, and performance optimization. Queue retry delay now controls automatic requeue attempts.
 - Improved property restoration for one-shot teleports, temporary attacks, freecam, and Prison Life door rescans.
 - Hardened remote loading and queued relaunches by pinning downloads to immutable full commit IDs instead of mutable branch or base-URL overrides.

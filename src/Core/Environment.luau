@@ -259,6 +259,19 @@ return function(disposer: any): any
         return windowFocused
     end
 
+    -- Pointer capture must yield whenever Roblox cannot safely receive gameplay mouse input.
+    -- Fail closed if the GUI query is unavailable so a lock never traps a cursor over a menu.
+    function Environment:CanLockPointer(): boolean
+        if not windowFocused or UIS:GetFocusedTextBox() ~= nil then return false end
+        local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
+        if menuChecked and menuOpen == true then return false end
+        local point = UIS:GetMouseLocation()
+        local checked, objects = pcall(function()
+            return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
+        end)
+        return checked and type(objects) == "table" and #objects == 0
+    end
+
     -- Synthetic pointer input is allowed only when it stays inside a focused Roblox client and
     -- the pointer is not over any Roblox GUI. Failing closed avoids turning a combat click into
     -- a menu/CoreGui click on executors with incomplete GUI APIs.

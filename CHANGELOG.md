@@ -4,6 +4,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Reworked the suite into a Command Deck workspace with a navigation rail, command bar, Overview dashboard, contextual page headings, and dedicated minimize and unload controls. The visual system, themes, profiles, search, favorites, and existing controls remain compatible.
+
 - Hardened automated input: removed executor-native mouse clicks and cursor movement, so automated clicks now use Roblox virtual input only. Automated combat input pauses while the suite menu, a text field, keybind recording, Roblox UI under the pointer, or a non-focused Roblox window would make input unsafe.
 - Added a gameplay-only mouse capture toggle in Movement. It centers the cursor while Roblox gameplay is focused and releases it for the suite menu, Roblox UI, text entry, keybind capture, or another desktop window.
 - Reduced idle and per-frame overhead across Murderers VS Sheriffs, Zombie Attack, no-clip, Wall Walk, ESP, and performance optimization. Queue retry delay now controls automatic requeue attempts.

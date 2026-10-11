@@ -15,6 +15,11 @@ return function(services: any): any
     local bus, scope = services:Get("EventBus"), services:Get("Disposer"):CreateChild("ConfigService")
     local ConfigService = { Dirty = false, _isLoading = false, _initialized = false, _activeProfile = "Default", _applyingLaunch = false }
 
+    local function setActiveProfile(name: string)
+        ConfigService._activeProfile = name
+        bus:Publish("ActiveProfileChanged", name)
+    end
+
     local function serialize(value: any, depth: number?): any
         local level = depth or 0
         assert(level < CONFIG.MAX_NESTING_DEPTH)
@@ -119,7 +124,7 @@ return function(services: any): any
         local ok, json = pcall(encode, state:GetSettingsSnapshot())
         if not ok then return false, tostring(json) end
         local written, message = environment:WriteFile(path, json)
-        if written then self._activeProfile = clean; bus:Publish("ProfilesChanged") end
+        if written then setActiveProfile(clean); bus:Publish("ProfilesChanged") end
         return written, message or `Saved {clean}`
     end
 
@@ -132,7 +137,7 @@ return function(services: any): any
                 local current = state:GetSettingsSnapshot()
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
             end
-            hydrate(snapshot); self._activeProfile = CONFIG.BUILTIN_LABELS[key]
+            hydrate(snapshot); setActiveProfile(CONFIG.BUILTIN_LABELS[key])
             self:PersistLoadedProfile()
             return true, `Loaded {CONFIG.BUILTIN_LABELS[key]}`
         end
@@ -142,7 +147,7 @@ return function(services: any): any
         if not raw then return false, readError or "Profile not found" end
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, `Invalid profile: {tostring(snapshot)}` end
-        hydrate(snapshot); self._activeProfile = clean
+        hydrate(snapshot); setActiveProfile(clean)
         self:PersistLoadedProfile()
         return true, `Loaded {clean}`
     end
@@ -209,7 +214,7 @@ return function(services: any): any
         if not valid then return false, validationError or "Backup validation failed" end
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, `Backup validation failed: {tostring(snapshot)}` end
-        hydrate(snapshot); self._activeProfile = "Backup restore"
+        hydrate(snapshot); setActiveProfile("Backup restore")
         self:PersistLoadedProfile()
         return true, "Backup restored"
     end
@@ -221,7 +226,7 @@ return function(services: any): any
         if not valid then return false, validationError or "Invalid config JSON" end
         local ok, snapshot = pcall(decode, json)
         if not ok then return false, `Invalid config JSON: {tostring(snapshot)}` end
-        hydrate(snapshot); self._activeProfile = "Imported"
+        hydrate(snapshot); setActiveProfile("Imported")
         self:PersistLoadedProfile()
         return true, "Imported config"
     end
@@ -257,7 +262,7 @@ return function(services: any): any
             local defaults = state:GetDefaultSettings()
             defaults.Settings.RestoreOnLaunch, defaults.Settings.StartupProfile = false, startup
             hydrate(defaults)
-            self._activeProfile = "Default"
+            setActiveProfile("Default")
             self:Flush()
             return "disabled"
         end
@@ -283,7 +288,7 @@ return function(services: any): any
         end
         if raw then
             hydrate(raw)
-            self._activeProfile = "Autosaved session"
+            setActiveProfile("Autosaved session")
             return "autoload"
         end
         hydrate(state:GetDefaultSettings())

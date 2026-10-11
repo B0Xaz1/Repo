@@ -4,6 +4,11 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Continued the Command Deck revamp: touch devices now use a horizontal workspace picker, desktop search supports Ctrl/Cmd + K and Escape, and focused controls are selectable for keyboard and gamepad navigation.
+- Added Comfortable and Compact interface-density choices, profile-apply status feedback, and recovery controls for interface layout, Midnight, and confirmed full defaults.
+- Expanded Overview quick actions and added an in-menu “What changed in this revamp” summary.
+- Refined the monochrome Midnight theme and removed the floating ESP preview window.
+
 - Reworked the suite into a Command Deck workspace with a navigation rail, command bar, Overview dashboard, contextual page headings, and dedicated minimize and unload controls. The visual system, themes, profiles, search, favorites, and existing controls remain compatible.
 
 - Hardened automated input: removed executor-native mouse clicks and cursor movement, so automated clicks now use Roblox virtual input only. Automated combat input pauses while the suite menu, a text field, keybind recording, Roblox UI under the pointer, or a non-focused Roblox window would make input unsafe.

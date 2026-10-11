@@ -40,6 +40,7 @@ return function(services: any, tab: any): any
     textbox:CreateButton(share, "Import from clipboard", function() return config:Import("") end)
     local interface = section:Create(tab.LeftCol, "Interface & lifecycle", "Settings")
     slider(interface, "UI scale", "Settings.UIScale", 0.6, 1.5, 0.05, "x")
+    dropdown(interface, "Interface density", "Settings.InterfaceDensity", { "Comfortable", "Compact" })
     dropdown(interface, "Animation style", "Settings.MotionMode", { "Off", "Subtle", "Full" })
     slider(interface, "Animation speed", "Settings.MotionSpeed", 0.5, 2, 0.1, "x")
     section:Info(interface, "Use ☆ to pin a control above the sections in its own tab. Favorites are saved with your configuration.")
@@ -67,6 +68,19 @@ return function(services: any, tab: any): any
     scope:Add(services:Get("EventBus"):Subscribe("ThemeChanged", function()
         for token, picker in pairs(pickers) do picker:Set(theme:GetToken(token), true) end
     end))
+    local recovery = section:Create(tab.RightCol, "Recovery & defaults")
+    section:Info(recovery, "Recover the interface without affecting your named profiles, hotkeys, or pinned controls.")
+    textbox:CreateButton(recovery, "Reset interface layout", function() return config:ResetInterfacePreferences() end)
+    textbox:CreateButton(recovery, "Restore Midnight theme", function() return config:ResetTheme() end)
+    local confirmResetUntil = 0
+    textbox:CreateButton(recovery, "Reset all settings", function()
+        if os.clock() > confirmResetUntil then
+            confirmResetUntil = os.clock() + 5
+            return true, "Press Reset all settings again within 5 seconds to confirm"
+        end
+        confirmResetUntil = 0
+        return config:ResetAllSettings()
+    end)
     local session = section:Create(tab.RightCol, "Session")
     section:Info(session, `Build {services.Version}`)
     textbox:CreateButton(session, "Relaunch this build", function() environment.Globals.B0XazRelaunch() end)

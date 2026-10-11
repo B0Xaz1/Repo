@@ -108,12 +108,17 @@ return function(services: any): any
         return `Configs/{name}.json`, name
     end
 
-    local function hydrate(snapshot: any)
+    local function hydrate(snapshot: any, label: string?)
         ConfigService._isLoading = true
+        if label then bus:Publish("ConfigApplyStarted", label) end
         local ok, err = pcall(function() state:LoadSettingsSnapshot(snapshot) end)
         ConfigService._isLoading = false
-        if not ok then error(err) end
+        if not ok then
+            if label then bus:Publish("ConfigApplyFinished", false, label, tostring(err)) end
+            error(err)
+        end
         ConfigService.Dirty = false
+        if label then bus:Publish("ConfigApplyFinished", true, label) end
     end
 
     function ConfigService:SanitizeName(name: string): string return sanitize(name) end
@@ -137,7 +142,7 @@ return function(services: any): any
                 local current = state:GetSettingsSnapshot()
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
             end
-            hydrate(snapshot); setActiveProfile(CONFIG.BUILTIN_LABELS[key])
+            hydrate(snapshot, `Loading {CONFIG.BUILTIN_LABELS[key]}`); setActiveProfile(CONFIG.BUILTIN_LABELS[key])
             self:PersistLoadedProfile()
             return true, `Loaded {CONFIG.BUILTIN_LABELS[key]}`
         end
@@ -147,7 +152,7 @@ return function(services: any): any
         if not raw then return false, readError or "Profile not found" end
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, `Invalid profile: {tostring(snapshot)}` end
-        hydrate(snapshot); setActiveProfile(clean)
+        hydrate(snapshot, `Loading {clean}`); setActiveProfile(clean)
         self:PersistLoadedProfile()
         return true, `Loaded {clean}`
     end
@@ -156,6 +161,35 @@ return function(services: any): any
         if self._applyingLaunch then return end
         self.Dirty = true
         self:Flush()
+    end
+
+    function ConfigService:ResetInterfacePreferences(): (boolean, string)
+        local defaults = state:GetDefaultSettings()
+        -- Apply values from the immutable defaults without replacing the user's profiles, binds, or favorites.
+        state:Set("Settings.UIScale", defaults.Settings.UIScale)
+        state:Set("Settings.CompactMenu", defaults.Settings.CompactMenu)
+        state:Set("Settings.InterfaceDensity", defaults.Settings.InterfaceDensity)
+        state:Set("Settings.ShowMenuIcon", defaults.Settings.ShowMenuIcon)
+        state:Set("Settings.MotionMode", defaults.Settings.MotionMode)
+        state:Set("Settings.MotionSpeed", defaults.Settings.MotionSpeed)
+        self.Dirty = true
+        self:Flush()
+        return true, "Interface scale, density, and motion settings were restored"
+    end
+
+    function ConfigService:ResetTheme(): (boolean, string)
+        state:Set("Theme.CustomTokens", {})
+        state:Set("Theme.ActivePreset", "Midnight")
+        self.Dirty = true
+        self:Flush()
+        return true, "Midnight theme restored"
+    end
+
+    function ConfigService:ResetAllSettings(): (boolean, string)
+        hydrate(state:GetDefaultSettings(), "Restoring all defaults")
+        setActiveProfile("Default")
+        self:PersistLoadedProfile()
+        return true, "All settings were restored to defaults"
     end
 
     function ConfigService:Delete(name: string): (boolean, string)
@@ -214,7 +248,7 @@ return function(services: any): any
         if not valid then return false, validationError or "Backup validation failed" end
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, `Backup validation failed: {tostring(snapshot)}` end
-        hydrate(snapshot); setActiveProfile("Backup restore")
+        hydrate(snapshot, "Restoring backup"); setActiveProfile("Backup restore")
         self:PersistLoadedProfile()
         return true, "Backup restored"
     end
@@ -226,7 +260,7 @@ return function(services: any): any
         if not valid then return false, validationError or "Invalid config JSON" end
         local ok, snapshot = pcall(decode, json)
         if not ok then return false, `Invalid config JSON: {tostring(snapshot)}` end
-        hydrate(snapshot); setActiveProfile("Imported")
+        hydrate(snapshot, "Importing config"); setActiveProfile("Imported")
         self:PersistLoadedProfile()
         return true, "Imported config"
     end
@@ -261,7 +295,7 @@ return function(services: any): any
         if preferences.RestoreOnLaunch == false then
             local defaults = state:GetDefaultSettings()
             defaults.Settings.RestoreOnLaunch, defaults.Settings.StartupProfile = false, startup
-            hydrate(defaults)
+            hydrate(defaults, "Restoring defaults")
             setActiveProfile("Default")
             self:Flush()
             return "disabled"
@@ -287,11 +321,11 @@ return function(services: any): any
             end
         end
         if raw then
-            hydrate(raw)
+            hydrate(raw, "Restoring session")
             setActiveProfile("Autosaved session")
             return "autoload"
         end
-        hydrate(state:GetDefaultSettings())
+        hydrate(state:GetDefaultSettings(), "Preparing defaults")
         return "defaults"
     end
 

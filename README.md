@@ -18,7 +18,7 @@ The loader and queued rejoin bootstrap use an immutable full Git commit, not the
 
 ## Menu and profiles
 
-The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
+The Command Deck has an Overview workspace plus tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; on desktop press **Ctrl/Cmd + K** to focus it, and press **Escape** to clear it. Touch devices use a horizontally scrollable workspace picker. Star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
 
 The Default profile restores default settings and cannot be overwritten. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
 
@@ -38,7 +38,7 @@ Other experiences use Universal Mode. Game updates can affect compatibility, and
 
 - If the menu is hidden, press **Right Shift** or use the on-screen menu button if enabled.
 - If settings do not persist, check that your environment supports local file access and review your profile preferences.
-- If the layout feels too large, adjust menu scale or enable compact mode in Settings.
+- If the layout feels too large, adjust menu scale, interface density, or compact mode in Settings. The Recovery & defaults panel can restore only the interface layout without touching profiles, hotkeys, or favorites.
 - Before unloading, remember that completed actions such as teleports cannot be undone. Use **End** or the unload action in Settings.
 
 ## License

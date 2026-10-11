@@ -62,7 +62,7 @@ local CONFIG = deepFreeze({
         },
         Settings = {
             UIScale = 1, MenuVisible = true, ShowMenuIcon = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
-            CompactMenu = false, PluginEnabled = true,
+            CompactMenu = false, InterfaceDensity = "Comfortable", PluginEnabled = true,
             Favorites = {}, MotionMode = "Full", MotionSpeed = 1,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Freecam = Enum.KeyCode.Unknown, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
@@ -303,6 +303,7 @@ return function(eventBus: any, disposer: any): any
         elseif type(incomingChams) == "string" then normalized.ESP.DepthMode = incomingChams end
         normalized.Chams.DepthMode = normalized.ESP.DepthMode
         if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
+        if not table.find({ "Comfortable", "Compact" }, normalized.Settings.InterfaceDensity) then normalized.Settings.InterfaceDensity = "Comfortable" end
         normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)
         local favorites, count = {}, 0
         for key, value in pairs(normalized.Settings.Favorites) do

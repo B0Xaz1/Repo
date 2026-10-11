@@ -18,6 +18,7 @@ local CONFIG = table.freeze({
     FOOTER_HEIGHT = 26,
     RAIL_WIDTH = 172,
     COMPACT_RAIL_WIDTH = 112,
+    MOBILE_TAB_HEIGHT = 42,
     STACKED_BREAKPOINT = 620,
     TOAST_WIDTH = 330,
     SCALE_MIN_SETTING = 0.6,
@@ -212,9 +213,26 @@ return function(services: any): any
         if self._searchBox then self._searchBox.Text = "" end
     end
 
+    function UIEngine:FocusSearch(): boolean
+        if not self._searchBox or not self._main then return false end
+        state:Set("Settings.MenuVisible", true)
+        scope:Delay(0, function()
+            if scope:IsDisposed() or not UIEngine._searchBox or not UIEngine._main or not UIEngine._main.Visible then return end
+            pcall(function() UIEngine._searchBox:CaptureFocus() end)
+        end)
+        return true
+    end
+
+    local function paintTabButton(button: TextButton?, selected: boolean)
+        if not button then return end
+        button.BackgroundTransparency = if selected then 0 else 1
+        theme:BindToken(button, "TextColor3", if selected then "Text" else "TextMuted")
+    end
+
     function UIEngine:UpdateTabIndicator(animate: boolean?)
         local tab, indicator, rail = self._active, self._indicator, self._layout.Rail
         if not tab or not indicator or not rail then return end
+        if not rail.Visible then indicator.Visible = false; return end
         local scale = math.max(if self._scale then self._scale.Scale else 1, 0.01)
         local height = tab.Button.AbsoluteSize.Y / scale
         if height <= 0 then return end
@@ -235,16 +253,21 @@ return function(services: any): any
             motion:Cancel(previous.Page, "Tab")
             previous.Page.Visible = false
             previous.Page.Position = previous.RestPosition
-            previous.Button.BackgroundTransparency = 1
-            theme:BindToken(previous.Button, "TextColor3", "TextMuted")
+            paintTabButton(previous.Button, false)
+            paintTabButton(previous.MobileButton, false)
         end
         self._active = tab
         scope:Bind("Indicator position", tab.Button:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
             if not scope:IsDisposed() then UIEngine:UpdateTabIndicator(false) end
         end))
         tab.Page.Visible = true
-        tab.Button.BackgroundTransparency = 0
-        theme:BindToken(tab.Button, "TextColor3", "Text")
+        paintTabButton(tab.Button, true)
+        paintTabButton(tab.MobileButton, true)
+        local mobileTabs = self._layout.MobileTabs
+        if mobileTabs and mobileTabs.Visible and tab.MobileButton then
+            local scale = math.max(if self._scale then self._scale.Scale else 1, 0.01)
+            mobileTabs.CanvasPosition = Vector2.new(math.max(0, (tab.MobileButton.AbsolutePosition.X - mobileTabs.AbsolutePosition.X) / scale - 10), 0)
+        end
         self:UpdateTabIndicator(true)
         if self._query ~= "" then self:Search(self._query) end
         motion:Cancel(tab.Page, "Tab")
@@ -347,9 +370,9 @@ return function(services: any): any
         if not UIEngine._main then return end
         local screen = viewport()
         local requested = math.clamp(state:Get("Settings.UIScale"), CONFIG.SCALE_MIN_SETTING, CONFIG.SCALE_MAX_SETTING)
-        local compact = state:Get("Settings.CompactMenu") == true
+        local compact, mobile = state:Get("Settings.CompactMenu") == true, environment:IsMobile()
         local width = if compact then math.clamp(screen.X / requested - 20, 360, 640)
-            elseif environment:IsMobile() then math.clamp(screen.X / requested - CONFIG.WINDOW_MOBILE_PADDING, CONFIG.WINDOW_MOBILE_MIN_WIDTH, CONFIG.WINDOW_MOBILE_MAX_WIDTH)
+            elseif mobile then math.clamp(screen.X / requested - CONFIG.WINDOW_MOBILE_PADDING, CONFIG.WINDOW_MOBILE_MIN_WIDTH, CONFIG.WINDOW_MOBILE_MAX_WIDTH)
             else CONFIG.WINDOW_WIDTH
         local height = math.clamp(screen.Y / requested - 40, if compact then 340 else 390, if compact then 500 else CONFIG.WINDOW_HEIGHT)
         local scale = math.max(0.25, math.min(requested, (screen.X - CONFIG.SCREEN_MARGIN) / width, (screen.Y - CONFIG.SCREEN_MARGIN) / height))
@@ -358,7 +381,9 @@ return function(services: any): any
         local layout = UIEngine._layout
         local headerHeight = if compact then 42 else CONFIG.HEADER_HEIGHT
         local footerHeight = if compact then 22 else CONFIG.FOOTER_HEIGHT
-        local railWidth = if compact or width < CONFIG.STACKED_BREAKPOINT then CONFIG.COMPACT_RAIL_WIDTH else CONFIG.RAIL_WIDTH
+        local mobileTabHeight = if mobile then CONFIG.MOBILE_TAB_HEIGHT else 0
+        local contentTop = headerHeight + mobileTabHeight
+        local railWidth = if mobile then 0 elseif compact or width < CONFIG.STACKED_BREAKPOINT then CONFIG.COMPACT_RAIL_WIDTH else CONFIG.RAIL_WIDTH
         local searchWidth = if compact then 130 else 190
         local controlWidth = 58
         if layout.Header then
@@ -367,13 +392,16 @@ return function(services: any): any
             layout.Brand.Size = UDim2.fromOffset(if compact then 140 else 180, 20)
             layout.Context.Position = UDim2.fromOffset(if compact then 158 else 198, math.max(8, math.floor((headerHeight - 18) / 2)))
             layout.Context.Size = UDim2.new(1, -(searchWidth + controlWidth + if compact then 178 else 222), 0, 18)
-            layout.Context.Visible = width >= 500 and not compact
+            layout.Context.Visible = width >= 500 and not compact and not mobile
             layout.Search.Position = UDim2.new(1, -(searchWidth + controlWidth + 12), 0, math.max(7, math.floor((headerHeight - 24) / 2)))
             layout.Search.Size = UDim2.fromOffset(searchWidth, 24)
             layout.Minimize.Position = UDim2.new(1, -52, 0, math.max(8, math.floor((headerHeight - 20) / 2)))
             layout.Close.Position = UDim2.new(1, -28, 0, math.max(8, math.floor((headerHeight - 20) / 2)))
         end
         if layout.Rail then
+            local showRail = not mobile
+            layout.Rail.Visible, layout.RailSurface.Visible, layout.RailTopFill.Visible, layout.RailRightFill.Visible = showRail, showRail, showRail, showRail
+            layout.IndicatorHost.Visible, layout.Divider.Visible = showRail, showRail
             layout.Rail.Position = UDim2.fromOffset(0, headerHeight)
             layout.Rail.Size = UDim2.new(0, railWidth, 1, -(headerHeight + footerHeight))
             layout.RailSurface.Position, layout.RailSurface.Size = layout.Rail.Position, layout.Rail.Size
@@ -384,24 +412,37 @@ return function(services: any): any
             layout.Divider.Position = UDim2.fromOffset(railWidth, headerHeight + 10)
             layout.Divider.Size = UDim2.new(0, 1, 1, -(headerHeight + footerHeight + 20))
         end
+        if layout.MobileTabs then
+            layout.MobileTabs.Visible = mobile
+            layout.MobileTabs.Position = UDim2.fromOffset(0, headerHeight)
+            layout.MobileTabs.Size = UDim2.new(1, 0, 0, mobileTabHeight)
+        end
+        local pageLeft = if mobile then 14 else railWidth + 18
+        local pageWidthInset = if mobile then 28 else railWidth + 34
+        local pageTopInset, pageBottomInset = if mobile then 10 else 16, 6
         for _, tab in ipairs(UIEngine._tabs) do
             motion:Cancel(tab.Page, "Tab")
-            tab.RestPosition = UDim2.fromOffset(railWidth + 18, headerHeight + 16)
+            tab.RestPosition = UDim2.fromOffset(pageLeft, contentTop + pageTopInset)
             tab.Page.Position = tab.RestPosition
-            tab.Page.Size = UDim2.new(1, -(railWidth + 34), 1, -(headerHeight + footerHeight + 22))
-            tab.ColumnLayout.FillDirection = if width < CONFIG.STACKED_BREAKPOINT then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
-            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if width < CONFIG.STACKED_BREAKPOINT then 0 else -6, 0, 0),
-                UDim2.new(if width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if width < CONFIG.STACKED_BREAKPOINT then 0 else -6, 0, 0)
-            if tab.DashboardLayout then tab.DashboardLayout.FillDirection = if width < CONFIG.STACKED_BREAKPOINT then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal end
+            tab.Page.Size = UDim2.new(1, -pageWidthInset, 1, -(contentTop + footerHeight + pageTopInset + pageBottomInset))
+            tab.ColumnLayout.FillDirection = if mobile or width < CONFIG.STACKED_BREAKPOINT then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
+            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -6, 0, 0),
+                UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -6, 0, 0)
+            if tab.DashboardLayout then tab.DashboardLayout.FillDirection = if mobile or width < CONFIG.STACKED_BREAKPOINT then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal end
             if tab.Dashboard then
                 for _, card in ipairs(tab.Dashboard:GetChildren()) do
                     if card:IsA("Frame") and card.Name == "DashboardCard" then
-                        card.Size = UDim2.new(if width < CONFIG.STACKED_BREAKPOINT then 1 else 1 / 3, if width < CONFIG.STACKED_BREAKPOINT then 0 else -8, 0, 88)
+                        card.Size = UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 1 / 3, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -8, 0, 88)
                     end
                 end
             end
         end
-        if layout.Footer then layout.Footer.Position = UDim2.new(0, railWidth + 18, 1, -footerHeight + 5); layout.Footer.Size = UDim2.new(1, -(railWidth + 112), 0, 14) end
+        if layout.Footer then
+            local footerLeft = if mobile then 16 else railWidth + 18
+            local footerRight = if mobile then 110 else railWidth + 112
+            layout.Footer.Position = UDim2.new(0, footerLeft, 1, -footerHeight + 5)
+            layout.Footer.Size = UDim2.new(1, -footerRight, 0, 14)
+        end
         if UIEngine._versionLabel then UIEngine._versionLabel.Position = UDim2.new(1, -16, 1, -footerHeight + 5) end
         UIEngine:UpdateTabIndicator(false)
         UIEngine._toastRoot.Size = UDim2.new(0, math.min(CONFIG.TOAST_WIDTH, screen.X - 32), 1, -40)
@@ -454,9 +495,9 @@ return function(services: any): any
         local context = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.fromOffset(210, 17), Size = UDim2.new(1, -434, 0, 18),
             Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
         theme:BindToken(context, "TextColor3", "TextMuted")
-        local minimize = dom:Create("TextButton", { Parent = header, Text = "−", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -52, 0, 16), Size = UDim2.fromOffset(20, 20),
+        local minimize = dom:Create("TextButton", { Parent = header, Text = "−", AutoButtonColor = false, Selectable = true, BackgroundTransparency = 1, Position = UDim2.new(1, -52, 0, 16), Size = UDim2.fromOffset(20, 20),
             Font = Enum.Font.GothamMedium, TextSize = 16, ZIndex = 3 })
-        local close = dom:Create("TextButton", { Parent = header, Text = "×", AutoButtonColor = false, BackgroundTransparency = 1, Position = UDim2.new(1, -28, 0, 16), Size = UDim2.fromOffset(20, 20),
+        local close = dom:Create("TextButton", { Parent = header, Text = "×", AutoButtonColor = false, Selectable = true, BackgroundTransparency = 1, Position = UDim2.new(1, -28, 0, 16), Size = UDim2.fromOffset(20, 20),
             Font = Enum.Font.GothamMedium, TextSize = 17, ZIndex = 3 })
         theme:BindToken(minimize, "TextColor3", "TextMuted"); theme:BindToken(close, "TextColor3", "TextMuted")
         scope:Connect(minimize.Activated, function() state:Set("Settings.MenuVisible", false) end)
@@ -464,8 +505,8 @@ return function(services: any): any
             if type(environment.Globals.B0XazUnload) == "function" then environment.Globals.B0XazUnload()
             else state:Set("Settings.MenuVisible", false) end
         end)
-        local search = dom:Create("TextBox", { Parent = header, BorderSizePixel = 0, Position = UDim2.new(1, -260, 0, 14), Size = UDim2.fromOffset(190, 24), ClearTextOnFocus = false,
-            Text = "", PlaceholderText = "Search controls…", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3 })
+        local search = dom:Create("TextBox", { Parent = header, BorderSizePixel = 0, Position = UDim2.new(1, -260, 0, 14), Size = UDim2.fromOffset(190, 24), ClearTextOnFocus = false, Selectable = true,
+            Text = "", PlaceholderText = if environment:IsMobile() then "Search controls…" else "Search controls…  Ctrl + K", TextSize = 11, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3 })
         self._searchBox = search
         self._layout.Header, self._layout.Brand, self._layout.Context = header, brand, context
         self._layout.Search, self._layout.Minimize, self._layout.Close = search, minimize, close
@@ -480,17 +521,61 @@ return function(services: any): any
                 if not scope:IsDisposed() then UIEngine:Search(query) end
             end))
         end)
+        local contextOverride: string? = nil
+        local contextRevision = 0
         local function updateContext()
+            if contextOverride then context.Text = contextOverride; return end
             local plugin = services:Has("PluginManager") and services:Get("PluginManager"):GetActivePluginName() or "Universal Mode"
             local profile = services:Has("ConfigService") and services:Get("ConfigService"):GetActiveProfile() or "Session"
             context.Text = `{plugin}  •  {profile}`
+        end
+        local function showApplyStatus(text: string)
+            contextRevision += 1
+            contextOverride = text
+            updateContext()
+            local revision = contextRevision
+            scope:Delay(1.8, function()
+                if contextRevision == revision then contextOverride = nil; updateContext() end
+            end)
         end
         updateContext()
         scope:Add(bus:Subscribe("PluginChanged", updateContext))
         scope:Add(bus:Subscribe("ProfilesChanged", updateContext))
         scope:Add(bus:Subscribe("ActiveProfileChanged", updateContext))
+        scope:Add(bus:Subscribe("ConfigApplyStarted", function() showApplyStatus("Applying profile…") end))
+        scope:Add(bus:Subscribe("ConfigApplyFinished", function(success: boolean)
+            showApplyStatus(if success then "Profile applied" else "Profile could not be applied")
+        end))
+        local function commandModifierDown(): boolean
+            return UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
+                or UIS:IsKeyDown(Enum.KeyCode.LeftMeta) or UIS:IsKeyDown(Enum.KeyCode.RightMeta)
+        end
+        scope:ConnectImmediate(UIS.InputBegan, function(input: InputObject, processed: boolean)
+            if processed or state:GetTransient("IsBindingKey") then return end
+            if input.KeyCode == Enum.KeyCode.K and commandModifierDown() then
+                local focused = UIS:GetFocusedTextBox()
+                if not focused or focused == search then UIEngine:FocusSearch() end
+                return
+            end
+            if input.KeyCode ~= Enum.KeyCode.Escape then return end
+            local focused = UIS:GetFocusedTextBox()
+            if focused == search then
+                UIEngine:ClearSearch()
+                pcall(function() search:ReleaseFocus() end)
+            elseif not focused then
+                if UIEngine._searchActive then UIEngine:ClearSearch() else UIEngine:CloseAllDropdownsExcept(nil) end
+            end
+        end)
         local dragHandle = dom:Create("Frame", { Parent = header, BackgroundTransparency = 1, Active = true, Size = UDim2.new(0, 198, 1, 0), ZIndex = 1 })
         self:MakeDraggable(main, dragHandle)
+
+        -- Touch devices use a horizontally scrollable workspace picker instead of a cramped side rail.
+        local mobileTabs = dom:Create("ScrollingFrame", { Parent = main, Name = "MobileTabBar", BorderSizePixel = 0, Position = UDim2.fromOffset(0, CONFIG.HEADER_HEIGHT),
+            Size = UDim2.new(1, 0, 0, CONFIG.MOBILE_TAB_HEIGHT), BackgroundColor3 = theme:GetToken("Side"), Visible = false, ScrollBarThickness = 0,
+            CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X })
+        theme:BindToken(mobileTabs, "BackgroundColor3", "Side")
+        dom:CreatePadding(mobileTabs, 6, 10, 6, 10)
+        dom:Create("UIListLayout", { Parent = mobileTabs, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
 
         -- These layered side surfaces preserve a rounded lower-left outer corner without rounding
         -- the rail's inner edge or disturbing its scrolling layout.
@@ -518,15 +603,20 @@ return function(services: any): any
         scope:ConnectImmediate(rail:GetPropertyChangedSignal("CanvasPosition"), function() UIEngine:UpdateTabIndicator(false) end)
         local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(CONFIG.RAIL_WIDTH, CONFIG.HEADER_HEIGHT + 10), Size = UDim2.new(0, 1, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT + 20)) })
         self._layout.Rail, self._layout.RailSurface, self._layout.RailTopFill, self._layout.RailRightFill = rail, railSurface, railTopFill, railRightFill
-        self._layout.IndicatorHost, self._layout.Divider = indicatorHost, divider
+        self._layout.MobileTabs, self._layout.IndicatorHost, self._layout.Divider = mobileTabs, indicatorHost, divider
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
 
         for index, entry in ipairs(CONFIG.TABS) do
             local button = dom:Create("TextButton", { Parent = rail, BackgroundColor3 = theme:GetToken("AccentDark"), BackgroundTransparency = 1, BorderSizePixel = 0,
-                Text = entry.Name, AutoButtonColor = false, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+                Text = entry.Name, AutoButtonColor = false, Selectable = true, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
                 Size = UDim2.new(1, 0, 0, 34), LayoutOrder = index })
             dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 5) }); dom:CreatePadding(button, 0, 14, 0, 14)
             theme:BindToken(button, "BackgroundColor3", "AccentDark"); theme:BindToken(button, "TextColor3", "TextMuted")
+            local mobileButton = dom:Create("TextButton", { Parent = mobileTabs, BackgroundColor3 = theme:GetToken("AccentDark"), BackgroundTransparency = 1, BorderSizePixel = 0,
+                Text = entry.Name, AutoButtonColor = false, Selectable = true, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center,
+                Size = UDim2.fromOffset(math.max(72, #entry.Name * 7 + 24), 30), LayoutOrder = index })
+            dom:Create("UICorner", { Parent = mobileButton, CornerRadius = UDim.new(0, 6) }); dom:CreatePadding(mobileButton, 0, 10, 0, 10)
+            theme:BindToken(mobileButton, "BackgroundColor3", "AccentDark"); theme:BindToken(mobileButton, "TextColor3", "TextMuted")
             local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(CONFIG.RAIL_WIDTH + 18, CONFIG.HEADER_HEIGHT + 16),
                 Size = UDim2.new(1, -(CONFIG.RAIL_WIDTH + 34), 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT + 22)), Visible = false, ScrollBarThickness = 3,
                 CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
@@ -556,10 +646,11 @@ return function(services: any): any
             local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
             for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 8), SortOrder = Enum.SortOrder.LayoutOrder }) end
-            local tab = { Name = entry.Name, Button = button, Page = page, LeftCol = left, RightCol = right, Dashboard = dashboard, DashboardLayout = dashboardLayout,
+            local tab = { Name = entry.Name, Button = button, MobileButton = mobileButton, Page = page, LeftCol = left, RightCol = right, Dashboard = dashboard, DashboardLayout = dashboardLayout,
                 Favorites = favorites, FavoritesBody = favoritesBody, FavoriteCount = 0, ResultsCol = results, Columns = columns, ColumnLayout = columnLayout, Index = index, RestPosition = page.Position }
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab
             scope:Connect(button.Activated, function() UIEngine:SelectTab(tab.Name) end)
+            scope:Connect(mobileButton.Activated, function() UIEngine:SelectTab(tab.Name) end)
             scope:ConnectImmediate(button:GetPropertyChangedSignal("AbsoluteSize"), function()
                 if UIEngine._active == tab then UIEngine:UpdateTabIndicator(false) end
             end)
@@ -592,7 +683,7 @@ return function(services: any): any
         self._toastRoot = dom:Create("Frame", { Parent = root, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -18, 1, -18), Size = UDim2.new(0, CONFIG.TOAST_WIDTH, 1, -40) })
         dom:Create("UIListLayout", { Parent = self._toastRoot, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder })
         local reopen = dom:Create("TextButton", { Parent = root, Name = "MenuButton", BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 18, 1, -18),
-            Size = UDim2.fromOffset(48, 48), Text = "", AutoButtonColor = false })
+            Size = UDim2.fromOffset(48, 48), Text = "", AutoButtonColor = false, Selectable = true })
         theme:BindToken(reopen, "BackgroundColor3", "Elem")
         theme:BindToken(dom:CreateStroke(reopen, theme:GetToken("Border")), "Color", "Border")
         dom:Create("UICorner", { Parent = reopen, CornerRadius = UDim.new(1, 0) })

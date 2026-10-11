@@ -46,10 +46,17 @@ return function(services: any, tab: any): any
     readiness.Text = "Ready"
 
     local quick = section:Create(tab.LeftCol, "Quick actions")
-    section:Info(quick, "Jump directly to the workspace you need without changing your current settings.")
-    textbox:CreateButton(quick, "Open game workspace", function()
-        ui:SelectTab("Game")
-        return true, "Opened Game workspace"
+    section:Info(quick, "Jump to a workspace or open the command search without changing your current settings.")
+    textbox:CreateButton(quick, "Search every control", function()
+        return ui:FocusSearch(), "Command search is ready"
+    end)
+    textbox:CreateButton(quick, "Open Visuals workspace", function()
+        ui:SelectTab("Visuals")
+        return true, "Opened Visuals workspace"
+    end)
+    textbox:CreateButton(quick, "Open Movement workspace", function()
+        ui:SelectTab("Movement")
+        return true, "Opened Movement workspace"
     end)
     textbox:CreateButton(quick, "Open profiles & settings", function()
         ui:SelectTab("Settings")
@@ -58,6 +65,12 @@ return function(services: any, tab: any): any
 
     local pinned = section:Create(tab.LeftCol, "Pinned controls")
     section:Info(pinned, "Use ☆ beside a control to keep it at the top of its workspace. Pinned controls are saved with your configuration.")
+
+    local changes = section:Create(tab.RightCol, "What changed in this revamp")
+    section:Info(changes, "Command Deck now uses a structured command bar, navigation workspace, and an Overview landing page.")
+    section:Info(changes, "Midnight is monochrome, the main deck has visible rounded surfaces, and the old floating ESP preview was removed.")
+    section:Info(changes, "Touch devices use a horizontal workspace picker and a larger floating menu control. Desktop users can press Ctrl/Cmd + K to focus search.")
+    section:Info(changes, "Profile changes now defer expensive interface reflow until settings finish applying, so saved UI scale changes stay responsive.")
 
     local workspace = section:Create(tab.RightCol, "Workspace")
     section:Info(workspace, "Search is available from the command bar at any time. Results stay in the current workspace so you can adjust settings without losing context.")

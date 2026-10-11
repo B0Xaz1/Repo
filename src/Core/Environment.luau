@@ -6,8 +6,8 @@ local GuiService = game:GetService("GuiService")
 local CONFIG = table.freeze({
     ROOT = "B0XazUniversal/",
     CONFIGS_SUBFOLDER = "Configs",
-    -- Some executors interpret zero as their default 60 FPS rather than unlimited.
-    -- Requesting the supported ceiling is the portable representation of "uncapped".
+    -- Executors disagree on zero: it can mean unlimited or the default 60 FPS.
+    -- An uncap request clears zero first, then sets this high ceiling as the final value.
     FPS_UNCAPPED = 1000,
     CLICK_RELEASE_DELAY = 0.03,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
@@ -195,9 +195,11 @@ return function(disposer: any): any
 
     function Environment:UncapFps(): boolean
         if not fps then return false end
-        -- Do not send zero through as an executor cap. Several implementations treat it as
-        -- their 60-FPS default even while reporting that no cap is active.
-        return pcall(fps, CONFIG.FPS_UNCAPPED)
+        -- Clear APIs that use zero for unlimited, then make the high ceiling the final value for
+        -- APIs that instead interpret zero as their 60-FPS fallback.
+        local cleared = pcall(fps, 0)
+        local raised = pcall(fps, CONFIG.FPS_UNCAPPED)
+        return raised or cleared
     end
 
     function Environment:IsMobile(): boolean return UIS.TouchEnabled and not UIS.KeyboardEnabled end
@@ -334,7 +336,7 @@ return function(disposer: any): any
             mousePressed = false
             pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
         end
-        if fps then pcall(fps, 0) end
+        Environment:UncapFps()
     end)
 
     return Environment

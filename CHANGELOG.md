@@ -6,7 +6,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
 - Added Balanced and Maximum performance presets, a visual-quality restore action, manual reapply controls, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
-- Simplified frame rate control to one Uncap FPS action. It requests a high ceiling instead of executor implementations that silently fall back to 60 FPS, and reasserts that request when the menu opens or changes workspace.
+- Simplified frame rate control to one Uncap FPS action. It handles executor APIs that disagree about zero and reasserts the high-ceiling request while the menu is visible so a GUI-focus fallback cannot silently hold the client at 60 FPS.
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.
 - The entire menu top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session, with a high-contrast confirmation label.

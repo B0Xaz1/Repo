@@ -4,6 +4,7 @@ local Lighting = game:GetService("Lighting")
 local CONFIG = table.freeze({
     STREAM_CHUNK_SIZE = 160,
     RECONCILE_DELAY = 0.12,
+    MENU_UNCAP_REASSERT_INTERVAL = 1,
     OWNED_EFFECT_PREFIX = "^B0Xaz",
     SURFACE_APPEARANCE_MAPS = { "ColorMap", "MetalnessMap", "NormalMap", "RoughnessMap" },
     TERRAIN_TWEAKS = { WaterWaveSize = 0, WaterWaveSpeed = 0, WaterReflectance = 0, WaterTransparency = 1, Decoration = false },
@@ -195,6 +196,18 @@ return function(services: any): any
         scope:Delay(0.6, reassert)
     end
 
+    -- A few executor clients reapply their 60-FPS fallback while a Roblox GUI is focused.
+    -- This low-frequency guard is active only while this menu is visible; it is not frame work.
+    function OptimizerService:MaintainUncappedFpsWhileMenuVisible()
+        if not environment:HasFpsCap() then return end
+        scope:Spawn(function()
+            while not scope:IsDisposed() do
+                task.wait(CONFIG.MENU_UNCAP_REASSERT_INTERVAL)
+                if state:Peek("Settings.MenuVisible") then self:UncapFps(true) end
+            end
+        end)
+    end
+
     function OptimizerService:FlushMemory(): (boolean, string)
         local collected = pcall(function() collectgarbage("collect") end)
         return collected, if collected then "Garbage collection requested" else "This client restricts forced collection; Lua will collect automatically"
@@ -224,6 +237,7 @@ return function(services: any): any
         end)
         self:RequestApply()
         self:UncapFps(true)
+        self:MaintainUncappedFpsWhileMenuVisible()
     end
 
     function OptimizerService:Destroy() scope:Dispose() end

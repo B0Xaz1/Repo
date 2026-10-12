@@ -258,56 +258,16 @@ return function(disposer: any): any
         return windowFocused
     end
 
-    local function belongsToSuiteGui(object: Instance): boolean
-        local current: Instance? = object
-        while current do
-            if current:GetAttribute("B0XazInputGuard") == true then return true end
-            current = current.Parent
-        end
-        return false
-    end
-
-    local function isSuiteInteractiveGui(object: any): boolean
-        if not (typeof(object) == "Instance" and object:IsA("GuiObject")) then return false end
-        if not belongsToSuiteGui(object) then return false end
-        if object:IsA("GuiButton") or object:IsA("TextBox") or object:IsA("ScrollingFrame") then return true end
-        local active = false
-        pcall(function() active = object.Active == true end)
-        return active
-    end
-
-    -- Game HUDs commonly expose transparent or full-screen GuiButtons, so treating every Roblox
-    -- GuiButton under the cursor as a blocker starves aimbot movement and trigger clicks. Only
-    -- suite UI is hit-tested here; native menus and focused text entry remain hard safety blocks.
-    local function pointerOverSuiteControl(): boolean
-        local point = UIS:GetMouseLocation()
-        local checked, objects = pcall(function()
-            return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
-        end)
-        -- GUI probing is not implemented consistently by every executor. A failed probe must not
-        -- disable gameplay input, because the client/menu/text safeguards above still apply.
-        if not checked or type(objects) ~= "table" then return false end
-        for _, object in ipairs(objects) do if isSuiteInteractiveGui(object) then return true end end
-        return false
-    end
-
+    -- Virtual input is allowed whenever Roblox itself owns the focused window. Individual
+    -- features decide whether their own menu/keybind state should pause; this shared transport
+    -- layer must not treat normal Roblox or game HUD input as a global blocker.
     function Environment:CanLockPointer(): boolean
-        if not windowFocused or UIS:GetFocusedTextBox() ~= nil then return false end
-        local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
-        if menuChecked and menuOpen == true then return false end
-        return not pointerOverSuiteControl()
+        return windowFocused
     end
 
-    -- Synthetic pointer input stays inside a focused Roblox client. It never calls executor or OS
-    -- mouse APIs. Native Roblox menus, text entry, and our own interactive UI block it; unrelated
-    -- gameplay HUD elements no longer suppress player-input features under the crosshair.
     function Environment:CanSimulatePointerInput(): (boolean, string?)
         if not virtualInput then return false, "Virtual input is unavailable" end
         if not windowFocused then return false, "Roblox is not the focused window" end
-        if UIS:GetFocusedTextBox() then return false, "A text box has focus" end
-        local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
-        if menuChecked and menuOpen == true then return false, "Roblox menu is open" end
-        if pointerOverSuiteControl() then return false, "Pointer is over suite UI" end
         return true
     end
 

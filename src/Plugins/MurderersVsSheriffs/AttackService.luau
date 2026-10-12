@@ -154,13 +154,10 @@ return function(services: any, Duel: any?): any
         return math.max(value, minimum)
     end
 
-    -- Game automation must yield to UI interaction. This covers the suite menu, text entry,
-    -- keybind capture, and a Roblox window that has lost focus before any tool/input action runs.
+    -- Automation shares the virtual-input transport rule: only a lost Roblox window focus
+    -- pauses player input. UI state is intentionally not a global automation blocker.
     local function automationInputBlocked(): boolean
-        return StateStore:Peek("Settings.MenuVisible") == true
-            or UserInputService:GetFocusedTextBox() ~= nil
-            or StateStore:GetTransient("IsBindingKey") == true
-            or not Environment:HasWindowFocus()
+        return not Environment:HasWindowFocus()
     end
 
     local function hasActiveAutomation(): boolean
@@ -276,8 +273,8 @@ return function(services: any, Duel: any?): any
         local shotInterval = math.max(CONFIG.MIN_SHOT_INTERVAL, math.min(customCd > 0 and customCd or gunAttrCd, currentCooldown("Game.MvSGunCooldown", gunConfig.DefaultCooldown, gunConfig.MinCooldown)))
 
         if now - Attack._lastSpamShot < shotInterval then return end
-        -- A tool activation alone stays in Roblox, but the follow-up click must also be safe:
-        -- VirtualInputManager only, focused Roblox window, and no Roblox GUI under the pointer.
+        -- A tool activation alone stays in Roblox; the follow-up click uses the same focused
+        -- Roblox-window requirement as every other client-contained virtual input path.
         if not Environment:CanSimulatePointerInput() then return end
         Attack._lastSpamShot = now
         pcall(function()

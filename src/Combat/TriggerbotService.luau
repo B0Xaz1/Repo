@@ -27,12 +27,7 @@ return function(services: any): any
             if TriggerbotService._checkElapsed < CONFIG.CHECK_INTERVAL then return end
             dt, TriggerbotService._checkElapsed = TriggerbotService._checkElapsed, 0
             local config = state:Peek("Aimbot.Triggerbot")
-            local focused = UIS:GetFocusedTextBox() ~= nil or state:GetTransient("IsBindingKey")
-            -- Never send automated pointer input while the suite menu is open. Combined with
-            -- Environment's focused-window and GUI-under-pointer checks, this keeps clicks out
-            -- of both desktop UI and Roblox UI.
-            local menuOpen = state:Peek("Settings.MenuVisible") == true
-            if not config.Enabled or focused or menuOpen then
+            if not config.Enabled then
                 clearCandidate(); return
             end
             local camera = Workspace.CurrentCamera
@@ -50,8 +45,8 @@ return function(services: any): any
             -- Two gates: the target has to stay under the crosshair for the delay, and shots stay rate limited
             local delay = math.clamp(config.Delay, 0, CONFIG.DELAY_MAX)
             if TriggerbotService._elapsed < delay or TriggerbotService._sinceShot < math.max(CONFIG.MIN_SHOT_INTERVAL, delay) then return end
-            -- Check before resetting the shot timer: a blocked pointer (for example over UI)
-            -- should simply wait rather than disable the feature or consume its next shot.
+            -- Check before resetting the shot timer: an unfocused Roblox window should simply
+            -- wait rather than disable the feature or consume its next shot.
             if not environment:CanSimulatePointerInput() then
                 clearCandidate()
                 return

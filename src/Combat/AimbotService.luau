@@ -96,8 +96,6 @@ return function(services: any): any
         end
         local config = state:Peek("Aimbot")
         AimbotService._time += dt
-        -- Do not steer the camera while a user is operating the suite menu or entering text.
-        if state:Peek("Settings.MenuVisible") == true or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then drop(); return end
         local localAssets = tracker:GetLocalAssets()
         if not localAssets or localAssets.Humanoid.Health <= 0 then drop(config.UnlockOnDeath); return end
         local engaged = environment:IsMobile() or (if config.LockMode == "Toggle" then AimbotService._toggled else AimbotService._held)

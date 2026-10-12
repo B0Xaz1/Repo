@@ -29,7 +29,6 @@ return function(services: any): any
         self._view = owner
         local root = dom:Create("ScreenGui", { Parent = assert(environment:GetSafeGuiParent(), "No GUI parent for config editor"), Name = dom:RandomName(),
             ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = CONFIG.DISPLAY_ORDER, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
-        root:SetAttribute("B0XazInputGuard", true)
         theme:RegisterRoot(root)
         owner:Add(function() dom:DestroyInstance(root) end)
         owner.Shade = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Active = true })

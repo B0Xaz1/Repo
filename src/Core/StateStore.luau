@@ -32,7 +32,7 @@ local CONFIG = deepFreeze({
             MaxDistance = 2500, Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
         Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
-        Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
+        Lighting = { Mode = "Off", ScenePreset = "Custom", TimeOfDay = 14, CycleDuration = 240, Paused = false,
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
         Extras = { Hitbox = { Enabled = false, Size = 5 }, SpinBot = { Enabled = false, Speed = 180 },
             AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
@@ -304,6 +304,7 @@ return function(eventBus: any, disposer: any): any
         end
         local savedDepth = if type(incomingEsp.DepthMode) == "string" then incomingEsp.DepthMode else incomingChams.DepthMode
         if savedDepth == "Occluded" or savedDepth == "AlwaysOnTop" then normalized.ESP.DepthMode = savedDepth end
+        if not table.find({ "Custom", "Neutral", "Golden Hour", "Overcast", "Moonlight", "Neon" }, normalized.Lighting.ScenePreset) then normalized.Lighting.ScenePreset = "Custom" end
         if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
         if not table.find({ "Comfortable", "Compact" }, normalized.Settings.InterfaceDensity) then normalized.Settings.InterfaceDensity = "Compact" end
         normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)

@@ -46,13 +46,15 @@ return function(services: any, tab: any): any
     end
 
     local light = section:Create(tab.RightCol, "Cinematic lighting", "Lighting")
+    section:Info(light, "Choose a scene for a complete grade. Adjusting mode, time, brightness, or vignette returns to Custom without discarding your values.")
     toggle(light, "Fullbright", "Visuals.Fullbright", nil)
+    dropdown(light, "Scene preset", "Lighting.ScenePreset", lighting:GetScenePresetNames(), function(value: string) lighting:ApplyScenePreset(value) end)
     dropdown(light, "Lighting mode", "Lighting.Mode", { "Off", "Static Day", "Static Night", "Dynamic" }, function(value: string) lighting:SetMode(value) end)
-    slider(light, "Time of day", "Lighting.TimeOfDay", 0, 24, 0.1, " h", function(value: number) lighting:SetTime(value) end)
+    slider(light, "Time of day", "Lighting.TimeOfDay", 0, 24, 0.1, " h", function(value: number) lighting:SetTime(value); lighting:UseCustomScene() end)
     slider(light, "Day-cycle duration", "Lighting.CycleDuration", 30, 1800, 10, " s", nil)
     toggle(light, "Pause dynamic cycle", "Lighting.Paused", nil)
-    slider(light, "Preset brightness", "Lighting.PresetBrightness", 0.25, 2, 0.05, "x", nil)
-    toggle(light, "Soft vignette", "Lighting.Vignette", nil)
+    slider(light, "Preset brightness", "Lighting.PresetBrightness", 0.25, 2, 0.05, "x", function() lighting:UseCustomScene() end)
+    toggle(light, "Soft vignette", "Lighting.Vignette", function() lighting:UseCustomScene() end)
     toggle(light, "Remaster materials", "Lighting.RemasterMaterials", nil)
 
     local telemetry = section:Subsection(esp, "Telemetry & motion", false)

@@ -6,6 +6,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
 - Added Balanced and Maximum performance presets, a visual-quality restore action, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
+- Added complete custom-lighting scenes: Neutral, Golden Hour, Overcast, Moonlight, and Neon. Each scene applies coordinated environment, fog, bloom, and color-grade settings; changing mode, time, brightness, or vignette returns to Custom while preserving manual values.
 - Removed the manual Performance maintenance panel and its reapply/forced-collection functions. Telemetry & motion now lives as a disclosure row inside Player ESP.
 - Removed frame-rate cap and uncapping controls entirely. The menu no longer calls executor FPS-cap or scheduler settings APIs.
 - Running a newly copied loader now cleanly replaces an active older session and selects the new loader's immutable build, rather than silently relaunching the old session revision.

@@ -117,6 +117,9 @@ return function(services: any): any
         local content = dom:Create("Frame", { Parent = outer, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             LayoutOrder = 1, Visible = initiallyOpen ~= false })
         dom:CreatePadding(content, 0, 4, 3, 4)
+        -- Controls use LayoutOrder, so each disclosure body needs its own vertical layout.
+        -- Without this, every control is positioned at the same origin when the group opens.
+        dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
         local owner = disposer:CreateChild(`Subsection {title}`)
         local function paint()
             indicator.Text = if content.Visible then "v" else ">"

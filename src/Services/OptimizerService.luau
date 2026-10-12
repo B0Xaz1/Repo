@@ -7,6 +7,9 @@ local CONFIG = table.freeze({
     -- Menu construction/focus can reset a few executors to 60 after their first GUI frame.
     -- These one-shot settles are not a visual update cadence or an FPS menu setting.
     FRAME_RATE_REPAIR_DELAYS = { 0.15, 0.6 },
+    -- Camera motion can be the equivalent reset point when a player becomes visible. Repairing
+    -- is coalesced, so this is dormant while the view is stationary and never polls a scene.
+    CAMERA_FRAME_RATE_REPAIR_DELAY = 0.2,
     OWNED_EFFECT_PREFIX = "^B0Xaz",
     SURFACE_APPEARANCE_MAPS = { "ColorMap", "MetalnessMap", "NormalMap", "RoughnessMap" },
     TERRAIN_TWEAKS = { WaterWaveSize = 0, WaterWaveSpeed = 0, WaterReflectance = 0, WaterTransparency = 1, Decoration = false },
@@ -23,8 +26,10 @@ return function(services: any): any
     local state, bus, environment = services:Get("StateStore"), services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("OptimizerService")
     local changes = scope:CreateChild("Optimizations")
+    local cameraScope = scope:CreateChild("Frame rate camera")
     local OptimizerService = { _caches = {}, _applied = {}, _revision = 0, _initialized = false,
-        _applyRequested = false, _applyWorkerActive = false, _frameRateRepairRevision = 0 }
+        _applyRequested = false, _applyWorkerActive = false, _frameRateRepairRevision = 0,
+        _cameraRepairQueued = false, _cameraRepairDirty = false }
 
     for _, flag in ipairs(CONFIG.FLAGS) do OptimizerService._caches[flag] = {} end
 
@@ -185,6 +190,18 @@ return function(services: any): any
         for _, delay in ipairs(CONFIG.FRAME_RATE_REPAIR_DELAYS) do scope:Delay(delay, repair) end
     end
 
+    function OptimizerService:RepairFrameRateAfterCameraMotion()
+        self._cameraRepairDirty = true
+        if self._cameraRepairQueued then return end
+        self._cameraRepairQueued = true
+        scope:Delay(CONFIG.CAMERA_FRAME_RATE_REPAIR_DELAY, function()
+            self._cameraRepairQueued = false
+            if scope:IsDisposed() or not self._cameraRepairDirty then return end
+            self._cameraRepairDirty = false
+            self:RepairFrameRate()
+        end)
+    end
+
     function OptimizerService:Initialize()
         if self._initialized then return end
         self._initialized = true
@@ -197,6 +214,17 @@ return function(services: any): any
             OptimizerService:RepairFrameRate()
             if state:Peek("Settings.MenuVisible") then OptimizerService:RepairFrameRateAfterMenuTransition() end
         end))
+        local function bindCameraRepair()
+            cameraScope:Unbind("CFrame")
+            local camera = Workspace.CurrentCamera
+            if camera then
+                cameraScope:Bind("CFrame", camera:GetPropertyChangedSignal("CFrame"):Connect(function()
+                    OptimizerService:RepairFrameRateAfterCameraMotion()
+                end))
+            end
+        end
+        scope:ConnectImmediate(Workspace:GetPropertyChangedSignal("CurrentCamera"), bindCameraRepair)
+        bindCameraRepair()
         scope:ConnectImmediate(Workspace.DescendantAdded, function(object: Instance)
             local active = activeFeatures()
             if anyActive(active) then applyToInstance(object, active) end

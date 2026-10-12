@@ -4,7 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
-- Restored the automatic, internal repair for executors that fall back to 60 FPS after Roblox GUI focus or a fresh scene render. It requests a high executor ceiling at launch, after menu-open settlement, and on unload; there is no frame-rate slider, button, setting, polling loop, or ESP visual throttle.
+- Restored the automatic, internal repair for executors that fall back to 60 FPS after Roblox GUI focus or a fresh scene render. It requests a high executor ceiling at launch, after menu-open settlement and coalesced camera motion, and on unload; there is no frame-rate slider, button, setting, polling loop, or ESP visual throttle.
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
 - Added Balanced and Maximum performance presets, a visual-quality restore action, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.

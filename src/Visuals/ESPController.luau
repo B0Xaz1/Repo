@@ -12,8 +12,6 @@ local CONFIG = table.freeze({
     VISIBILITY_CAMERA_EPSILON = 2,
     VISIBILITY_LOOK_DOT = 0.995,
     TEXT_SIZE = 14,
-    NATIVE_TEXT_WIDTH = 144,
-    NATIVE_TEXT_HEIGHT = 20,
     BOX_THICKNESS = 1,
     CORNER_WIDTH_FACTOR = 0.26,
     CORNER_HEIGHT_FACTOR = 0.2,
@@ -29,71 +27,24 @@ local CONFIG = table.freeze({
     BODY_PART_NAMES = { "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
         "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
         "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
-    -- The default full-box readout keeps executor Drawing usage to three primitives per player:
-    -- box, combined identity/range text, and one health-bar line. Tool and numeric health use
-    -- regular Roblox TextLabels, avoiding executor overlay throttling at higher player counts.
-    BASE_DRAWINGS = { Box = "Square", Identity = "Text", HealthBar = "Line",
+    -- The default full-box readout uses two executor primitives per player: the box and one
+    -- compact, multi-line readout. Keeping this entirely in Drawing avoids a per-target native
+    -- GUI composition path. The optional health bar is a third primitive only when enabled.
+    BASE_DRAWINGS = { Box = "Square", Readout = "Text", HealthBar = "Line",
         Corner1 = "Line", Corner2 = "Line", Corner3 = "Line", Corner4 = "Line", Corner5 = "Line", Corner6 = "Line", Corner7 = "Line", Corner8 = "Line" },
 })
 
 return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
-    local scheduler, bus, environment = services:Get("TaskScheduler"), services:Get("EventBus"), services:Get("Environment")
+    local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
-    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _textGui = nil }
-
-    local function ensureTextGui(): ScreenGui?
-        local gui = ESPController._textGui
-        if gui and gui.Parent then return gui end
-        local parent = environment:GetSafeGuiParent()
-        if not parent then return nil end
-        gui = Instance.new("ScreenGui")
-        gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "B0XazESPText", false, true
-        gui.DisplayOrder, gui.ZIndexBehavior = 1001, Enum.ZIndexBehavior.Sibling
-        gui.Parent = parent
-        ESPController._textGui = gui
-        scope:Bind("Native ESP text", gui)
-        return gui
-    end
-
-    local function ensureNativeText(record: any, name: string): TextLabel?
-        record.NativeLabels = record.NativeLabels or {}
-        local label = record.NativeLabels[name]
-        if label and label.Parent then return label end
-        local gui = ensureTextGui()
-        if not gui then return nil end
-        label = Instance.new("TextLabel")
-        label.Name, label.BackgroundTransparency, label.BorderSizePixel = `B0Xaz{name}`, 1, 0
-        label.AnchorPoint, label.Size = Vector2.new(0.5, 0.5), UDim2.fromOffset(CONFIG.NATIVE_TEXT_WIDTH, CONFIG.NATIVE_TEXT_HEIGHT)
-        label.Font, label.TextSize, label.TextXAlignment, label.TextYAlignment = Enum.Font.Gotham, CONFIG.TEXT_SIZE, Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
-        label.TextStrokeColor3, label.TextStrokeTransparency, label.ZIndex = Color3.new(0, 0, 0), 0, 5
-        label.Visible, label.Parent = false, gui
-        record.NativeLabels[name] = label
-        record.Scope:Add(label)
-        return label
-    end
-
-    local function drawNativeText(record: any, name: string, text: string, position: Vector2, color: Color3)
-        local label = ensureNativeText(record, name)
-        if not label then return end
-        local rounded = UDim2.fromOffset(math.round(position.X), math.round(position.Y))
-        if label.Text ~= text then label.Text = text end
-        if label.Position ~= rounded then label.Position = rounded end
-        if label.TextColor3 ~= color then label.TextColor3 = color end
-        if not label.Visible then label.Visible = true end
-        record.NativeShown[name] = true
-    end
-
-    local function hideNativeText(record: any)
-        for _, label in pairs(record.NativeLabels or {}) do if label.Visible then label.Visible = false end end
-    end
+    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil }
 
     local function hideDrawings(record: any)
         for _, object in pairs(record.Drawings) do
             if object.Visible then object.Visible = false end
         end
         for _, last in pairs(record.Last) do last.Visible = false end
-        hideNativeText(record)
     end
 
     local function disableChams(record: any)
@@ -112,7 +63,7 @@ return function(services: any): any
     local function createRecord(player: Player)
         if player == Players.LocalPlayer or ESPController._records[player] then return end
         local owner = scope:CreateChild(`ESP {player.UserId}`)
-        local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, NativeLabels = {}, NativeShown = {}, Highlight = nil,
+        local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, Highlight = nil,
             BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil, BoundsDepth = nil,
             BoundsCenterOffset = nil, BoundsRootPosition = nil, BoundsCameraPosition = nil, BoundsViewport = nil, BoundsFOV = nil,
             BodyCharacter = nil, BodyParts = nil, BodyPartsDirty = true, VisibilityCharacter = nil, VisibilityPart = nil,
@@ -159,9 +110,6 @@ return function(services: any): any
                 local last = record.Last[name]
                 if last then last.Visible = false end
             end
-        end
-        for name, label in pairs(record.NativeLabels) do
-            if label.Visible and not record.NativeShown[name] then label.Visible = false end
         end
     end
 
@@ -343,7 +291,6 @@ return function(services: any): any
         local camera = Workspace.CurrentCamera
         for player, record in pairs(ESPController._records) do
             table.clear(record.Shown)
-            table.clear(record.NativeShown)
             if not camera then hide(record); continue end
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
@@ -361,28 +308,25 @@ return function(services: any): any
             end
             local position, size = cachedBounds(record, camera, assets.Character, rootPosition, anchor, depth)
             if not position or not size then concealUnused(record); continue end
-            local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
+            local centerX = position.X + size.X / 2
             if espConfig.Box then
                 if espConfig.BoxStyle == "Corner" then drawCornerBox(record, position, size, color)
                 else draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 }) end
             end
-            if espConfig.Name or espConfig.Distance then
-                local identity = if espConfig.Name and espConfig.Distance then `{player.Name}\n[{math.floor(distance)}m]`
-                    elseif espConfig.Name then player.Name else `[{math.floor(distance)}m]`
-                local lines = if espConfig.Name and espConfig.Distance then 2 else 1
-                draw(record, "Identity", { Text = identity, Position = Vector2.new(centerX, position.Y - CONFIG.TEXT_SIZE * lines - 3),
-                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
-            end
             local healthFraction = math.clamp(assets.Humanoid.Health / math.max(assets.Humanoid.MaxHealth, 1), 0, 1)
-            if espConfig.HealthBar then drawHealthBar(record, position, size, healthFraction) end
-            if espConfig.Health then
-                local healthOffset = if espConfig.HealthBar then 18 else 15
-                drawNativeText(record, "Health", tostring(math.max(0, math.floor(assets.Humanoid.Health))), Vector2.new(position.X - healthOffset, position.Y + size.Y / 2), color)
-            end
+            local readout = {}
+            if espConfig.Name then table.insert(readout, player.Name) end
+            if espConfig.Distance then table.insert(readout, `[{math.floor(distance)}m]`) end
+            if espConfig.Health then table.insert(readout, `HP: {math.max(0, math.floor(assets.Humanoid.Health))}`) end
             if espConfig.Tool then
                 updateTool(record, assets.Character)
-                drawNativeText(record, "Tool", record.ToolText, Vector2.new(centerX, bottom + 4), color)
+                table.insert(readout, record.ToolText)
             end
+            if #readout > 0 then
+                draw(record, "Readout", { Text = table.concat(readout, "\n"), Position = Vector2.new(centerX, position.Y - CONFIG.TEXT_SIZE * #readout - 3),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
+            end
+            if espConfig.HealthBar then drawHealthBar(record, position, size, healthFraction) end
             concealUnused(record)
         end
     end

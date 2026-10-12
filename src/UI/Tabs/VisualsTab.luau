@@ -9,10 +9,10 @@ return function(services: any, tab: any): any
     local state, lighting = services:Get("StateStore"), services:Get("LightingService")
     local optimizer = services:Get("OptimizerService")
 
-    -- Keep every player visual, including native chams, in one short node. The readout mirrors
-    -- the classic full-box layout: name and range above, numeric health on the left, and tool below.
+    -- Keep every player visual, including native chams, in one short node. The default is a
+    -- compact stacked readout so full-box ESP stays light with multiple visible players.
     local esp = section:Create(tab.LeftCol, "Player ESP")
-    section:Info(esp, "A clean menu-accent readout: full or corner boxes, optional name and distance labels, numeric health with an optional bar, equipped tool, and native chams.")
+    section:Info(esp, "A compact menu-accent readout: full or corner boxes, optional name, distance, health, equipped tool, optional health bar, and native chams.")
     if not services:Get("DrawingPool").Available then
         section:Info(esp, "Drawing is unavailable. Boxes, names, tools, and health will not render; native chams can still work.")
     end

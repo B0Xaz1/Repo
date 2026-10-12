@@ -103,7 +103,7 @@ return function(services: any): any
             snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck = true, true, true
             snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 70, true, 120
             snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.2
-            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, true
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, false
             snapshot.ESP.BoxStyle, snapshot.ESP.MaxDistance, snapshot.Chams.Enabled = "Full", 800, false
             snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling, snapshot.Movement.InfJump = false, false, false, false
             snapshot.Extras.Hitbox.Enabled, snapshot.Extras.SpinBot.Enabled = false, false
@@ -113,7 +113,7 @@ return function(services: any): any
             snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 360, true, 800
             snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = true, 0.02
             snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = false, false
-            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, true
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, false
             snapshot.ESP.BoxStyle, snapshot.ESP.MaxDistance, snapshot.Chams.Enabled = "Full", 10000, true
             snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling = false, false, false
         end

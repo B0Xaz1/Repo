@@ -5,7 +5,8 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 ## Unreleased
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
-- Added Balanced and Maximum performance presets, a visual-quality restore action, manual reapply controls, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
+- Added Balanced and Maximum performance presets, a visual-quality restore action, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
+- Removed the manual Performance maintenance panel and its reapply/forced-collection functions. Telemetry & motion now lives as a disclosure row inside Player ESP.
 - Removed frame-rate cap and uncapping controls entirely. The menu no longer calls executor FPS-cap or scheduler settings APIs.
 - Running a newly copied loader now cleanly replaces an active older session and selects the new loader's immutable build, rather than silently relaunching the old session revision.
 - The visible menu now prefers Roblox's engine-owned `PlayerGui` over executor GUI hosts, avoiding executor-host-specific composition behavior while the menu is open.

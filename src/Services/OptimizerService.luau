@@ -152,12 +152,6 @@ return function(services: any): any
         end)
     end
 
-    function OptimizerService:Refresh(): (boolean, string)
-        self:RestoreAll()
-        self:RequestApply()
-        return true, "Performance settings are being reapplied"
-    end
-
     function OptimizerService:ApplyPreset(name: string): (boolean, string)
         local preset = CONFIG.PRESETS[name]
         if not preset then return false, "Unknown performance preset" end
@@ -169,11 +163,6 @@ return function(services: any): any
         for _, flag in ipairs(CONFIG.FLAGS) do state:Set(`Performance.{flag}`, false) end
         self:RequestApply()
         return true, "Performance visual changes are being restored"
-    end
-
-    function OptimizerService:FlushMemory(): (boolean, string)
-        local collected = pcall(function() collectgarbage("collect") end)
-        return collected, if collected then "Garbage collection requested" else "This client restricts forced collection; Lua will collect automatically"
     end
 
     function OptimizerService:Initialize()

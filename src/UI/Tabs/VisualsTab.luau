@@ -45,10 +45,6 @@ return function(services: any, tab: any): any
         toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
     end
 
-    local maintenance = section:Create(tab.RightCol, "Performance maintenance")
-    textbox:CreateButton(maintenance, "Reapply current performance settings", function() return optimizer:Refresh() end)
-    textbox:CreateButton(maintenance, "Request memory collection", function() return optimizer:FlushMemory() end)
-
     local light = section:Create(tab.RightCol, "Cinematic lighting", "Lighting")
     toggle(light, "Fullbright", "Visuals.Fullbright", nil)
     dropdown(light, "Lighting mode", "Lighting.Mode", { "Off", "Static Day", "Static Night", "Dynamic" }, function(value: string) lighting:SetMode(value) end)
@@ -59,7 +55,7 @@ return function(services: any, tab: any): any
     toggle(light, "Soft vignette", "Lighting.Vignette", nil)
     toggle(light, "Remaster materials", "Lighting.RemasterMaterials", nil)
 
-    local telemetry = section:Create(tab.RightCol, "Telemetry & motion", "Settings")
+    local telemetry = section:Subsection(esp, "Telemetry & motion", false)
     toggle(telemetry, "Watermark", "Settings.Watermark", nil)
     toggle(telemetry, "FPS counter", "Settings.ShowFPS", nil)
     toggle(telemetry, "Ping monitor", "Settings.ShowPing", nil)

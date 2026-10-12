@@ -533,6 +533,7 @@ return function(services: any): any
         local parent = assert(environment:GetSafeGuiParent(), "No writable GUI parent is available")
         local root = dom:Create("ScreenGui", { Parent = parent, Name = dom:RandomName(), ResetOnSpawn = false, IgnoreGuiInset = true,
             DisplayOrder = 1000, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
+        root:SetAttribute("B0XazInputGuard", true)
         self._root = root
         theme:RegisterRoot(root)
         local main = dom:Create("Frame", { Parent = root, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),

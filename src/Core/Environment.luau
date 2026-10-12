@@ -258,45 +258,56 @@ return function(disposer: any): any
         return windowFocused
     end
 
-    local function isInteractiveGui(object: any): boolean
-        if not (typeof(object) == "Instance" and object:IsA("GuiObject")) then return false end
-        -- Full-screen HUD roots are often Active even though they never consume clicks. Block
-        -- concrete controls and scrolling surfaces instead, while menu/text/focus checks below
-        -- continue to protect all modal UI.
-        return object:IsA("GuiButton") or object:IsA("TextBox") or object:IsA("ScrollingFrame")
+    local function belongsToSuiteGui(object: Instance): boolean
+        local current: Instance? = object
+        while current do
+            if current:GetAttribute("B0XazInputGuard") == true then return true end
+            current = current.Parent
+        end
+        return false
     end
 
-    -- Pointer capture must yield whenever Roblox cannot safely receive gameplay mouse input.
-    -- Passive HUD is safe; buttons, text entry, active frames, and failed GUI queries block it.
-    function Environment:CanLockPointer(): boolean
-        if not windowFocused or UIS:GetFocusedTextBox() ~= nil then return false end
-        local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
-        if menuChecked and menuOpen == true then return false end
+    local function isSuiteInteractiveGui(object: any): boolean
+        if not (typeof(object) == "Instance" and object:IsA("GuiObject")) then return false end
+        if not belongsToSuiteGui(object) then return false end
+        if object:IsA("GuiButton") or object:IsA("TextBox") or object:IsA("ScrollingFrame") then return true end
+        local active = false
+        pcall(function() active = object.Active == true end)
+        return active
+    end
+
+    -- Game HUDs commonly expose transparent or full-screen GuiButtons, so treating every Roblox
+    -- GuiButton under the cursor as a blocker starves aimbot movement and trigger clicks. Only
+    -- suite UI is hit-tested here; native menus and focused text entry remain hard safety blocks.
+    local function pointerOverSuiteControl(): boolean
         local point = UIS:GetMouseLocation()
         local checked, objects = pcall(function()
             return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
         end)
+        -- GUI probing is not implemented consistently by every executor. A failed probe must not
+        -- disable gameplay input, because the client/menu/text safeguards above still apply.
         if not checked or type(objects) ~= "table" then return false end
-        for _, object in ipairs(objects) do if isInteractiveGui(object) then return false end end
-        return true
+        for _, object in ipairs(objects) do if isSuiteInteractiveGui(object) then return true end end
+        return false
     end
 
-    -- Synthetic pointer input stays inside a focused Roblox client. Passive HUD and drawing-only
-    -- frames do not block it, but any button, text box, active frame, or Roblox menu does.
+    function Environment:CanLockPointer(): boolean
+        if not windowFocused or UIS:GetFocusedTextBox() ~= nil then return false end
+        local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
+        if menuChecked and menuOpen == true then return false end
+        return not pointerOverSuiteControl()
+    end
+
+    -- Synthetic pointer input stays inside a focused Roblox client. It never calls executor or OS
+    -- mouse APIs. Native Roblox menus, text entry, and our own interactive UI block it; unrelated
+    -- gameplay HUD elements no longer suppress player-input features under the crosshair.
     function Environment:CanSimulatePointerInput(): (boolean, string?)
         if not virtualInput then return false, "Virtual input is unavailable" end
         if not windowFocused then return false, "Roblox is not the focused window" end
         if UIS:GetFocusedTextBox() then return false, "A text box has focus" end
         local menuChecked, menuOpen = pcall(function() return GuiService.MenuIsOpen end)
         if menuChecked and menuOpen == true then return false, "Roblox menu is open" end
-        local point = UIS:GetMouseLocation()
-        local checked, objects = pcall(function()
-            return GuiService:GetGuiObjectsAtPosition(math.round(point.X), math.round(point.Y))
-        end)
-        if not checked or type(objects) ~= "table" then return false, "Pointer safety check is unavailable" end
-        for _, object in ipairs(objects) do
-            if isInteractiveGui(object) then return false, "Pointer is over interactive Roblox UI" end
-        end
+        if pointerOverSuiteControl() then return false, "Pointer is over suite UI" end
         return true
     end
 

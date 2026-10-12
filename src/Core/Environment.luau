@@ -146,15 +146,19 @@ return function(disposer: any): any
             cachedParent = nil
         end
         local candidates = {}
+        -- Prefer Roblox's engine-owned PlayerGui for visible UI. Some executor-provided GUI
+        -- hosts composite an active top-level ScreenGui at the display refresh rate, which can
+        -- make an otherwise uncapped client appear locked to 60 whenever this menu is visible.
+        -- The other locations remain compatibility fallbacks when PlayerGui is unavailable.
+        if Players.LocalPlayer then
+            local parent = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if parent then table.insert(candidates, parent) end
+        end
         if getHui then
             local ok, parent = pcall(getHui)
             if ok and typeof(parent) == "Instance" then table.insert(candidates, parent) end
         end
         pcall(function() table.insert(candidates, game:GetService("CoreGui")) end)
-        if Players.LocalPlayer then
-            local parent = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            if parent then table.insert(candidates, parent) end
-        end
         for _, parent in ipairs(candidates) do
             local folder = Instance.new("Folder")
             local writable = pcall(function() folder.Parent = parent end)

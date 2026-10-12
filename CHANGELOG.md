@@ -8,6 +8,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 - Added Balanced and Maximum performance presets, a visual-quality restore action, manual reapply controls, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.
 - Removed frame-rate cap and uncapping controls entirely. The menu no longer calls executor FPS-cap or scheduler settings APIs.
 - Running a newly copied loader now cleanly replaces an active older session and selects the new loader's immutable build, rather than silently relaunching the old session revision.
+- The visible menu now prefers Roblox's engine-owned `PlayerGui` over executor GUI hosts, avoiding display-rate composition behavior that can hold rendering near 60 FPS while the menu is open.
 - Restored client-contained virtual mouse movement for input-driven features and refined pointer safety so passive HUD and active HUD-root frames no longer block gameplay input. Interactive Roblox UI, text entry, menus, and unfocused windows remain protected; mouse-aim feedback now reports the actual unavailable reason.
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.

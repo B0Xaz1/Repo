@@ -6,6 +6,10 @@ local GuiService = game:GetService("GuiService")
 local CONFIG = table.freeze({
     ROOT = "B0XazUniversal/",
     CONFIGS_SUBFOLDER = "Configs",
+    -- Some executors revert to their 60-FPS fallback when Roblox GUI gains focus. This is an
+    -- internal recovery ceiling, not a user-configurable frame-rate control.
+    FRAME_RATE_TARGET = 1000,
+    FRAME_RATE_FFLAG = "DFIntTaskSchedulerTargetFps",
     CLICK_RELEASE_DELAY = 0.03,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
 })
@@ -48,6 +52,21 @@ return function(disposer: any): any
     local nativeMouseMove = first(probe("mousemoverel"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
+    local setFflag = first(probe("setfflag"), member(globals, "setfflag"), member(syn, "setfflag"), member(fluxus, "setfflag"))
+    -- Executors use several aliases for the same setting, and may expose a non-working alias
+    -- alongside a functional one. Retain each distinct callable for the internal repair path.
+    local fpsSetters, seenFpsSetters = {}, {}
+    local function addFpsSetter(candidate: any)
+        if type(candidate) ~= "function" or seenFpsSetters[candidate] then return end
+        seenFpsSetters[candidate] = true
+        table.insert(fpsSetters, candidate)
+    end
+    for _, name in ipairs({ "setfpscap", "set_fps_cap", "setfps", "set_fps_limit", "setfpslimit" }) do
+        addFpsSetter(probe(name))
+        addFpsSetter(member(globals, name))
+        addFpsSetter(member(syn, name))
+        addFpsSetter(member(fluxus, name))
+    end
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
@@ -69,7 +88,7 @@ return function(disposer: any): any
     local cachedParent: Instance? = nil
     local virtualInput: any = nil
     pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
-    local mousePressed, windowFocused = false, true
+    local mousePressed, windowFocused, frameRateFflagApplied = false, true, false
 
     local Environment = {
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
@@ -196,6 +215,23 @@ return function(disposer: any): any
         return pcall(queue, source)
     end
 
+    -- Repair an executor-level 60-FPS fallback without exposing a slider, button, setting, or
+    -- other frame-rate control in the menu. Zero is deliberately avoided because some executors
+    -- interpret it as their 60-FPS default instead of unlimited.
+    function Environment:RepairFrameRate(): boolean
+        local applied = false
+        for _, setter in ipairs(fpsSetters) do
+            if pcall(setter, CONFIG.FRAME_RATE_TARGET) then applied = true end
+        end
+        -- The scheduler target closes the gap on executors whose regular setter accepts a value
+        -- but lets Roblox return to 60 whenever a ScreenGui receives focus. It needs one write.
+        if setFflag and not frameRateFflagApplied then
+            local changed = pcall(setFflag, CONFIG.FRAME_RATE_FFLAG, tostring(CONFIG.FRAME_RATE_TARGET))
+            if changed then frameRateFflagApplied, applied = true, true end
+        end
+        return applied
+    end
+
     function Environment:IsMobile(): boolean return UIS.TouchEnabled and not UIS.KeyboardEnabled end
 
     function Environment:ParseKeybind(value: any): EnumItem?
@@ -315,6 +351,9 @@ return function(disposer: any): any
             mousePressed = false
             pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
         end
+        -- Leave the executor in its high-ceiling state after suite unload; otherwise a user can
+        -- return to the executor's 60-FPS fallback even though no menu control ever existed.
+        Environment:RepairFrameRate()
     end)
 
     return Environment

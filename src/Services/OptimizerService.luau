@@ -4,6 +4,9 @@ local Lighting = game:GetService("Lighting")
 local CONFIG = table.freeze({
     STREAM_CHUNK_SIZE = 160,
     RECONCILE_DELAY = 0.12,
+    -- Menu construction/focus can reset a few executors to 60 after their first GUI frame.
+    -- These one-shot settles are not a visual update cadence or an FPS menu setting.
+    FRAME_RATE_REPAIR_DELAYS = { 0.15, 0.6 },
     OWNED_EFFECT_PREFIX = "^B0Xaz",
     SURFACE_APPEARANCE_MAPS = { "ColorMap", "MetalnessMap", "NormalMap", "RoughnessMap" },
     TERRAIN_TWEAKS = { WaterWaveSize = 0, WaterWaveSpeed = 0, WaterReflectance = 0, WaterTransparency = 1, Decoration = false },
@@ -17,11 +20,11 @@ local CONFIG = table.freeze({
 })
 
 return function(services: any): any
-    local state, bus = services:Get("StateStore"), services:Get("EventBus")
+    local state, bus, environment = services:Get("StateStore"), services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("OptimizerService")
     local changes = scope:CreateChild("Optimizations")
     local OptimizerService = { _caches = {}, _applied = {}, _revision = 0, _initialized = false,
-        _applyRequested = false, _applyWorkerActive = false }
+        _applyRequested = false, _applyWorkerActive = false, _frameRateRepairRevision = 0 }
 
     for _, flag in ipairs(CONFIG.FLAGS) do OptimizerService._caches[flag] = {} end
 
@@ -165,11 +168,35 @@ return function(services: any): any
         return true, "Performance visual changes are being restored"
     end
 
+    -- A repair has no user-facing control and never runs in a frame loop. It exists solely to
+    -- correct executor state that can otherwise fall back to 60 when the menu gains focus.
+    function OptimizerService:RepairFrameRate()
+        environment:RepairFrameRate()
+    end
+
+    function OptimizerService:RepairFrameRateAfterMenuTransition()
+        self._frameRateRepairRevision += 1
+        local revision = self._frameRateRepairRevision
+        local function repair()
+            if scope:IsDisposed() or revision ~= self._frameRateRepairRevision or state:Peek("Settings.MenuVisible") ~= true then return end
+            self:RepairFrameRate()
+        end
+        repair()
+        for _, delay in ipairs(CONFIG.FRAME_RATE_REPAIR_DELAYS) do scope:Delay(delay, repair) end
+    end
+
     function OptimizerService:Initialize()
         if self._initialized then return end
         self._initialized = true
         for _, flag in ipairs(CONFIG.FLAGS) do scope:Add(state:Observe(`Performance.{flag}`, function() OptimizerService:RequestApply() end)) end
-        scope:Add(bus:Subscribe("SettingsHydrated", function() OptimizerService:RequestApply() end))
+        scope:Add(state:Observe("Settings.MenuVisible", function(visible: boolean)
+            if visible then OptimizerService:RepairFrameRateAfterMenuTransition() end
+        end))
+        scope:Add(bus:Subscribe("SettingsHydrated", function()
+            OptimizerService:RequestApply()
+            OptimizerService:RepairFrameRate()
+            if state:Peek("Settings.MenuVisible") then OptimizerService:RepairFrameRateAfterMenuTransition() end
+        end))
         scope:ConnectImmediate(Workspace.DescendantAdded, function(object: Instance)
             local active = activeFeatures()
             if anyActive(active) then applyToInstance(object, active) end
@@ -179,10 +206,15 @@ return function(services: any): any
             if anyActive(active) then applyToInstance(object, active) end
         end)
         self:RequestApply()
+        self:RepairFrameRate()
+        if state:Peek("Settings.MenuVisible") then self:RepairFrameRateAfterMenuTransition() end
     end
 
     function OptimizerService:Destroy() scope:Dispose() end
 
-    scope:Add(function() OptimizerService:RestoreAll() end)
+    scope:Add(function()
+        OptimizerService:RestoreAll()
+        OptimizerService:RepairFrameRate()
+    end)
     return OptimizerService
 end

@@ -88,7 +88,7 @@ return function(disposer: any): any
     local cachedParent: Instance? = nil
     local virtualInput: any = nil
     pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
-    local mousePressed, windowFocused, frameRateFflagApplied = false, true, false
+    local mousePressed, windowFocused = false, true
 
     local Environment = {
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
@@ -223,11 +223,12 @@ return function(disposer: any): any
         for _, setter in ipairs(fpsSetters) do
             if pcall(setter, CONFIG.FRAME_RATE_TARGET) then applied = true end
         end
-        -- The scheduler target closes the gap on executors whose regular setter accepts a value
-        -- but lets Roblox return to 60 whenever a ScreenGui receives focus. It needs one write.
-        if setFflag and not frameRateFflagApplied then
+        -- Some executors accept their regular setter yet let Roblox reset the scheduler target
+        -- when the view starts rendering player geometry. Reapply this companion target on every
+        -- event-driven repair; a previous one-time write cannot correct a later scene reset.
+        if setFflag then
             local changed = pcall(setFflag, CONFIG.FRAME_RATE_FFLAG, tostring(CONFIG.FRAME_RATE_TARGET))
-            if changed then frameRateFflagApplied, applied = true, true end
+            if changed then applied = true end
         end
         return applied
     end

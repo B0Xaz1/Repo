@@ -25,7 +25,7 @@ return function(services: any): any
     local bus = services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("AimbotService")
     local cameraChanges = scope:CreateChild("Aim camera")
-    local AimbotService = { _target = nil, _held = false, _toggled = false, _blocked = false,
+    local AimbotService = { _target = nil, _preferredTarget = nil, _held = false, _toggled = false, _blocked = false,
         _remainder = Vector2.zero, _lastCursor = nil, _time = 0, _updateElapsed = 0, _camera = nil, _initialized = false, _warnedMouse = false }
 
     local function drop(block: boolean?)
@@ -46,6 +46,21 @@ return function(services: any): any
     end
 
     local function selectTarget(camera: Camera, point: Vector2, config: any): Player?
+        -- A player explicitly selected from the Players workspace wins over proximity/FOV scoring.
+        -- It remains transient (never saved to profiles) and uses the same filters as auto-targeting.
+        local preferred = AimbotService._preferredTarget
+        if preferred then
+            if preferred.Parent ~= Players or preferred == Players.LocalPlayer or not tracker:IsAlive(preferred) then
+                AimbotService._preferredTarget = nil
+                state:SetTransient("AimbotPreferredTarget", nil)
+            else
+                local preferredPart = hitpart(preferred, config.Hitpart)
+                if preferredPart and filter:ValidateTarget(preferred, preferredPart, config) then return preferred end
+                -- Do not silently replace an explicit choice with the nearest player while it is
+                -- merely occluded, outside a configured range, or excluded by a live filter.
+                return nil
+            end
+        end
         local best, distanceSquared = nil, math.clamp(config.FOV.Size, 1, CONFIG.FOV_MAX) ^ 2
         for _, player in ipairs(Players:GetPlayers()) do
             if player == Players.LocalPlayer then continue end
@@ -199,11 +214,37 @@ return function(services: any): any
 
     function AimbotService:GetTarget(): Player? return self._target end
 
+    function AimbotService:GetPreferredTarget(): Player? return self._preferredTarget end
+
+    function AimbotService:SetPreferredTarget(player: Player?): (boolean, string)
+        if not player or player == Players.LocalPlayer or player.Parent ~= Players then
+            return false, "Select another player who is still in the server"
+        end
+        self._preferredTarget = player
+        -- Apply an intentional selection immediately when aim is already engaged. The next update
+        -- still validates this player with the normal team/friend/visibility/range safeguards.
+        self._target, self._remainder = player, Vector2.zero
+        state:SetTransient("AimbotPreferredTarget", player)
+        state:SetTransient("AimbotTarget", player)
+        return true, `{player.Name} will take priority while eligible`
+    end
+
+    function AimbotService:ClearPreferredTarget(): (boolean, string)
+        local previous = self._preferredTarget
+        self._preferredTarget = nil
+        state:SetTransient("AimbotPreferredTarget", nil)
+        if self._target == previous then drop() end
+        return true, if previous then "Manual target cleared" else "No manual target was selected"
+    end
+
     function AimbotService:Unlock() self._held, self._toggled, self._blocked = false, false, false; drop() end
 
     function AimbotService:Initialize()
         if self._initialized then return end
         self._initialized = true
+        scope:Connect(Players.PlayerRemoving, function(player: Player)
+            if AimbotService._preferredTarget == player then AimbotService:ClearPreferredTarget() end
+        end)
         -- The default RMB bind is often marked as processed by Roblox camera controls. It is still
         -- the player's explicit aim-lock input, so accept the configured bind rather than dropping
         -- it behind processed/UI state; output remains entirely client-side camera correction.

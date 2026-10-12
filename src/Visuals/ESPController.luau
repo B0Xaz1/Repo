@@ -2,9 +2,9 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    -- ESP samples at a stable 30 Hz instead of doing per-player projection and raycast work at
-    -- every render callback. This remains visually responsive while protecting client frame time.
-    RENDER_INTERVAL = 1 / 30,
+    -- Draw positions are refreshed at display cadence. Expensive 3D bounds and visibility work
+    -- stays independently cached below, so camera motion remains smooth without a heavy scan.
+    RENDER_INTERVAL = 1 / 60,
     BOUNDS_INTERVAL = 1 / 20,
     VISIBILITY_INTERVAL = 0.15,
     SKELETON_INTERVAL = 1 / 20,
@@ -79,7 +79,8 @@ return function(services: any): any
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Highlight = nil, Signature = "", InventoryText = "", ToolText = "",
             InventoryAt = -math.huge, Shown = {}, Last = {}, Bones = false, Rig = nil, BoneParts = nil,
-            BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil,
+            BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil,
+            SkeletonCharacter = nil, SkeletonAnchor = nil, SkeletonLines = nil,
             VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false }
         ESPController._records[player] = record
         owner:Add(function()
@@ -154,13 +155,17 @@ return function(services: any): any
         return Vector2.new(minX, minY), Vector2.new(maxX - minX, maxY - minY)
     end
 
-    local function cachedBounds(record: any, camera: Camera, character: Model, now: number): (Vector2?, Vector2?)
+    local function cachedBounds(record: any, camera: Camera, character: Model, anchor: Vector2, now: number): (Vector2?, Vector2?)
         local stale = record.BoundsCharacter ~= character or record.BoundsCamera ~= camera or now - record.BoundsAt >= CONFIG.BOUNDS_INTERVAL
         if stale then
             record.BoundsPosition, record.BoundsSize = bounds(camera, character)
+            record.BoundsAnchor = anchor
             record.BoundsAt, record.BoundsCharacter, record.BoundsCamera = now, character, camera
         end
-        return record.BoundsPosition, record.BoundsSize
+        if not record.BoundsPosition or not record.BoundsSize or not record.BoundsAnchor then return nil, nil end
+        -- The cached box size is sufficiently stable between samples. Translate its origin by the
+        -- cheap per-frame root projection so camera pans and player motion do not look low-FPS.
+        return record.BoundsPosition + (anchor - record.BoundsAnchor), record.BoundsSize
     end
 
     local function cachedVisibility(record: any, part: BasePart, character: Model, now: number): boolean
@@ -172,10 +177,11 @@ return function(services: any): any
         return record.Visibility == true
     end
 
-    local function inViewport(camera: Camera, position: Vector3): boolean
+    local function rootProjection(camera: Camera, position: Vector3): (Vector2, boolean)
         local point = camera:WorldToViewportPoint(position)
         local viewport = camera.ViewportSize
-        return point.Z > 0 and point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y
+        local screen = Vector2.new(point.X, point.Y)
+        return screen, point.Z > 0 and point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y
     end
 
     local function updateInventory(record: any, character: Model)
@@ -251,6 +257,25 @@ return function(services: any): any
         end
         record.BoneParts = parts
         return parts
+    end
+
+    local function cachedSkeleton(record: any, assets: any, camera: Camera, anchor: Vector2, refresh: boolean): any
+        local stale = refresh or record.SkeletonCharacter ~= assets.Character or record.SkeletonLines == nil or record.SkeletonAnchor == nil
+        if stale then
+            local lines = {}
+            for index, pair in ipairs(boneParts(record, assets)) do
+                local first, second = pair[1], pair[2]
+                if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
+                    local a, aVisible = project(camera, first.Position)
+                    local b, bVisible = project(camera, second.Position)
+                    if aVisible and bVisible then lines[index] = { From = a, To = b } end
+                end
+            end
+            record.SkeletonLines, record.SkeletonAnchor, record.SkeletonCharacter = lines, anchor, assets.Character
+        end
+        if not record.SkeletonLines or not record.SkeletonAnchor then return nil end
+        local delta = anchor - record.SkeletonAnchor
+        return record.SkeletonLines, delta
     end
 
     local function visualOpacity(config: any): number
@@ -351,13 +376,14 @@ return function(services: any): any
             local color, opacity = overlayColor(player, config, config.Color, "ESP"), visualOpacity(config)
             -- Off-screen records only need a single root projection for optional direction pointers;
             -- skip their expensive occlusion raycast and 3D-box projection entirely.
-            if not inViewport(camera, assets.RootPart.Position) then
+            local rootScreen, rootVisible = rootProjection(camera, assets.RootPart.Position)
+            if not rootVisible then
                 if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
                 concealUnused(record)
                 continue
             end
             if occluded and not cachedVisibility(record, assets.Head or assets.RootPart, assets.Character, now) then hideDrawings(record); continue end
-            local position, size = cachedBounds(record, camera, assets.Character, now)
+            local position, size = cachedBounds(record, camera, assets.Character, rootScreen, now)
             if not position or not size then
                 if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
                 concealUnused(record)
@@ -407,21 +433,14 @@ return function(services: any): any
                 if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color, Thickness = thickness, Transparency = opacity }) end
             end
             if config.Skeleton then
-                if updateSkeleton then
-                    ensureBones(record)
-                    for index, pair in ipairs(boneParts(record, assets)) do
-                        local first, second = pair[1], pair[2]
-                        if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
-                            local a, aVisible = project(camera, first.Position)
-                            local b, bVisible = project(camera, second.Position)
-                            if aVisible and bVisible then draw(record, `Bone{index}`, { From = a, To = b, Color = color, Thickness = thickness, Transparency = opacity }) end
-                        end
-                    end
-                else
-                    for index = 1, #CONFIG.R15_BONES do
-                        local name = `Bone{index}`
-                        local bone = record.Drawings[name]
-                        if bone and bone.Visible then record.Shown[name] = true end
+                ensureBones(record)
+                -- Full joint projection stays at the skeleton cadence. Between samples, translate
+                -- cached line endpoints by the same cheap root projection used by the box so a
+                -- camera pan no longer makes a visible skeleton step at 20 Hz.
+                local lines, delta = cachedSkeleton(record, assets, camera, rootScreen, updateSkeleton)
+                if lines and delta then
+                    for index, line in pairs(lines) do
+                        draw(record, `Bone{index}`, { From = line.From + delta, To = line.To + delta, Color = color, Thickness = thickness, Transparency = opacity })
                     end
                 end
             end

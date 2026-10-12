@@ -16,6 +16,9 @@ local CONFIG = table.freeze({
     -- by the prior readout experiment.
     READOUT_WIDTH = 168,
     READOUT_HEIGHT = 62,
+    -- Some executors reset their scheduler target after an overlay becomes visible. These finite
+    -- repairs happen only on a hidden-to-visible transition, never in the render hot path.
+    OVERLAY_FRAME_RATE_REPAIR_DELAYS = { 0.15, 0.6 },
     BOX_THICKNESS = 1,
     CORNER_WIDTH_FACTOR = 0.26,
     CORNER_HEIGHT_FACTOR = 0.2,
@@ -43,7 +46,24 @@ return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
     local scheduler, bus, environment = services:Get("TaskScheduler"), services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
-    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _textGui = nil }
+    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _textGui = nil,
+        _frameRateRepairQueued = false }
+
+    -- Visibility transitions can make some executors reapply their 60-FPS fallback after the
+    -- camera-motion repair has already run. Coalesce the per-target transitions into two delayed
+    -- recovery writes; no target rendering is skipped or rate-limited.
+    local function requestOverlayFrameRateRepair()
+        if ESPController._frameRateRepairQueued then return end
+        ESPController._frameRateRepairQueued = true
+        for index, delay in ipairs(CONFIG.OVERLAY_FRAME_RATE_REPAIR_DELAYS) do
+            local finalRepair = index == #CONFIG.OVERLAY_FRAME_RATE_REPAIR_DELAYS
+            scope:Delay(delay, function()
+                if scope:IsDisposed() then return end
+                environment:RepairFrameRate()
+                if finalRepair then ESPController._frameRateRepairQueued = false end
+            end)
+        end
+    end
 
     local function ensureTextGui(): ScreenGui?
         local gui = ESPController._textGui
@@ -85,7 +105,10 @@ return function(services: any): any
         if label.Text ~= text then label.Text = text end
         if label.Position ~= rounded then label.Position = rounded end
         if label.TextColor3 ~= color then label.TextColor3 = color end
-        if not label.Visible then label.Visible = true end
+        if not label.Visible then
+            label.Visible = true
+            requestOverlayFrameRateRepair()
+        end
         record.ReadoutShown = true
     end
 
@@ -154,7 +177,10 @@ return function(services: any): any
         for property, value in pairs(properties) do
             if last[property] ~= value then object[property] = value; last[property] = value end
         end
-        if last.Visible ~= true then object.Visible = true; last.Visible = true end
+        if last.Visible ~= true then
+            object.Visible, last.Visible = true, true
+            requestOverlayFrameRateRepair()
+        end
         record.Shown[name] = true
     end
 
@@ -332,7 +358,10 @@ return function(services: any): any
         if object.FillTransparency ~= CONFIG.CHAMS_FILL_TRANSPARENCY then object.FillTransparency = CONFIG.CHAMS_FILL_TRANSPARENCY end
         if object.OutlineTransparency ~= CONFIG.CHAMS_OUTLINE_TRANSPARENCY then object.OutlineTransparency = CONFIG.CHAMS_OUTLINE_TRANSPARENCY end
         if object.DepthMode ~= depth then object.DepthMode = depth end
-        if not object.Enabled then object.Enabled = true end
+        if not object.Enabled then
+            object.Enabled = true
+            requestOverlayFrameRateRepair()
+        end
         record.ChamsCharacter, record.ChamsColor, record.ChamsDepth = character, color, depth
     end
 

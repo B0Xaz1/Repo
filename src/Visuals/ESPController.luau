@@ -9,13 +9,23 @@ local CONFIG = table.freeze({
     SCALE_DISTANCE_REF = 1500,
     SCALE_MIN = 0.7,
     SCALE_MAX = 1.25,
-    BASE_TEXT_SIZE = 13,
+    TEXT_SIZE_MIN = 8,
+    TEXT_SIZE_MAX = 24,
+    LINE_THICKNESS_MIN = 1,
+    LINE_THICKNESS_MAX = 4,
+    OPACITY_MIN = 0.05,
+    OPACITY_MAX = 1,
+    BOX_FILL_OPACITY_MAX = 0.85,
+    ARROW_RADIUS_MIN = 80,
+    ARROW_RADIUS_EDGE_PADDING = 18,
+    ARROW_SIZE_MIN = 4,
+    ARROW_SIZE_MAX = 28,
     LOOK_DIRECTION_LENGTH = 5,
     HEAD_DOT_MIN = 2,
     HEAD_DOT_MAX = 7,
     OUTLINE_LIGHTEN = 0.35,
-    CHAMS_FILL_TRANSPARENCY = 0.55,
-    CHAMS_OUTLINE_TRANSPARENCY = 0.1,
+    CHAMS_TRANSPARENCY_MIN = 0,
+    CHAMS_TRANSPARENCY_MAX = 1,
     HEALTH_BAR_WIDTH = 4,
     HEALTH_BAR_INNER_WIDTH = 2,
     HEALTH_BAR_OFFSET = 7,
@@ -23,8 +33,10 @@ local CONFIG = table.freeze({
     HEALTH_LOW = Color3.fromRGB(247, 87, 105),
     HEALTH_HIGH = Color3.fromRGB(79, 222, 157),
     FONTS = { UI = 0, System = 1, Plex = 2, Monospace = 3 },
-    BASE_DRAWINGS = { Box = "Square", HealthBackground = "Square", Health = "Square", Name = "Text", Distance = "Text",
+    BASE_DRAWINGS = { Box = "Square", BoxFill = "Square", HealthBackground = "Square", Health = "Square", Name = "Text", Distance = "Text",
         Tool = "Text", Backpack = "Text", Tracer = "Line", HeadDot = "Circle", LookDir = "Line" },
+    CORNER_SEGMENTS = { "Corner1", "Corner2", "Corner3", "Corner4", "Corner5", "Corner6", "Corner7", "Corner8" },
+    ARROW_SEGMENTS = { "Arrow1", "Arrow2", "Arrow3" },
     R15_BONES = { { "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" }, { "UpperTorso", "LeftUpperArm" },
         { "LeftUpperArm", "LeftLowerArm" }, { "LeftLowerArm", "LeftHand" }, { "UpperTorso", "RightUpperArm" },
         { "RightUpperArm", "RightLowerArm" }, { "RightLowerArm", "RightHand" }, { "LowerTorso", "LeftUpperLeg" },
@@ -76,14 +88,22 @@ return function(services: any): any
         if record then record.Scope:Dispose() end
     end
 
+    local function ensureDrawing(record: any, name: string, kind: string)
+        if not pool.Available or record.Drawings[name] then return end
+        record.Drawings[name] = pool:Acquire(kind)
+    end
+
     local function ensureDrawings(record: any)
-        if not pool.Available or record.Drawings.Box then return end
-        for name, kind in pairs(CONFIG.BASE_DRAWINGS) do record.Drawings[name] = pool:Acquire(kind) end
+        for name, kind in pairs(CONFIG.BASE_DRAWINGS) do ensureDrawing(record, name, kind) end
+    end
+
+    local function ensureLines(record: any, names: { string })
+        for _, name in ipairs(names) do ensureDrawing(record, name, "Line") end
     end
 
     local function ensureBones(record: any)
         if not pool.Available or record.Bones then return end
-        for index = 1, #CONFIG.R15_BONES do record.Drawings[`Bone{index}`] = pool:Acquire("Line") end
+        for index = 1, #CONFIG.R15_BONES do ensureDrawing(record, `Bone{index}`, "Line") end
         record.Bones = true
     end
 
@@ -163,7 +183,7 @@ return function(services: any): any
             local ok, highlight = pcall(function()
                 local object = Instance.new("Highlight")
                 record.Scope:Bind("Highlight", object)
-                object.Name, object.FillTransparency, object.OutlineTransparency = "B0XazChams", CONFIG.CHAMS_FILL_TRANSPARENCY, CONFIG.CHAMS_OUTLINE_TRANSPARENCY
+                object.Name = "B0XazChams"
                 object.Adornee, object.Parent = assets.Character, assets.Character
                 return object
             end)
@@ -179,8 +199,12 @@ return function(services: any): any
         local fill = overlayColor(record.Player, config, config.FillColor, "Chams")
         if object.Adornee ~= assets.Character then object.Adornee, object.Parent = assets.Character, assets.Character end
         if object.FillColor ~= fill then object.FillColor = fill end
+        local fillTransparency = math.clamp(tonumber(config.FillTransparency) or 0.55, CONFIG.CHAMS_TRANSPARENCY_MIN, CONFIG.CHAMS_TRANSPARENCY_MAX)
+        if object.FillTransparency ~= fillTransparency then object.FillTransparency = fillTransparency end
         local outline = if config.Rainbow then fill:Lerp(Color3.new(1, 1, 1), CONFIG.OUTLINE_LIGHTEN) else config.OutlineColor
         if object.OutlineColor ~= outline then object.OutlineColor = outline end
+        local outlineTransparency = math.clamp(tonumber(config.OutlineTransparency) or 0.1, CONFIG.CHAMS_TRANSPARENCY_MIN, CONFIG.CHAMS_TRANSPARENCY_MAX)
+        if object.OutlineTransparency ~= outlineTransparency then object.OutlineTransparency = outlineTransparency end
         local depth = if state:Peek("ESP.DepthMode") == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
         if object.DepthMode ~= depth then object.DepthMode = depth end
         if not object.Enabled then object.Enabled = true end
@@ -197,6 +221,73 @@ return function(services: any): any
         end
         record.BoneParts = parts
         return parts
+    end
+
+    local function visualOpacity(config: any): number
+        return math.clamp(tonumber(config.Opacity) or 1, CONFIG.OPACITY_MIN, CONFIG.OPACITY_MAX)
+    end
+
+    local function lineThickness(config: any): number
+        return math.clamp(tonumber(config.BoxThickness) or 1, CONFIG.LINE_THICKNESS_MIN, CONFIG.LINE_THICKNESS_MAX)
+    end
+
+    local function drawCornerBox(record: any, position: Vector2, size: Vector2, color: Color3, thickness: number, opacity: number)
+        ensureLines(record, CONFIG.CORNER_SEGMENTS)
+        local width, height = math.max(4, size.X * 0.26), math.max(4, size.Y * 0.2)
+        local left, top, right, bottom = position.X, position.Y, position.X + size.X, position.Y + size.Y
+        local properties = { Color = color, Thickness = thickness, Transparency = opacity }
+        draw(record, "Corner1", { From = Vector2.new(left, top), To = Vector2.new(left + width, top), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner2", { From = Vector2.new(left, top), To = Vector2.new(left, top + height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner3", { From = Vector2.new(right, top), To = Vector2.new(right - width, top), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner4", { From = Vector2.new(right, top), To = Vector2.new(right, top + height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner5", { From = Vector2.new(left, bottom), To = Vector2.new(left + width, bottom), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner6", { From = Vector2.new(left, bottom), To = Vector2.new(left, bottom - height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner7", { From = Vector2.new(right, bottom), To = Vector2.new(right - width, bottom), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner8", { From = Vector2.new(right, bottom), To = Vector2.new(right, bottom - height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+    end
+
+    local function drawOffscreenArrow(record: any, camera: Camera, worldPosition: Vector3, config: any, color: Color3, opacity: number): boolean
+        local point = camera:WorldToViewportPoint(worldPosition)
+        local viewport = camera.ViewportSize
+        if point.Z <= 0 or (point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y) then return false end
+        local centre = viewport / 2
+        local offset = Vector2.new(point.X, point.Y) - centre
+        if offset.Magnitude < 0.01 then return false end
+        local maximumRadius = math.max(CONFIG.ARROW_RADIUS_MIN, math.min(viewport.X, viewport.Y) / 2 - CONFIG.ARROW_RADIUS_EDGE_PADDING)
+        local radius = math.clamp(tonumber(config.ArrowRadius) or 260, CONFIG.ARROW_RADIUS_MIN, maximumRadius)
+        local size = math.clamp(tonumber(config.ArrowSize) or 10, CONFIG.ARROW_SIZE_MIN, CONFIG.ARROW_SIZE_MAX)
+        local direction = offset.Unit
+        local anchor = centre + direction * radius
+        local tip = anchor + direction * size
+        local base = anchor - direction * size * 0.55
+        local perpendicular = Vector2.new(-direction.Y, direction.X) * size * 0.62
+        ensureLines(record, CONFIG.ARROW_SEGMENTS)
+        local properties = { Color = color, Thickness = lineThickness(config), Transparency = opacity }
+        draw(record, "Arrow1", { From = tip, To = base + perpendicular, Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Arrow2", { From = base + perpendicular, To = base - perpendicular, Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Arrow3", { From = base - perpendicular, To = tip, Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        return true
+    end
+
+    local function tracerOrigin(camera: Camera, origin: any): Vector2
+        local viewport = camera.ViewportSize
+        if origin == "Center" then return viewport / 2 end
+        if origin == "Top" then return Vector2.new(viewport.X / 2, 0) end
+        return Vector2.new(viewport.X / 2, viewport.Y)
+    end
+
+    local function drawHealth(record: any, position: Vector2, size: Vector2, fraction: number, config: any, opacity: number): number
+        if config.HealthStyle == "Bottom" then
+            local y = position.Y + size.Y + 4
+            draw(record, "HealthBackground", { Position = Vector2.new(position.X, y), Size = Vector2.new(size.X, CONFIG.HEALTH_BAR_WIDTH), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true, Transparency = opacity })
+            draw(record, "Health", { Position = Vector2.new(position.X + 1, y + 1), Size = Vector2.new(math.max(1, (size.X - 2) * fraction), CONFIG.HEALTH_BAR_INNER_WIDTH),
+                Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true, Transparency = opacity })
+            return CONFIG.HEALTH_BAR_WIDTH + 5
+        end
+        draw(record, "HealthBackground", { Position = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET, 0), Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, size.Y), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true, Transparency = opacity })
+        draw(record, "Health", { Position = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET - 1, -size.Y * (1 - fraction)), Size = Vector2.new(CONFIG.HEALTH_BAR_INNER_WIDTH, size.Y * fraction),
+            Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true, Transparency = opacity })
+        return 0
     end
 
     local function render(dt: number)
@@ -228,41 +319,56 @@ return function(services: any): any
             elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
             if not espEnabled then hideDrawings(record); continue end
             if occluded and not filter:IsVisible(assets.Head or assets.RootPart) then hideDrawings(record); continue end
-            ensureDrawings(record)
+            local color, opacity = overlayColor(player, config, config.Color, "ESP"), visualOpacity(config)
             local position, size = bounds(camera, assets.Character)
-            if not position or not size then hideDrawings(record); continue end
+            if not position or not size then
+                if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
+                concealUnused(record)
+                continue
+            end
+            ensureDrawings(record)
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
-            local color = overlayColor(player, config, config.Color, "ESP")
             local scale = if config.AutoScaling then math.clamp(CONFIG.SCALE_MAX - distance / CONFIG.SCALE_DISTANCE_REF, CONFIG.SCALE_MIN, CONFIG.SCALE_MAX) else 1
-            local textSize, font = math.round(CONFIG.BASE_TEXT_SIZE * scale), CONFIG.FONTS[config.Font] or CONFIG.FONTS.Plex
-            if config.Box then draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = 1, Filled = false }) end
+            local baseTextSize = math.clamp(tonumber(config.TextSize) or 13, CONFIG.TEXT_SIZE_MIN, CONFIG.TEXT_SIZE_MAX)
+            local textSize, font = math.round(baseTextSize * scale), CONFIG.FONTS[config.Font] or CONFIG.FONTS.Plex
+            local thickness = lineThickness(config)
+            if config.Box then
+                if config.BoxFill then
+                    local fillOpacity = math.clamp(tonumber(config.BoxFillOpacity) or 0.12, 0, CONFIG.BOX_FILL_OPACITY_MAX) * opacity
+                    draw(record, "BoxFill", { Position = position, Size = size, Color = color, Filled = true, Transparency = fillOpacity })
+                end
+                if config.BoxStyle == "Full" then
+                    draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = thickness, Filled = false, Transparency = opacity })
+                else
+                    drawCornerBox(record, position, size, color, thickness, opacity)
+                end
+            end
             if config.Name then draw(record, "Name", { Text = `{player.DisplayName}{if player.DisplayName ~= player.Name then ` (@{player.Name})` else ""}`,
-                Position = Vector2.new(centerX, position.Y - textSize - 3), Size = textSize, Font = font, Outline = config.Outline, Color = color }) end
+                Position = Vector2.new(centerX, position.Y - textSize - 3), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity }) end
+            local healthOffset = 0
             if config.Health then
                 local fraction = math.clamp(assets.Humanoid.Health / math.max(assets.Humanoid.MaxHealth, 1), 0, 1)
-                draw(record, "HealthBackground", { Position = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET, 0), Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, size.Y), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true })
-                draw(record, "Health", { Position = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET - 1, -size.Y * (1 - fraction)), Size = Vector2.new(CONFIG.HEALTH_BAR_INNER_WIDTH, size.Y * fraction),
-                    Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true })
+                healthOffset = drawHealth(record, position, size, fraction, config, opacity)
             end
-            local textY = bottom + 3
+            local textY = bottom + 3 + healthOffset
             if config.Distance then
-                draw(record, "Distance", { Text = `{math.floor(distance)} studs`, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color })
+                draw(record, "Distance", { Text = `{math.floor(distance)} studs`, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity })
                 textY += textSize + 1
             end
             if config.Tool or config.Backpack then updateInventory(record, assets.Character) end
             if config.Tool and record.ToolText ~= "" then
-                draw(record, "Tool", { Text = record.ToolText, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color }); textY += textSize + 1
+                draw(record, "Tool", { Text = record.ToolText, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity }); textY += textSize + 1
             end
             if config.Backpack and record.InventoryText ~= "" then
-                draw(record, "Backpack", { Text = `Bag: {record.InventoryText}`, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color })
+                draw(record, "Backpack", { Text = `Bag: {record.InventoryText}`, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity })
             end
-            if config.Tracers then draw(record, "Tracer", { From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y), To = Vector2.new(centerX, bottom), Color = color }) end
+            if config.Tracers then draw(record, "Tracer", { From = tracerOrigin(camera, config.TracerOrigin), To = Vector2.new(centerX, bottom), Color = color, Thickness = thickness, Transparency = opacity }) end
             local head, headVisible = nil, false
             if config.HeadDot or config.LookDir then head, headVisible = project(camera, assets.Head.Position) end
-            if config.HeadDot and headVisible then draw(record, "HeadDot", { Position = head, Radius = math.clamp(size.X / 8, CONFIG.HEAD_DOT_MIN, CONFIG.HEAD_DOT_MAX), Filled = true, Color = color }) end
+            if config.HeadDot and headVisible then draw(record, "HeadDot", { Position = head, Radius = math.clamp(size.X / 8, CONFIG.HEAD_DOT_MIN, CONFIG.HEAD_DOT_MAX), Filled = true, Color = color, Transparency = opacity }) end
             if config.LookDir and headVisible then
                 local endpoint, visible = project(camera, assets.Head.Position + assets.Head.CFrame.LookVector * CONFIG.LOOK_DIRECTION_LENGTH)
-                if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color }) end
+                if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color, Thickness = thickness, Transparency = opacity }) end
             end
             if config.Skeleton then
                 if updateSkeleton then
@@ -272,7 +378,7 @@ return function(services: any): any
                         if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
                             local a, aVisible = project(camera, first.Position)
                             local b, bVisible = project(camera, second.Position)
-                            if aVisible and bVisible then draw(record, `Bone{index}`, { From = a, To = b, Color = color, Thickness = 1 }) end
+                            if aVisible and bVisible then draw(record, `Bone{index}`, { From = a, To = b, Color = color, Thickness = thickness, Transparency = opacity }) end
                         end
                     end
                 else

@@ -163,8 +163,10 @@ return function(services: any): any
     function AimbotService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
-            if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
+        -- The default RMB bind is often marked as processed by Roblox camera controls. It is still
+        -- the player's explicit aim-lock input, so accept the configured bind rather than dropping
+        -- it behind processed/UI state; output remains entirely client-side camera correction.
+        scope:Connect(UIS.InputBegan, function(event: InputObject, _processed: boolean)
             if environment:MatchesInput(event, state:Get("Aimbot.Keybind")) then
                 AimbotService._held, AimbotService._blocked = true, false
                 AimbotService._toggled = not AimbotService._toggled

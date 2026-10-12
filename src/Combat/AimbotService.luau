@@ -12,6 +12,7 @@ local CONFIG = table.freeze({
     CAMERA_EPSILON = 0.001,
     SMOOTHNESS_MIN = 1,
     SMOOTHNESS_MAX = 100,
+    MOUSE_MAX_STEP = 200,
     HITPARTS = {
         Head = { "Head" }, Torso = { "UpperTorso", "Torso", "LowerTorso" },
         HumanoidRootPart = { "HumanoidRootPart" }, UpperTorso = { "UpperTorso", "Torso" }, LowerTorso = { "LowerTorso", "Torso" },
@@ -59,6 +60,11 @@ return function(services: any): any
             end
         end
         return best
+    end
+
+    local function clampAxis(step: number, remaining: number): number
+        if step * remaining <= 0 then return 0 end
+        return math.sign(remaining) * math.min(math.abs(step), math.abs(remaining))
     end
 
     local function stableLookAt(eye: Vector3, target: Vector3, currentUp: Vector3?): CFrame?
@@ -140,15 +146,39 @@ return function(services: any): any
         end
         AimbotService._lastCursor = point
         local alpha = AimbotService:SmoothingAlpha(dt, config.Smoothness)
-        -- Roblox virtual mouse events can be accepted without steering the client camera. Keep
-        -- aim functional in mouse mode with the same in-client CFrame correction, never by
-        -- falling back to an executor or OS-level cursor API.
-        if not config.UseCamera and not AimbotService._warnedMouse then
-            AimbotService._warnedMouse = true
-            bus:Publish("Notify", "Mouse aim fallback", "Virtual mouse movement cannot steer this Roblox client; using in-client camera correction")
+        if config.UseCamera or not environment.Capabilities.NativeMouseMove then
+            if not config.UseCamera and not AimbotService._warnedMouse then
+                AimbotService._warnedMouse = true
+                bus:Publish("Notify", "Mouse aim fallback", "Native relative mouse movement is unavailable; using camera correction")
+            end
+            applyCameraCorrection(camera, goal, alpha)
+            AimbotService._remainder = Vector2.zero
+        else
+            cameraChanges:ReleaseProperties()
+            local remaining = screen - point
+            local delta = remaining * alpha
+            -- The executor receives relative pixels, so retain sub-pixel movement between frames.
+            local remainder = AimbotService._remainder
+            if remaining.X * remainder.X < 0 then remainder = Vector2.new(0, remainder.Y) end
+            if remaining.Y * remainder.Y < 0 then remainder = Vector2.new(remainder.X, 0) end
+            local total = delta + remainder
+            local x = clampAxis(math.round(total.X), math.sign(remaining.X) * math.floor(math.abs(remaining.X)))
+            local y = clampAxis(math.round(total.Y), math.sign(remaining.Y) * math.floor(math.abs(remaining.Y)))
+            x = math.clamp(x, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
+            y = math.clamp(y, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
+            AimbotService._remainder = Vector2.new(math.clamp(total.X - x, -1, 1), math.clamp(total.Y - y, -1, 1))
+            if x ~= 0 or y ~= 0 then
+                local moved, reason = environment:MouseMove(x, y)
+                if not moved then
+                    if not AimbotService._warnedMouse then
+                        AimbotService._warnedMouse = true
+                        bus:Publish("Notify", "Mouse aim fallback", reason or "Native mouse movement failed; using camera correction")
+                    end
+                    applyCameraCorrection(camera, goal, alpha)
+                    AimbotService._remainder = Vector2.zero
+                end
+            end
         end
-        applyCameraCorrection(camera, goal, alpha)
-        AimbotService._remainder = Vector2.zero
 
     end
 

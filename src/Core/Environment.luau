@@ -43,6 +43,9 @@ return function(disposer: any): any
     local getHui = first(probe("gethui"))
     local write, read, exists = first(probe("writefile")), first(probe("readfile")), first(probe("isfile"))
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
+    -- Desktop-relative pointer movement is intentionally opt-in for the aimbot's real mouse-lock
+    -- mode. It is never used for automated clicking.
+    local nativeMouseMove = first(probe("mousemoverel"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
@@ -72,9 +75,8 @@ return function(disposer: any): any
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
         Capabilities = table.freeze({
             Files = write ~= nil and read ~= nil, WriteFile = write ~= nil, ReadFile = read ~= nil,
-            -- Native mouse APIs are deliberately never used. They can be implemented as OS-level
-            -- input by an executor and must not move or click outside the Roblox client.
-            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = virtualInput ~= nil, NativeClick = false,
+            ListFiles = list ~= nil, DeleteFile = delete ~= nil,
+            MouseMove = nativeMouseMove ~= nil, NativeMouseMove = nativeMouseMove ~= nil, NativeClick = false,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
             QueueTeleport = queue ~= nil,
             VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
@@ -168,14 +170,12 @@ return function(disposer: any): any
         return nil
     end
 
-    -- Pointer movement is synthesized through Roblox only. It never calls executor/OS cursor APIs.
+    -- The user explicitly enabled real relative cursor movement for mouse aim. Keep it scoped to
+    -- the focused Roblox window; clicks remain client-contained VirtualInputManager events.
     function Environment:MouseMove(x: number, y: number): (boolean, string?)
-        local allowed, reason = self:CanSimulatePointerInput()
-        if not allowed then return false, reason end
-        local point = UIS:GetMouseLocation()
-        local moved, moveError = pcall(function()
-            virtualInput:SendMouseMoveEvent(math.round(point.X + x), math.round(point.Y + y), game)
-        end)
+        if not nativeMouseMove then return false, "Native relative mouse movement is unavailable" end
+        if not windowFocused then return false, "Roblox is not the focused window" end
+        local moved, moveError = pcall(nativeMouseMove, math.round(x), math.round(y))
         return moved, if moved then nil else tostring(moveError)
     end
 

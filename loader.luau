@@ -4,7 +4,7 @@ local HttpService = game:GetService("HttpService")
 local CONFIG = table.freeze({
     -- A full Git object id makes the download immutable. The loader intentionally
     -- does not follow a mutable branch such as main.
-    DEFAULT_REF = "2cee6bc33d4bf0393d11bad66875e3163ddebbd3",
+    DEFAULT_REF = "5cb634f61974fbc5404511f86ad1ec17cf2f2048",
     BASE_URL = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
     READINESS_TIMEOUT = 60,
     READINESS_POLL = 0.1,
@@ -34,13 +34,20 @@ local function resolveRef(value: any): string
     return CONFIG.DEFAULT_REF
 end
 
-local ref = resolveRef(globals.B0XazRef)
+-- A pasted current loader must replace an already-running older build instead of inheriting
+-- that build's B0XazRef. Retaining it made updates silently reload the same old implementation.
+local replacingRunningSession = globals.B0XazRunning == true
+local ref = resolveRef(if replacingRunningSession then CONFIG.DEFAULT_REF else globals.B0XazRef)
 local baseUrl = CONFIG.BASE_URL .. ref
 
-if globals.B0XazLoaderBusy or globals.B0XazRunning
-    or (type(globals.B0XazLaunching) == "number" and os.time() - globals.B0XazLaunching < CONFIG.LAUNCH_LOCK_WINDOW) then
-    return
+if globals.B0XazLoaderBusy then return end
+if replacingRunningSession then
+    local unload = globals.B0XazUnload
+    if type(unload) ~= "function" then return end
+    pcall(unload)
+    if globals.B0XazRunning == true then return end
 end
+if type(globals.B0XazLaunching) == "number" and os.time() - globals.B0XazLaunching < CONFIG.LAUNCH_LOCK_WINDOW then return end
 
 local ticket = {}
 globals.B0XazLoaderBusy = ticket

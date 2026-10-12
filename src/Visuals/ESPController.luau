@@ -5,7 +5,14 @@ local CONFIG = table.freeze({
     -- Drawing writes cross into the executor, so a steady 30 Hz overlay protects frame time in
     -- populated servers. Cached root translation keeps the box readable while full 3D bounds stay
     -- off the display-rate path.
+    -- Every record is scanned at 30 Hz so off-screen overlays and highlights disappear promptly.
+    -- Full Drawing updates scale down as more targets enter the view; a crowded scene must not
+    -- monopolize render time simply because every overlay is enabled.
     RENDER_INTERVAL = 1 / 30,
+    CROWDED_VISIBLE_COUNT = 3,
+    HEAVY_VISIBLE_COUNT = 10,
+    CROWDED_DRAW_INTERVAL = 1 / 10,
+    HEAVY_DRAW_INTERVAL = 1 / 6,
     BOUNDS_INTERVAL = 1 / 12,
     VISIBILITY_INTERVAL = 0.25,
     TOOL_REFRESH_INTERVAL = 0.5,
@@ -44,9 +51,13 @@ return function(services: any): any
         for _, last in pairs(record.Last) do last.Visible = false end
     end
 
+    local function disableChams(record: any)
+        if record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
+    end
+
     local function hide(record: any)
         hideDrawings(record)
-        if record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
+        disableChams(record)
     end
 
     local function hideAll()
@@ -59,6 +70,7 @@ return function(services: any): any
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, Highlight = nil,
             BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil,
             BodyCharacter = nil, BodyParts = nil, VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false,
+            NextDrawAt = -math.huge, Candidate = false, CandidateAssets = nil, CandidateDistance = 0, CandidateAnchor = nil,
             ToolAt = -math.huge, ToolCharacter = nil, ToolText = "[None]" }
         ESPController._records[player] = record
         owner:Add(function()
@@ -249,27 +261,50 @@ return function(services: any): any
             return
         end
         ESPController._idle = false
-        local camera, now = Workspace.CurrentCamera, os.clock()
+        local camera, now, visibleCount = Workspace.CurrentCamera, os.clock(), 0
+
+        -- This inexpensive pass immediately removes off-screen records and culls Highlights before
+        -- their GPU work can add up. It deliberately does not allocate a candidate list each frame.
         for player, record in pairs(ESPController._records) do
-            table.clear(record.Shown)
+            record.Candidate = false
             if not camera then hide(record); continue end
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
             local distance = (camera.CFrame.Position - assets.RootPart.Position).Magnitude
             if distance > math.max(1, espConfig.MaxDistance) then hide(record); continue end
-            local color = overlayColor(player, espConfig)
-            if chamsEnabled then chams(record, assets.Character, color, espConfig.DepthMode)
-            elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
-            if not espEnabled then hideDrawings(record); continue end
             local anchor, visible = rootProjection(camera, assets.RootPart.Position)
-            if not visible then concealUnused(record); continue end
+            if not visible then
+                record.NextDrawAt = -math.huge
+                hideDrawings(record); disableChams(record)
+                continue
+            end
+            visibleCount += 1
+            record.Candidate, record.CandidateAssets = true, assets
+            record.CandidateDistance, record.CandidateAnchor = distance, anchor
+            if chamsEnabled then chams(record, assets.Character, overlayColor(player, espConfig), espConfig.DepthMode)
+            else disableChams(record) end
+            if not espEnabled then hideDrawings(record) end
+        end
+        if not espEnabled then return end
+
+        -- At three or fewer visible players the normal 30 Hz path is retained. Above that, each
+        -- record gets a stable lower update cadence while its last drawing remains visible. This
+        -- avoids multiplying expensive Drawing property writes by every player in a crowded view.
+        local drawInterval = if visibleCount > CONFIG.HEAVY_VISIBLE_COUNT then CONFIG.HEAVY_DRAW_INTERVAL
+            elseif visibleCount > CONFIG.CROWDED_VISIBLE_COUNT then CONFIG.CROWDED_DRAW_INTERVAL
+            else CONFIG.RENDER_INTERVAL
+        for player, record in pairs(ESPController._records) do
+            if not record.Candidate or now < record.NextDrawAt then continue end
+            record.NextDrawAt = now + drawInterval
+            table.clear(record.Shown)
+            local assets, distance, anchor = record.CandidateAssets, record.CandidateDistance, record.CandidateAnchor
             if espConfig.DepthMode == "Occluded" and not cachedVisibility(record, assets.Head or assets.RootPart, assets.Character, now) then
                 hideDrawings(record)
                 continue
             end
             local position, size = cachedBounds(record, camera, assets.Character, anchor, now)
             if not position or not size then concealUnused(record); continue end
-            local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
+            local color, centerX, bottom = overlayColor(player, espConfig), position.X + size.X / 2, position.Y + size.Y
             if espConfig.Box then
                 if espConfig.BoxStyle == "Corner" then drawCornerBox(record, position, size, color)
                 else draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 }) end

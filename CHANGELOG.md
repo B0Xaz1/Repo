@@ -10,6 +10,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 - Running a newly copied loader now cleanly replaces an active older session and selects the new loader's immutable build, rather than silently relaunching the old session revision.
 - The visible menu now prefers Roblox's engine-owned `PlayerGui` over executor GUI hosts, avoiding executor-host-specific composition behavior while the menu is open.
 - Rebuilt the player ESP workspace with corner or full frames, optional frame tinting, horizontal or vertical health, configurable label scale and opacity, selectable tracer origins, off-screen pointers, and fully tunable native chams transparency.
+- Kept all player ESP and chams controls under one top-level node with lightweight internal disclosure rows, and reduced ESP frame cost through 30 Hz sampling, cached bounds and visibility results, off-screen early culling, and lazy Drawing allocation.
 - Restored client-contained virtual mouse movement for input-driven features and refined pointer safety so passive HUD and active HUD-root frames no longer block gameplay input. Interactive Roblox UI, text entry, menus, and unfocused windows remain protected; mouse-aim feedback now reports the actual unavailable reason.
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.

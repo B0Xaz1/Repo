@@ -2,8 +2,12 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    RENDER_INTERVAL = 1 / 60,
-    SKELETON_INTERVAL = 1 / 30,
+    -- ESP samples at a stable 30 Hz instead of doing per-player projection and raycast work at
+    -- every render callback. This remains visually responsive while protecting client frame time.
+    RENDER_INTERVAL = 1 / 30,
+    BOUNDS_INTERVAL = 1 / 20,
+    VISIBILITY_INTERVAL = 0.15,
+    SKELETON_INTERVAL = 1 / 20,
     INVENTORY_REFRESH = 0.25,
     RAINBOW_SPEED = 0.15,
     SCALE_DISTANCE_REF = 1500,
@@ -74,7 +78,9 @@ return function(services: any): any
         if player == Players.LocalPlayer or ESPController._records[player] then return end
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Highlight = nil, Signature = "", InventoryText = "", ToolText = "",
-            InventoryAt = -math.huge, Shown = {}, Last = {}, Bones = false, Rig = nil, BoneParts = nil }
+            InventoryAt = -math.huge, Shown = {}, Last = {}, Bones = false, Rig = nil, BoneParts = nil,
+            BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil,
+            VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false }
         ESPController._records[player] = record
         owner:Add(function()
             for _, object in pairs(record.Drawings) do pool:Release(object) end
@@ -93,10 +99,6 @@ return function(services: any): any
         record.Drawings[name] = pool:Acquire(kind)
     end
 
-    local function ensureDrawings(record: any)
-        for name, kind in pairs(CONFIG.BASE_DRAWINGS) do ensureDrawing(record, name, kind) end
-    end
-
     local function ensureLines(record: any, names: { string })
         for _, name in ipairs(names) do ensureDrawing(record, name, "Line") end
     end
@@ -111,6 +113,10 @@ return function(services: any): any
     -- which costs far more than comparing against the cached value
     local function draw(record: any, name: string, properties: any)
         local object = record.Drawings[name]
+        if not object then
+            local kind = CONFIG.BASE_DRAWINGS[name]
+            if kind then ensureDrawing(record, name, kind); object = record.Drawings[name] end
+        end
         if not object then return end
         local last = record.Last[name]
         if not last then last = {}; record.Last[name] = last end
@@ -146,6 +152,30 @@ return function(services: any): any
         end end end
         if maxX < 0 or minX > camera.ViewportSize.X or maxY < 0 or minY > camera.ViewportSize.Y then return nil, nil end
         return Vector2.new(minX, minY), Vector2.new(maxX - minX, maxY - minY)
+    end
+
+    local function cachedBounds(record: any, camera: Camera, character: Model, now: number): (Vector2?, Vector2?)
+        local stale = record.BoundsCharacter ~= character or record.BoundsCamera ~= camera or now - record.BoundsAt >= CONFIG.BOUNDS_INTERVAL
+        if stale then
+            record.BoundsPosition, record.BoundsSize = bounds(camera, character)
+            record.BoundsAt, record.BoundsCharacter, record.BoundsCamera = now, character, camera
+        end
+        return record.BoundsPosition, record.BoundsSize
+    end
+
+    local function cachedVisibility(record: any, part: BasePart, character: Model, now: number): boolean
+        local stale = record.VisibilityCharacter ~= character or now - record.VisibilityAt >= CONFIG.VISIBILITY_INTERVAL
+        if stale then
+            record.Visibility = filter:IsVisible(part)
+            record.VisibilityAt, record.VisibilityCharacter = now, character
+        end
+        return record.Visibility == true
+    end
+
+    local function inViewport(camera: Camera, position: Vector3): boolean
+        local point = camera:WorldToViewportPoint(position)
+        local viewport = camera.ViewportSize
+        return point.Z > 0 and point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y
     end
 
     local function updateInventory(record: any, character: Model)
@@ -306,7 +336,7 @@ return function(services: any): any
         end
         ESPController._idle = false
         local camera = Workspace.CurrentCamera
-        local occluded = config.DepthMode == "Occluded"
+        local occluded, now = config.DepthMode == "Occluded", os.clock()
         for player, record in pairs(ESPController._records) do
             table.clear(record.Shown)
             if not camera then hide(record); continue end
@@ -318,15 +348,21 @@ return function(services: any): any
             if chamsEnabled then chams(record, assets, chamsConfig)
             elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
             if not espEnabled then hideDrawings(record); continue end
-            if occluded and not filter:IsVisible(assets.Head or assets.RootPart) then hideDrawings(record); continue end
             local color, opacity = overlayColor(player, config, config.Color, "ESP"), visualOpacity(config)
-            local position, size = bounds(camera, assets.Character)
+            -- Off-screen records only need a single root projection for optional direction pointers;
+            -- skip their expensive occlusion raycast and 3D-box projection entirely.
+            if not inViewport(camera, assets.RootPart.Position) then
+                if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
+                concealUnused(record)
+                continue
+            end
+            if occluded and not cachedVisibility(record, assets.Head or assets.RootPart, assets.Character, now) then hideDrawings(record); continue end
+            local position, size = cachedBounds(record, camera, assets.Character, now)
             if not position or not size then
                 if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
                 concealUnused(record)
                 continue
             end
-            ensureDrawings(record)
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
             local scale = if config.AutoScaling then math.clamp(CONFIG.SCALE_MAX - distance / CONFIG.SCALE_DISTANCE_REF, CONFIG.SCALE_MIN, CONFIG.SCALE_MAX) else 1
             local baseTextSize = math.clamp(tonumber(config.TextSize) or 13, CONFIG.TEXT_SIZE_MIN, CONFIG.TEXT_SIZE_MAX)

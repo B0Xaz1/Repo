@@ -97,6 +97,39 @@ return function(services: any): any
         end
         return handle
     end
+    -- A subsection is a lightweight disclosure row inside an existing section, not another card.
+    -- It keeps long workspaces navigable while preserving one top-level menu node.
+    function Section:Subsection(parent: Instance, title: string, initiallyOpen: boolean?): Frame
+        orders[parent] = (orders[parent] or 0) + 1
+        local outer = dom:Create("Frame", { Parent = parent, Name = "Subsection", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent] })
+        outer:SetAttribute("B0XazSubsection", title)
+        dom:Create("UIListLayout", { Parent = outer, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+        local header = dom:Create("TextButton", { Parent = outer, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20),
+            LayoutOrder = 0, Text = "", AutoButtonColor = false, Selectable = true })
+        header:SetAttribute("B0XazBorderless", true)
+        local label = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Size = UDim2.new(1, -22, 1, 0), Text = title,
+            Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
+        local indicator = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.new(1, -20, 0, 0), Size = UDim2.fromOffset(20, 20),
+            Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center })
+        theme:BindToken(label, "TextColor3", "Accent")
+        theme:BindToken(indicator, "TextColor3", "TextMuted")
+        local content = dom:Create("Frame", { Parent = outer, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            LayoutOrder = 1, Visible = initiallyOpen ~= false })
+        dom:CreatePadding(content, 0, 4, 3, 4)
+        local owner = disposer:CreateChild(`Subsection {title}`)
+        local function paint()
+            indicator.Text = if content.Visible then "v" else ">"
+        end
+        paint()
+        owner:ConnectImmediate(header.Activated, function()
+            content.Visible = not content.Visible
+            paint()
+        end)
+        owner:Connect(outer.Destroying, function() owner:Dispose() end)
+        return content
+    end
+
     function Section:StyleButton(button: TextButton, owner: any, token: string?, borderless: boolean?)
         local normal = token or "Elem"
         if borderless then button:SetAttribute("B0XazBorderless", true) end

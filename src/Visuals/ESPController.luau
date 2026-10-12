@@ -6,18 +6,24 @@ local CONFIG = table.freeze({
     -- preserving smooth camera pans without bringing expensive eight-corner bounds work back per frame.
     RENDER_INTERVAL = 1 / 60,
     BOUNDS_INTERVAL = 1 / 20,
+    VISIBILITY_INTERVAL = 0.15,
     TOOL_REFRESH_INTERVAL = 0.2,
     MAX_DISTANCE = 2500,
-    COLOR = Color3.fromRGB(255, 221, 87),
     TEXT_SIZE = 14,
     BOX_THICKNESS = 1,
+    MAX_BOX_ASPECT_RATIO = 2.5,
     CHAMS_FILL_TRANSPARENCY = 0.66,
     CHAMS_OUTLINE_TRANSPARENCY = 0.05,
+    -- Direct body-part names deliberately exclude Tool and accessory geometry. Those instances
+    -- can be extremely long and were the source of the occasional screen-spanning ESP box.
+    BODY_PART_NAMES = { "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
+        "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
+        "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
     BASE_DRAWINGS = { Box = "Square", Name = "Text", Tool = "Text", Health = "Text" },
 })
 
 return function(services: any): any
-    local state, tracker, pool = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool")
+    local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
     local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
     local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _renderElapsed = 0 }
@@ -43,6 +49,7 @@ return function(services: any): any
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, Highlight = nil,
             BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil,
+            VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false,
             ToolAt = -math.huge, ToolCharacter = nil, ToolText = "[None]" }
         ESPController._records[player] = record
         owner:Add(function()
@@ -94,16 +101,37 @@ return function(services: any): any
         return Vector2.new(point.X, point.Y), point.Z > 0 and point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y
     end
 
+    local function fallbackBounds(camera: Camera, character: Model): (Vector2?, Vector2?)
+        local root, head = character:FindFirstChild("HumanoidRootPart"), character:FindFirstChild("Head")
+        if not root or not root:IsA("BasePart") or not head or not head:IsA("BasePart") then return nil, nil end
+        local rootPoint, rootVisible = camera:WorldToViewportPoint(root.Position)
+        local headPoint, headVisible = camera:WorldToViewportPoint(head.Position)
+        if not rootVisible or not headVisible or rootPoint.Z <= 0 or headPoint.Z <= 0 then return nil, nil end
+        local height = math.abs(rootPoint.Y - headPoint.Y) * 2.6
+        if height < 8 then return nil, nil end
+        local width = height * 0.46
+        local centerX = (rootPoint.X + headPoint.X) / 2
+        return Vector2.new(centerX - width / 2, headPoint.Y - height * 0.14), Vector2.new(width, height)
+    end
+
     local function bounds(camera: Camera, character: Model): (Vector2?, Vector2?)
-        local frame, size = character:GetBoundingBox()
-        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
-        for x = -1, 1, 2 do for y = -1, 1, 2 do for z = -1, 1, 2 do
-            local point = camera:WorldToViewportPoint((frame * CFrame.new(size.X * x / 2, size.Y * y / 2, size.Z * z / 2)).Position)
-            if point.Z <= 0 then return nil, nil end
-            minX, minY, maxX, maxY = math.min(minX, point.X), math.min(minY, point.Y), math.max(maxX, point.X), math.max(maxY, point.Y)
-        end end end
-        if maxX < 0 or minX > camera.ViewportSize.X or maxY < 0 or minY > camera.ViewportSize.Y then return nil, nil end
-        return Vector2.new(minX, minY), Vector2.new(maxX - minX, maxY - minY)
+        local minX, minY, maxX, maxY, projected = math.huge, math.huge, -math.huge, -math.huge, 0
+        for _, name in ipairs(CONFIG.BODY_PART_NAMES) do
+            local part = character:FindFirstChild(name)
+            if not part or not part:IsA("BasePart") then continue end
+            local size = part.Size
+            for x = -1, 1, 2 do for y = -1, 1, 2 do for z = -1, 1, 2 do
+                local point = camera:WorldToViewportPoint((part.CFrame * CFrame.new(size.X * x / 2, size.Y * y / 2, size.Z * z / 2)).Position)
+                if point.Z > 0 then
+                    minX, minY, maxX, maxY = math.min(minX, point.X), math.min(minY, point.Y), math.max(maxX, point.X), math.max(maxY, point.Y)
+                    projected += 1
+                end
+            end end end
+        end
+        if projected == 0 or maxX < 0 or minX > camera.ViewportSize.X or maxY < 0 or minY > camera.ViewportSize.Y then return nil, nil end
+        local size = Vector2.new(maxX - minX, maxY - minY)
+        if size.Y <= 0 or size.X / size.Y > CONFIG.MAX_BOX_ASPECT_RATIO then return fallbackBounds(camera, character) end
+        return Vector2.new(minX, minY), size
     end
 
     local function cachedBounds(record: any, camera: Camera, character: Model, anchor: Vector2, now: number): (Vector2?, Vector2?)
@@ -117,6 +145,19 @@ return function(services: any): any
         return record.BoundsPosition + (anchor - record.BoundsAnchor), record.BoundsSize
     end
 
+    local function cachedVisibility(record: any, part: BasePart, character: Model, now: number): boolean
+        local stale = record.VisibilityCharacter ~= character or now - record.VisibilityAt >= CONFIG.VISIBILITY_INTERVAL
+        if stale then
+            record.Visibility, record.VisibilityAt, record.VisibilityCharacter = filter:IsVisible(part), now, character
+        end
+        return record.Visibility == true
+    end
+
+    local function overlayColor(player: Player, config: any): Color3
+        if config.UseTeamColor then return filter:GetTeamColor(player) end
+        return config.Color
+    end
+
     local function updateTool(record: any, character: Model, now: number)
         if record.ToolCharacter == character and now - record.ToolAt < CONFIG.TOOL_REFRESH_INTERVAL then return end
         local tool = character:FindFirstChildOfClass("Tool")
@@ -124,7 +165,7 @@ return function(services: any): any
         record.ToolText = if tool then `[{tool.Name}]` else "[None]"
     end
 
-    local function chams(record: any, character: Model)
+    local function chams(record: any, character: Model, color: Color3, depthMode: string)
         if not ESPController._chamsAvailable then return end
         if not record.Highlight or not record.Highlight.Parent then
             local ok, highlight = pcall(function()
@@ -144,11 +185,12 @@ return function(services: any): any
         end
         local object = record.Highlight
         if object.Adornee ~= character then object.Adornee, object.Parent = character, character end
-        if object.FillColor ~= CONFIG.COLOR then object.FillColor = CONFIG.COLOR end
-        if object.OutlineColor ~= CONFIG.COLOR then object.OutlineColor = CONFIG.COLOR end
+        if object.FillColor ~= color then object.FillColor = color end
+        if object.OutlineColor ~= color then object.OutlineColor = color end
         if object.FillTransparency ~= CONFIG.CHAMS_FILL_TRANSPARENCY then object.FillTransparency = CONFIG.CHAMS_FILL_TRANSPARENCY end
         if object.OutlineTransparency ~= CONFIG.CHAMS_OUTLINE_TRANSPARENCY then object.OutlineTransparency = CONFIG.CHAMS_OUTLINE_TRANSPARENCY end
-        if object.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then object.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
+        local depth = if depthMode == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
+        if object.DepthMode ~= depth then object.DepthMode = depth end
         if not object.Enabled then object.Enabled = true end
     end
 
@@ -171,14 +213,19 @@ return function(services: any): any
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
             local distance = (camera.CFrame.Position - assets.RootPart.Position).Magnitude
             if distance > CONFIG.MAX_DISTANCE then hide(record); continue end
-            if chamsEnabled then chams(record, assets.Character)
+            local color = overlayColor(player, espConfig)
+            if chamsEnabled then chams(record, assets.Character, color, espConfig.DepthMode)
             elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
             if not espEnabled then hideDrawings(record); continue end
             local anchor, visible = rootProjection(camera, assets.RootPart.Position)
             if not visible then concealUnused(record); continue end
+            if espConfig.DepthMode == "Occluded" and not cachedVisibility(record, assets.Head or assets.RootPart, assets.Character, now) then
+                hideDrawings(record)
+                continue
+            end
             local position, size = cachedBounds(record, camera, assets.Character, anchor, now)
             if not position or not size then concealUnused(record); continue end
-            local centerX, bottom, color = position.X + size.X / 2, position.Y + size.Y, CONFIG.COLOR
+            local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
             if espConfig.Box then
                 draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 })
             end
@@ -199,6 +246,11 @@ return function(services: any): any
         end
     end
 
+    local function syncThemeColor()
+        if state:Peek("ESP.ColorFollowsTheme") ~= true then return end
+        state:Set("ESP.Color", services:Get("ThemeEngine"):GetToken("Accent"))
+    end
+
     local function syncJob()
         local on = state:Peek("ESP.Enabled") == true or state:Peek("Chams.Enabled") == true
         if ESPController._job then ESPController._job.Enabled = on end
@@ -214,6 +266,11 @@ return function(services: any): any
         self._job = scheduler:RegisterRender("Visuals.ESP", 10, render)
         scope:Add(state:Observe("ESP.Enabled", syncJob))
         scope:Add(state:Observe("Chams.Enabled", syncJob))
+        scope:Add(state:Observe("ESP.ColorFollowsTheme", function(follows: boolean)
+            if follows then syncThemeColor() end
+        end))
+        scope:Add(bus:Subscribe("ThemeChanged", syncThemeColor))
+        syncThemeColor()
         syncJob()
     end
 

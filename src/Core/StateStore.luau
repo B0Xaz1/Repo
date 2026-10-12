@@ -27,8 +27,9 @@ local CONFIG = deepFreeze({
             FreecamEnabled = false, FreecamSpeed = 32, MouseLockEnabled = false, WallWalkEnabled = false,
         },
         -- The player overlay intentionally stays minimal: full box, name/range, tool, numeric health,
-        -- and an optional native Highlight. Advanced overlay variants are retired rather than hidden.
-        ESP = { Enabled = false, Box = true, Name = true, Tool = true, Health = true },
+        -- and an optional native Highlight. Accent-following makes its default color match the menu.
+        ESP = { Enabled = false, Box = true, Name = true, Tool = true, Health = true,
+            Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
         Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
         Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
@@ -292,6 +293,16 @@ return function(eventBus: any, disposer: any): any
         else
             normalized.Settings.MenuKeybind = normalized.Settings.Binds.Menu
         end
+        local incomingEsp = if type(snapshot.ESP) == "table" then snapshot.ESP else {}
+        local incomingChams = if type(snapshot.Chams) == "table" then snapshot.Chams else {}
+        -- Existing custom ESP colors should remain custom. The former blue default and snapshots
+        -- without a color follow the active menu accent when they migrate to this compact overlay.
+        if incomingEsp.ColorFollowsTheme == nil and typeof(incomingEsp.Color) == "Color3"
+            and incomingEsp.Color ~= Color3.fromRGB(129, 167, 255) then
+            normalized.ESP.ColorFollowsTheme = false
+        end
+        local savedDepth = if type(incomingEsp.DepthMode) == "string" then incomingEsp.DepthMode else incomingChams.DepthMode
+        if savedDepth == "Occluded" or savedDepth == "AlwaysOnTop" then normalized.ESP.DepthMode = savedDepth end
         if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
         if not table.find({ "Comfortable", "Compact" }, normalized.Settings.InterfaceDensity) then normalized.Settings.InterfaceDensity = "Compact" end
         normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)

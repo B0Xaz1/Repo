@@ -6,7 +6,7 @@ return function(services: any, tab: any): any
     local dropdown = load("src/UI/Components/Dropdown.luau", services)
     local color = load("src/UI/Components/ColorPicker.luau", services)
     local textbox = load("src/UI/Components/Textbox.luau", services)
-    local environment, lighting = services:Get("Environment"), services:Get("LightingService")
+    local lighting = services:Get("LightingService")
     local optimizer = services:Get("OptimizerService")
     local esp = section:Create(tab.LeftCol, "ESP features", "ESP")
     if not services:Get("DrawingPool").Available then
@@ -44,13 +44,6 @@ return function(services: any, tab: any): any
         { "Disable particles", "NoParticles" }, { "Disable post-processing", "NoPostProcessing" }, { "Reduce terrain water", "OptimizeTerrain" },
         { "Disable dynamic lights", "NoLights" }, { "Disable highlights", "NoHighlights" } }) do
         toggle(performance, entry[1], `Performance.{entry[2]}`, nil)
-    end
-
-    local frameRate = section:Create(tab.RightCol, "Frame rate")
-    section:Info(frameRate, "Remove the executor frame cap. The suite requests a high ceiling rather than the executor's 60-FPS fallback.")
-    textbox:CreateButton(frameRate, "Uncap FPS", function() return optimizer:UncapFps(true) end)
-    if not environment:HasFpsCap() then
-        section:Info(frameRate, "This executor does not expose a frame-cap API. Rendering options still work.")
     end
 
     local maintenance = section:Create(tab.RightCol, "Performance maintenance")

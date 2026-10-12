@@ -6,9 +6,6 @@ local GuiService = game:GetService("GuiService")
 local CONFIG = table.freeze({
     ROOT = "B0XazUniversal/",
     CONFIGS_SUBFOLDER = "Configs",
-    -- A high ceiling avoids executor implementations that treat zero as a 60-FPS fallback.
-    FPS_UNCAPPED = 1000,
-    FPS_FFLAG = "DFIntTaskSchedulerTargetFps",
     CLICK_RELEASE_DELAY = 0.03,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
 })
@@ -48,21 +45,6 @@ return function(disposer: any): any
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
-    local setFflag = first(probe("setfflag"), member(globals, "setfflag"), member(syn, "setfflag"), member(fluxus, "setfflag"))
-    -- Executors expose several spellings, and some publish a no-op alias beside the working one.
-    -- Keep distinct setters so UncapFps can request the same high ceiling through each supported API.
-    local fpsSetters, seenFpsSetters = {}, {}
-    local function addFpsSetter(candidate: any)
-        if type(candidate) ~= "function" or seenFpsSetters[candidate] then return end
-        seenFpsSetters[candidate] = true
-        table.insert(fpsSetters, candidate)
-    end
-    for _, name in ipairs({ "setfpscap", "set_fps_cap", "setfps", "set_fps_limit", "setfpslimit" }) do
-        addFpsSetter(probe(name))
-        addFpsSetter(member(globals, name))
-        addFpsSetter(member(syn, name))
-        addFpsSetter(member(fluxus, name))
-    end
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
@@ -84,7 +66,7 @@ return function(disposer: any): any
     local cachedParent: Instance? = nil
     local virtualInput: any = nil
     pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
-    local mousePressed, windowFocused, fflagApplied = false, true, false
+    local mousePressed, windowFocused = false, true
 
     local Environment = {
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
@@ -94,7 +76,7 @@ return function(disposer: any): any
             -- input by an executor and must not move or click outside the Roblox client.
             ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = virtualInput ~= nil, NativeClick = false,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
-            QueueTeleport = queue ~= nil, FpsCap = #fpsSetters > 0 or setFflag ~= nil,
+            QueueTeleport = queue ~= nil,
             VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
             Drawing = type(drawing) == "table" and type(drawing.new) == "function",
         }),
@@ -208,24 +190,6 @@ return function(disposer: any): any
     function Environment:QueueTeleport(source: string): boolean
         if not queue then return false end
         return pcall(queue, source)
-    end
-
-    function Environment:HasFpsCap(): boolean return #fpsSetters > 0 or setFflag ~= nil end
-
-    function Environment:UncapFps(): boolean
-        local applied = false
-        -- Never finish with zero: several APIs silently turn it into a 60-FPS cap. Every distinct
-        -- setter receives the same high ceiling, so alternate executor aliases get a chance to work.
-        for _, setter in ipairs(fpsSetters) do
-            if pcall(setter, CONFIG.FPS_UNCAPPED) then applied = true end
-        end
-        -- Some clients expose a setter that succeeds but leaves Roblox's scheduler at 60. Use the
-        -- optional scheduler target fallback once when the executor supports Fast Flag writes.
-        if setFflag and not fflagApplied then
-            local changed = pcall(setFflag, CONFIG.FPS_FFLAG, tostring(CONFIG.FPS_UNCAPPED))
-            if changed then fflagApplied, applied = true, true end
-        end
-        return applied
     end
 
     function Environment:IsMobile(): boolean return UIS.TouchEnabled and not UIS.KeyboardEnabled end
@@ -376,7 +340,6 @@ return function(disposer: any): any
             mousePressed = false
             pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
         end
-        Environment:UncapFps()
     end)
 
     return Environment

@@ -4,7 +4,6 @@ local Lighting = game:GetService("Lighting")
 local CONFIG = table.freeze({
     STREAM_CHUNK_SIZE = 160,
     RECONCILE_DELAY = 0.12,
-    MENU_UNCAP_REASSERT_INTERVAL = 1,
     OWNED_EFFECT_PREFIX = "^B0Xaz",
     SURFACE_APPEARANCE_MAPS = { "ColorMap", "MetalnessMap", "NormalMap", "RoughnessMap" },
     TERRAIN_TWEAKS = { WaterWaveSize = 0, WaterWaveSpeed = 0, WaterReflectance = 0, WaterTransparency = 1, Decoration = false },
@@ -18,11 +17,11 @@ local CONFIG = table.freeze({
 })
 
 return function(services: any): any
-    local state, environment, bus = services:Get("StateStore"), services:Get("Environment"), services:Get("EventBus")
+    local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("OptimizerService")
     local changes = scope:CreateChild("Optimizations")
     local OptimizerService = { _caches = {}, _applied = {}, _revision = 0, _initialized = false,
-        _applyRequested = false, _applyWorkerActive = false, _fpsUncapped = false, _fpsFocusRevision = 0 }
+        _applyRequested = false, _applyWorkerActive = false }
 
     for _, flag in ipairs(CONFIG.FLAGS) do OptimizerService._caches[flag] = {} end
 
@@ -172,42 +171,6 @@ return function(services: any): any
         return true, "Performance visual changes are being restored"
     end
 
-    function OptimizerService:UncapFps(force: boolean?): (boolean, string)
-        if self._fpsUncapped and not force then return true, "Frame rate is uncapped" end
-        if not environment:HasFpsCap() then return false, "FPS-cap support is unavailable on this executor" end
-        -- Environment requests the executor's high supported ceiling rather than its 60-FPS default.
-        local ok = environment:UncapFps()
-        if not ok then return false, "The executor rejected the uncapped frame rate request" end
-        self._fpsUncapped = true
-        return true, "Frame rate is uncapped"
-    end
-
-    -- Opening or focusing Roblox UI can reset some executor caps to 60 after the first write.
-    -- Reassert after the menu transition settles, rather than polling every frame while it is open.
-    function OptimizerService:ReassertFpsCapAfterMenuFocus()
-        self._fpsFocusRevision += 1
-        local revision = self._fpsFocusRevision
-        local function reassert()
-            if scope:IsDisposed() or revision ~= self._fpsFocusRevision or not state:Peek("Settings.MenuVisible") then return end
-            self:UncapFps(true)
-        end
-        reassert()
-        scope:Delay(0.15, reassert)
-        scope:Delay(0.6, reassert)
-    end
-
-    -- A few executor clients reapply their 60-FPS fallback while a Roblox GUI is focused.
-    -- This low-frequency guard is active only while this menu is visible; it is not frame work.
-    function OptimizerService:MaintainUncappedFpsWhileMenuVisible()
-        if not environment:HasFpsCap() then return end
-        scope:Spawn(function()
-            while not scope:IsDisposed() do
-                task.wait(CONFIG.MENU_UNCAP_REASSERT_INTERVAL)
-                if state:Peek("Settings.MenuVisible") then self:UncapFps(true) end
-            end
-        end)
-    end
-
     function OptimizerService:FlushMemory(): (boolean, string)
         local collected = pcall(function() collectgarbage("collect") end)
         return collected, if collected then "Garbage collection requested" else "This client restricts forced collection; Lua will collect automatically"
@@ -217,16 +180,7 @@ return function(services: any): any
         if self._initialized then return end
         self._initialized = true
         for _, flag in ipairs(CONFIG.FLAGS) do scope:Add(state:Observe(`Performance.{flag}`, function() OptimizerService:RequestApply() end)) end
-        scope:Add(state:Observe("Settings.MenuVisible", function(visible: boolean)
-            if visible then OptimizerService:ReassertFpsCapAfterMenuFocus() end
-        end))
-        scope:Add(bus:Subscribe("TabSelected", function()
-            if state:Peek("Settings.MenuVisible") then OptimizerService:ReassertFpsCapAfterMenuFocus() end
-        end))
-        scope:Add(bus:Subscribe("SettingsHydrated", function()
-            OptimizerService:RequestApply()
-            OptimizerService:UncapFps(true)
-        end))
+        scope:Add(bus:Subscribe("SettingsHydrated", function() OptimizerService:RequestApply() end))
         scope:ConnectImmediate(Workspace.DescendantAdded, function(object: Instance)
             local active = activeFeatures()
             if anyActive(active) then applyToInstance(object, active) end
@@ -236,12 +190,10 @@ return function(services: any): any
             if anyActive(active) then applyToInstance(object, active) end
         end)
         self:RequestApply()
-        self:UncapFps(true)
-        self:MaintainUncappedFpsWhileMenuVisible()
     end
 
     function OptimizerService:Destroy() scope:Dispose() end
 
-    scope:Add(function() OptimizerService:RestoreAll(); environment:UncapFps() end)
+    scope:Add(function() OptimizerService:RestoreAll() end)
     return OptimizerService
 end

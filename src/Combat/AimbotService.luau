@@ -12,7 +12,11 @@ local CONFIG = table.freeze({
     CAMERA_EPSILON = 0.001,
     SMOOTHNESS_MIN = 1,
     SMOOTHNESS_MAX = 100,
-    MOUSE_MAX_STEP = 200,
+    -- Native pointer movement is consumed by Roblox on the next camera update. Limiting the
+    -- feedback gain prevents a low-smoothness correction from overshooting and oscillating.
+    MOUSE_MAX_ALPHA = 0.18,
+    MOUSE_MAX_STEP = 28,
+    MOUSE_DEADZONE = 1.5,
     HITPARTS = {
         Head = { "Head" }, Torso = { "UpperTorso", "Torso", "LowerTorso" },
         HumanoidRootPart = { "HumanoidRootPart" }, UpperTorso = { "UpperTorso", "Torso" }, LowerTorso = { "LowerTorso", "Torso" },
@@ -165,14 +169,18 @@ return function(services: any): any
             return
         end
         local screen = Vector2.new(projected.X, projected.Y)
-        if config.BreakOnPull and AimbotService._lastCursor and not environment:IsMobile()
+        local nativeMouseAim = not config.UseCamera and environment.Capabilities.NativeMouseMove
+        -- mousemoverel is delivered through the same input path as a player's physical movement.
+        -- Treating that expected feedback as a manual pull makes native mouse aim repeatedly drop
+        -- its target at low smoothness. Break On Mouse Pull remains available for camera aim.
+        if config.BreakOnPull and not nativeMouseAim and AimbotService._lastCursor and not environment:IsMobile()
             and (point - AimbotService._lastCursor).Magnitude > CONFIG.BREAK_PULL_CURSOR_EPSILON
             and (screen - point).Magnitude > math.max(CONFIG.MIN_LOCK_RADIUS_FLOOR, config.MaxLockRadius) then
             AimbotService._lastCursor = point; drop(true); return
         end
         AimbotService._lastCursor = point
         local alpha = AimbotService:SmoothingAlpha(dt, config.Smoothness)
-        if config.UseCamera or not environment.Capabilities.NativeMouseMove then
+        if not nativeMouseAim then
             if not config.UseCamera and not AimbotService._warnedMouse then
                 AimbotService._warnedMouse = true
                 bus:Publish("Notify", "Mouse aim fallback", "Native relative mouse movement is unavailable; using camera correction")
@@ -182,7 +190,14 @@ return function(services: any): any
         else
             cameraChanges:ReleaseProperties()
             local remaining = screen - point
-            local delta = remaining * alpha
+            -- Native relative input reaches the camera on a later update, unlike the synchronous
+            -- CFrame path. A capped feedback gain and bounded step keep low smoothness responsive
+            -- without the over-correction loop that made mouse aim shake around a target.
+            if remaining.Magnitude <= CONFIG.MOUSE_DEADZONE then
+                AimbotService._remainder = Vector2.zero
+                return
+            end
+            local delta = remaining * math.min(alpha, CONFIG.MOUSE_MAX_ALPHA)
             -- The executor receives relative pixels, so retain sub-pixel movement between frames.
             local remainder = AimbotService._remainder
             if remaining.X * remainder.X < 0 then remainder = Vector2.new(0, remainder.Y) end

@@ -15,10 +15,8 @@ local CONFIG = table.freeze({
     BOX_THICKNESS = 1,
     CORNER_WIDTH_FACTOR = 0.26,
     CORNER_HEIGHT_FACTOR = 0.2,
-    HEALTH_BAR_WIDTH = 4,
     HEALTH_BAR_INNER_WIDTH = 2,
     HEALTH_BAR_OFFSET = 7,
-    HEALTH_BAR_BACKGROUND = Color3.fromRGB(15, 19, 25),
     HEALTH_LOW = Color3.fromRGB(247, 87, 105),
     HEALTH_HIGH = Color3.fromRGB(79, 222, 157),
     MAX_BOX_ASPECT_RATIO = 2.5,
@@ -29,7 +27,10 @@ local CONFIG = table.freeze({
     BODY_PART_NAMES = { "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
         "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
         "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
-    BASE_DRAWINGS = { Box = "Square", Name = "Text", Distance = "Text", Tool = "Text", Health = "Text", HealthBackground = "Square", HealthBar = "Square",
+    -- The default full-box readout intentionally uses five Drawing primitives per player: box,
+    -- combined identity/range text, tool, numeric health, and one health-bar line. Some Drawing
+    -- implementations throttle heavily when many independent primitives are present.
+    BASE_DRAWINGS = { Box = "Square", Identity = "Text", Tool = "Text", Health = "Text", HealthBar = "Line",
         Corner1 = "Line", Corner2 = "Line", Corner3 = "Line", Corner4 = "Line", Corner5 = "Line", Corner6 = "Line", Corner7 = "Line", Corner8 = "Line" },
 })
 
@@ -128,10 +129,9 @@ return function(services: any): any
     end
 
     local function drawHealthBar(record: any, position: Vector2, size: Vector2, fraction: number)
-        local barPosition = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET, 0)
-        draw(record, "HealthBackground", { Position = barPosition, Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, size.Y), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true, Transparency = 1 })
-        draw(record, "HealthBar", { Position = barPosition + Vector2.new(1, size.Y * (1 - fraction) + 1),
-            Size = Vector2.new(CONFIG.HEALTH_BAR_INNER_WIDTH, math.max(1, size.Y * fraction - 2)), Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true, Transparency = 1 })
+        local x, bottom = position.X - CONFIG.HEALTH_BAR_OFFSET + 2, position.Y + size.Y - 1
+        draw(record, "HealthBar", { From = Vector2.new(x, bottom), To = Vector2.new(x, math.max(position.Y + 1, bottom - math.max(1, size.Y * fraction - 2))),
+            Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Thickness = CONFIG.HEALTH_BAR_INNER_WIDTH + 1, Transparency = 1 })
     end
 
     local function rootProjection(camera: Camera, position: Vector3): (Vector2, boolean, number)
@@ -313,17 +313,11 @@ return function(services: any): any
                 if espConfig.BoxStyle == "Corner" then drawCornerBox(record, position, size, color)
                 else draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 }) end
             end
-            local labelY = position.Y - CONFIG.TEXT_SIZE - 3
-            if espConfig.Name and espConfig.Distance then
-                draw(record, "Name", { Text = player.Name, Position = Vector2.new(centerX, labelY - CONFIG.TEXT_SIZE - 1),
-                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
-                draw(record, "Distance", { Text = `[{math.floor(distance)}m]`, Position = Vector2.new(centerX, labelY),
-                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
-            elseif espConfig.Name then
-                draw(record, "Name", { Text = player.Name, Position = Vector2.new(centerX, labelY),
-                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
-            elseif espConfig.Distance then
-                draw(record, "Distance", { Text = `[{math.floor(distance)}m]`, Position = Vector2.new(centerX, labelY),
+            if espConfig.Name or espConfig.Distance then
+                local identity = if espConfig.Name and espConfig.Distance then `{player.Name}\n[{math.floor(distance)}m]`
+                    elseif espConfig.Name then player.Name else `[{math.floor(distance)}m]`
+                local lines = if espConfig.Name and espConfig.Distance then 2 else 1
+                draw(record, "Identity", { Text = identity, Position = Vector2.new(centerX, position.Y - CONFIG.TEXT_SIZE * lines - 3),
                     Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
             end
             local healthFraction = math.clamp(assets.Humanoid.Health / math.max(assets.Humanoid.MaxHealth, 1), 0, 1)

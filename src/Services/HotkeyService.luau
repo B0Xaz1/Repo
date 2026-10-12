@@ -11,7 +11,7 @@ local CONFIG = table.freeze({
     SERVER_LIST_URL = "https://games.roblox.com/v1/games/",
     SERVER_LIST_LIMIT = 100,
     LOADER_REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
-    DEFAULT_REF = "13e7459928e1af75d6fb6fc3951288d81b160c6f",
+    DEFAULT_REF = "ec6ceb39fa2295d2e88d02479b87e765d1c8ffb0",
     BIND_TARGETS = {
         { Key = "Fly", Label = "Flight", Path = "Movement.FlyEnabled" }, { Key = "Freecam", Label = "Freecam", Path = "Movement.FreecamEnabled" },
         { Key = "Fullbright", Label = "Fullbright", Path = "Visuals.Fullbright" },

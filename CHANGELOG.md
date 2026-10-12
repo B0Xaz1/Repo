@@ -14,6 +14,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 - Restored client-contained virtual mouse movement for input-driven features. Virtual-input features now pause only when Roblox is not the focused window (or client-contained virtual input is unavailable); UI, text, and keybind state no longer globally suppress active player-input automation.
 - Aimbot now accepts its configured aim bind even when Roblox marks it processed (including the default right mouse button), so the player’s explicit mouse-lock input reaches the selected target part.
 - Added an explicitly authorized real relative-cursor mouse-aim path: when the executor exposes `mousemoverel`, mouse mode moves the player’s cursor toward the selected target part while Roblox is focused; camera correction remains the fallback when it is unavailable.
+- Added sticky aim lock: the selected target stays locked through an off-screen interval and is cleared immediately when the Hold bind is released (or when a Toggle lock is turned off).
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.
 - The entire menu top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session, with a high-contrast confirmation label.

@@ -104,7 +104,11 @@ return function(services: any): any
         local localAssets = tracker:GetLocalAssets()
         if not localAssets or localAssets.Humanoid.Health <= 0 then drop(config.UnlockOnDeath); return end
         local engaged = environment:IsMobile() or (if config.LockMode == "Toggle" then AimbotService._toggled else AimbotService._held)
-        if not engaged or AimbotService._blocked then drop(); return end
+        if not engaged or AimbotService._blocked then
+            drop()
+            cameraChanges:ReleaseProperties()
+            return
+        end
         local camera = Workspace.CurrentCamera
         if not camera then drop(); return end
         if AimbotService._camera ~= camera then cameraChanges:ReleaseProperties(); AimbotService._camera = camera end
@@ -137,7 +141,14 @@ return function(services: any): any
         -- Lower hitparts (Torso/HRP) are more likely to end up directly under the camera when close.
         if (goal - camera.CFrame.Position).Magnitude < 2 then drop(); return end
         local projected, visible = camera:WorldToViewportPoint(goal)
-        if not visible or projected.Z <= 0 then drop(); return end
+        if not visible or projected.Z <= 0 then
+            -- Retain the original target while it is off-screen. No replacement selection is made
+            -- until the hold bind is released (or a Toggle lock is explicitly turned off).
+            if config.StickyAim then return end
+            drop()
+            cameraChanges:ReleaseProperties()
+            return
+        end
         local screen = Vector2.new(projected.X, projected.Y)
         if config.BreakOnPull and AimbotService._lastCursor and not environment:IsMobile()
             and (point - AimbotService._lastCursor).Magnitude > CONFIG.BREAK_PULL_CURSOR_EPSILON
@@ -197,13 +208,25 @@ return function(services: any): any
         -- the player's explicit aim-lock input, so accept the configured bind rather than dropping
         -- it behind processed/UI state; output remains entirely client-side camera correction.
         scope:Connect(UIS.InputBegan, function(event: InputObject, _processed: boolean)
-            if environment:MatchesInput(event, state:Get("Aimbot.Keybind")) then
-                AimbotService._held, AimbotService._blocked = true, false
+            if not environment:MatchesInput(event, state:Get("Aimbot.Keybind")) then return end
+            AimbotService._held, AimbotService._blocked = true, false
+            if state:Peek("Aimbot.LockMode") == "Toggle" then
                 AimbotService._toggled = not AimbotService._toggled
+                if not AimbotService._toggled then
+                    drop()
+                    cameraChanges:ReleaseProperties()
+                end
+            else
+                AimbotService._toggled = false
             end
         end)
         scope:Connect(UIS.InputEnded, function(event: InputObject)
-            if environment:MatchesInput(event, state:Get("Aimbot.Keybind")) then AimbotService._held, AimbotService._blocked = false, false end
+            if not environment:MatchesInput(event, state:Get("Aimbot.Keybind")) then return end
+            AimbotService._held, AimbotService._blocked = false, false
+            if state:Peek("Aimbot.LockMode") == "Hold" then
+                drop()
+                cameraChanges:ReleaseProperties()
+            end
         end)
         local job = scheduler:RegisterCamera("Combat.Aimbot", 10, update)
         local function syncAimbot(value: boolean)

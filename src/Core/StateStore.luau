@@ -12,7 +12,7 @@ local CONFIG = deepFreeze({
         Aimbot = {
             Enabled = false, UseCamera = true, Keybind = Enum.UserInputType.MouseButton2,
             Hitpart = "Head", Smoothness = 8,
-            LockMode = "Hold", Prediction = { Horizontal = 0, Vertical = 0 }, TeamCheck = true,
+            LockMode = "Hold", StickyAim = true, Prediction = { Horizontal = 0, Vertical = 0 }, TeamCheck = true,
             FriendCheck = false, WhitelistCheck = true, ForceFieldCheck = true, VisCheck = true,
             MaxDistance = 2000, ShakeIntensity = 0, UnlockOnDeath = true, BreakOnPull = true, MaxLockRadius = 250,
             Triggerbot = { Enabled = false, Keybind = Enum.KeyCode.Unknown, Delay = 0.15, TeamCheck = true, FriendCheck = false,

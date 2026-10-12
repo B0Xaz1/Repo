@@ -28,8 +28,8 @@ local CONFIG = deepFreeze({
         },
         -- The player overlay intentionally stays minimal: full box, name/range, tool, numeric health,
         -- and an optional native Highlight. Accent-following makes its default color match the menu.
-        ESP = { Enabled = false, Box = true, Name = true, Tool = true, Health = true,
-            Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
+        ESP = { Enabled = false, Box = true, BoxStyle = "Full", Name = true, Distance = true, Tool = true, Health = true, HealthBar = true,
+            MaxDistance = 2500, Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
         Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
         Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
@@ -81,6 +81,7 @@ local CONFIG = deepFreeze({
     },
     NUMERIC_RANGES = {
         ["Aimbot.MaxDistance"] = { 50, 10000 },
+        ["ESP.MaxDistance"] = { 50, 10000 },
         ["Aimbot.Triggerbot.Delay"] = { 0, 2 },
         ["Aimbot.Triggerbot.MaxDistance"] = { 50, 10000 },
         ["Extras.SpinBot.Speed"] = { 0, 3000 },

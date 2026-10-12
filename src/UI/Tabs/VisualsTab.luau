@@ -12,15 +12,19 @@ return function(services: any, tab: any): any
     -- Keep every player visual, including native chams, in one short node. The readout mirrors
     -- the classic full-box layout: name and range above, numeric health on the left, and tool below.
     local esp = section:Create(tab.LeftCol, "Player ESP")
-    section:Info(esp, "A clean menu-accent readout: full box, name with range, numeric health, equipped tool, and optional native chams.")
+    section:Info(esp, "A clean menu-accent readout: full or corner boxes, optional name and distance labels, numeric health with an optional bar, equipped tool, and native chams.")
     if not services:Get("DrawingPool").Available then
         section:Info(esp, "Drawing is unavailable. Boxes, names, tools, and health will not render; native chams can still work.")
     end
     toggle(esp, "Enable player ESP", "ESP.Enabled", nil)
+    slider(esp, "Render distance", "ESP.MaxDistance", 50, 10000, 50, " studs", nil)
     toggle(esp, "Boxes", "ESP.Box", nil)
+    dropdown(esp, "Box style", "ESP.BoxStyle", { "Full", "Corner" }, nil)
     toggle(esp, "Names", "ESP.Name", nil)
+    toggle(esp, "Distance", "ESP.Distance", nil)
     toggle(esp, "Tools", "ESP.Tool", nil)
     toggle(esp, "Health", "ESP.Health", nil)
+    toggle(esp, "Health bar", "ESP.HealthBar", nil)
     toggle(esp, "Chams", "Chams.Enabled", nil)
     color(esp, "ESP color", "ESP.Color", function() state:Set("ESP.ColorFollowsTheme", false) end)
     toggle(esp, "Follow menu accent", "ESP.ColorFollowsTheme", nil)

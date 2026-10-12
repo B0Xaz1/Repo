@@ -8,9 +8,16 @@ local CONFIG = table.freeze({
     BOUNDS_INTERVAL = 1 / 20,
     VISIBILITY_INTERVAL = 0.15,
     TOOL_REFRESH_INTERVAL = 0.2,
-    MAX_DISTANCE = 2500,
     TEXT_SIZE = 14,
     BOX_THICKNESS = 1,
+    CORNER_WIDTH_FACTOR = 0.26,
+    CORNER_HEIGHT_FACTOR = 0.2,
+    HEALTH_BAR_WIDTH = 4,
+    HEALTH_BAR_INNER_WIDTH = 2,
+    HEALTH_BAR_OFFSET = 7,
+    HEALTH_BAR_BACKGROUND = Color3.fromRGB(15, 19, 25),
+    HEALTH_LOW = Color3.fromRGB(247, 87, 105),
+    HEALTH_HIGH = Color3.fromRGB(79, 222, 157),
     MAX_BOX_ASPECT_RATIO = 2.5,
     CHAMS_FILL_TRANSPARENCY = 0.66,
     CHAMS_OUTLINE_TRANSPARENCY = 0.05,
@@ -19,7 +26,8 @@ local CONFIG = table.freeze({
     BODY_PART_NAMES = { "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
         "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
         "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
-    BASE_DRAWINGS = { Box = "Square", Name = "Text", Tool = "Text", Health = "Text" },
+    BASE_DRAWINGS = { Box = "Square", Name = "Text", Distance = "Text", Tool = "Text", Health = "Text", HealthBackground = "Square", HealthBar = "Square",
+        Corner1 = "Line", Corner2 = "Line", Corner3 = "Line", Corner4 = "Line", Corner5 = "Line", Corner6 = "Line", Corner7 = "Line", Corner8 = "Line" },
 })
 
 return function(services: any): any
@@ -93,6 +101,28 @@ return function(services: any): any
                 if last then last.Visible = false end
             end
         end
+    end
+
+    local function drawCornerBox(record: any, position: Vector2, size: Vector2, color: Color3)
+        local width = math.max(4, size.X * CONFIG.CORNER_WIDTH_FACTOR)
+        local height = math.max(4, size.Y * CONFIG.CORNER_HEIGHT_FACTOR)
+        local left, top, right, bottom = position.X, position.Y, position.X + size.X, position.Y + size.Y
+        local properties = { Color = color, Thickness = CONFIG.BOX_THICKNESS, Transparency = 1 }
+        draw(record, "Corner1", { From = Vector2.new(left, top), To = Vector2.new(left + width, top), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner2", { From = Vector2.new(left, top), To = Vector2.new(left, top + height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner3", { From = Vector2.new(right, top), To = Vector2.new(right - width, top), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner4", { From = Vector2.new(right, top), To = Vector2.new(right, top + height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner5", { From = Vector2.new(left, bottom), To = Vector2.new(left + width, bottom), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner6", { From = Vector2.new(left, bottom), To = Vector2.new(left, bottom - height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner7", { From = Vector2.new(right, bottom), To = Vector2.new(right - width, bottom), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+        draw(record, "Corner8", { From = Vector2.new(right, bottom), To = Vector2.new(right, bottom - height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
+    end
+
+    local function drawHealthBar(record: any, position: Vector2, size: Vector2, fraction: number)
+        local barPosition = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET, 0)
+        draw(record, "HealthBackground", { Position = barPosition, Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, size.Y), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true, Transparency = 1 })
+        draw(record, "HealthBar", { Position = barPosition + Vector2.new(1, size.Y * (1 - fraction) + 1),
+            Size = Vector2.new(CONFIG.HEALTH_BAR_INNER_WIDTH, math.max(1, size.Y * fraction - 2)), Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true, Transparency = 1 })
     end
 
     local function rootProjection(camera: Camera, position: Vector3): (Vector2, boolean)
@@ -212,7 +242,7 @@ return function(services: any): any
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
             local distance = (camera.CFrame.Position - assets.RootPart.Position).Magnitude
-            if distance > CONFIG.MAX_DISTANCE then hide(record); continue end
+            if distance > math.max(1, espConfig.MaxDistance) then hide(record); continue end
             local color = overlayColor(player, espConfig)
             if chamsEnabled then chams(record, assets.Character, color, espConfig.DepthMode)
             elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
@@ -227,14 +257,27 @@ return function(services: any): any
             if not position or not size then concealUnused(record); continue end
             local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
             if espConfig.Box then
-                draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 })
+                if espConfig.BoxStyle == "Corner" then drawCornerBox(record, position, size, color)
+                else draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 }) end
             end
-            if espConfig.Name then
-                draw(record, "Name", { Text = `{player.Name} [{math.floor(distance)}m]`, Position = Vector2.new(centerX, position.Y - CONFIG.TEXT_SIZE - 3),
+            local labelY = position.Y - CONFIG.TEXT_SIZE - 3
+            if espConfig.Name and espConfig.Distance then
+                draw(record, "Name", { Text = player.Name, Position = Vector2.new(centerX, labelY - CONFIG.TEXT_SIZE - 1),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
+                draw(record, "Distance", { Text = `[{math.floor(distance)}m]`, Position = Vector2.new(centerX, labelY),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
+            elseif espConfig.Name then
+                draw(record, "Name", { Text = player.Name, Position = Vector2.new(centerX, labelY),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
+            elseif espConfig.Distance then
+                draw(record, "Distance", { Text = `[{math.floor(distance)}m]`, Position = Vector2.new(centerX, labelY),
                     Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
             end
+            local healthFraction = math.clamp(assets.Humanoid.Health / math.max(assets.Humanoid.MaxHealth, 1), 0, 1)
+            if espConfig.HealthBar then drawHealthBar(record, position, size, healthFraction) end
             if espConfig.Health then
-                draw(record, "Health", { Text = tostring(math.max(0, math.floor(assets.Humanoid.Health))), Position = Vector2.new(position.X - 15, position.Y + size.Y / 2),
+                local healthOffset = if espConfig.HealthBar then 18 else 15
+                draw(record, "Health", { Text = tostring(math.max(0, math.floor(assets.Humanoid.Health))), Position = Vector2.new(position.X - healthOffset, position.Y + size.Y / 2),
                     Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
             end
             if espConfig.Tool then

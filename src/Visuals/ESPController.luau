@@ -2,67 +2,31 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    -- Draw positions are refreshed at display cadence. Expensive 3D bounds and visibility work
-    -- stays independently cached below, so camera motion remains smooth without a heavy scan.
+    -- Only the root-point projection runs at display cadence. The full 3D box remains cached,
+    -- preserving smooth camera pans without bringing expensive eight-corner bounds work back per frame.
     RENDER_INTERVAL = 1 / 60,
     BOUNDS_INTERVAL = 1 / 20,
-    VISIBILITY_INTERVAL = 0.15,
-    SKELETON_INTERVAL = 1 / 20,
-    INVENTORY_REFRESH = 0.25,
-    RAINBOW_SPEED = 0.15,
-    SCALE_DISTANCE_REF = 1500,
-    SCALE_MIN = 0.7,
-    SCALE_MAX = 1.25,
-    TEXT_SIZE_MIN = 8,
-    TEXT_SIZE_MAX = 24,
-    LINE_THICKNESS_MIN = 1,
-    LINE_THICKNESS_MAX = 4,
-    OPACITY_MIN = 0.05,
-    OPACITY_MAX = 1,
-    BOX_FILL_OPACITY_MAX = 0.85,
-    ARROW_RADIUS_MIN = 80,
-    ARROW_RADIUS_EDGE_PADDING = 18,
-    ARROW_SIZE_MIN = 4,
-    ARROW_SIZE_MAX = 28,
-    LOOK_DIRECTION_LENGTH = 5,
-    HEAD_DOT_MIN = 2,
-    HEAD_DOT_MAX = 7,
-    OUTLINE_LIGHTEN = 0.35,
-    CHAMS_TRANSPARENCY_MIN = 0,
-    CHAMS_TRANSPARENCY_MAX = 1,
-    HEALTH_BAR_WIDTH = 4,
-    HEALTH_BAR_INNER_WIDTH = 2,
-    HEALTH_BAR_OFFSET = 7,
-    HEALTH_BAR_BACKGROUND = Color3.fromRGB(15, 19, 25),
-    HEALTH_LOW = Color3.fromRGB(247, 87, 105),
-    HEALTH_HIGH = Color3.fromRGB(79, 222, 157),
-    FONTS = { UI = 0, System = 1, Plex = 2, Monospace = 3 },
-    BASE_DRAWINGS = { Box = "Square", BoxFill = "Square", HealthBackground = "Square", Health = "Square", Name = "Text", Distance = "Text",
-        Tool = "Text", Backpack = "Text", Tracer = "Line", HeadDot = "Circle", LookDir = "Line" },
-    CORNER_SEGMENTS = { "Corner1", "Corner2", "Corner3", "Corner4", "Corner5", "Corner6", "Corner7", "Corner8" },
-    ARROW_SEGMENTS = { "Arrow1", "Arrow2", "Arrow3" },
-    R15_BONES = { { "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" }, { "UpperTorso", "LeftUpperArm" },
-        { "LeftUpperArm", "LeftLowerArm" }, { "LeftLowerArm", "LeftHand" }, { "UpperTorso", "RightUpperArm" },
-        { "RightUpperArm", "RightLowerArm" }, { "RightLowerArm", "RightHand" }, { "LowerTorso", "LeftUpperLeg" },
-        { "LeftUpperLeg", "LeftLowerLeg" }, { "LeftLowerLeg", "LeftFoot" }, { "LowerTorso", "RightUpperLeg" },
-        { "RightUpperLeg", "RightLowerLeg" }, { "RightLowerLeg", "RightFoot" } },
-    R6_BONES = { { "Head", "Torso" }, { "Torso", "Left Arm" }, { "Torso", "Right Arm" }, { "Torso", "Left Leg" }, { "Torso", "Right Leg" } },
+    TOOL_REFRESH_INTERVAL = 0.2,
+    MAX_DISTANCE = 2500,
+    COLOR = Color3.fromRGB(255, 221, 87),
+    TEXT_SIZE = 14,
+    BOX_THICKNESS = 1,
+    CHAMS_FILL_TRANSPARENCY = 0.66,
+    CHAMS_OUTLINE_TRANSPARENCY = 0.05,
+    BASE_DRAWINGS = { Box = "Square", Name = "Text", Tool = "Text", Health = "Text" },
 })
 
 return function(services: any): any
-    local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
+    local state, tracker, pool = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool")
     local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
     local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _renderElapsed = 0 }
-    local skeletonElapsed = 0
 
     local function hideDrawings(record: any)
         for _, object in pairs(record.Drawings) do
             if object.Visible then object.Visible = false end
         end
-        if record.Last then
-            for _, last in pairs(record.Last) do last.Visible = false end
-        end
+        for _, last in pairs(record.Last) do last.Visible = false end
     end
 
     local function hide(record: any)
@@ -77,11 +41,9 @@ return function(services: any): any
     local function createRecord(player: Player)
         if player == Players.LocalPlayer or ESPController._records[player] then return end
         local owner = scope:CreateChild(`ESP {player.UserId}`)
-        local record = { Player = player, Scope = owner, Drawings = {}, Highlight = nil, Signature = "", InventoryText = "", ToolText = "",
-            InventoryAt = -math.huge, Shown = {}, Last = {}, Bones = false, Rig = nil, BoneParts = nil,
+        local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, Highlight = nil,
             BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil,
-            SkeletonCharacter = nil, SkeletonAnchor = nil, SkeletonLines = nil,
-            VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false }
+            ToolAt = -math.huge, ToolCharacter = nil, ToolText = "[None]" }
         ESPController._records[player] = record
         owner:Add(function()
             for _, object in pairs(record.Drawings) do pool:Release(object) end
@@ -95,29 +57,17 @@ return function(services: any): any
         if record then record.Scope:Dispose() end
     end
 
-    local function ensureDrawing(record: any, name: string, kind: string)
+    local function ensureDrawing(record: any, name: string)
         if not pool.Available or record.Drawings[name] then return end
-        record.Drawings[name] = pool:Acquire(kind)
+        local kind = CONFIG.BASE_DRAWINGS[name]
+        if kind then record.Drawings[name] = pool:Acquire(kind) end
     end
 
-    local function ensureLines(record: any, names: { string })
-        for _, name in ipairs(names) do ensureDrawing(record, name, "Line") end
-    end
-
-    local function ensureBones(record: any)
-        if not pool.Available or record.Bones then return end
-        for index = 1, #CONFIG.R15_BONES do ensureDrawing(record, `Bone{index}`, "Line") end
-        record.Bones = true
-    end
-
-    -- Drawing properties are only written when they change: each write crosses into the executor,
-    -- which costs far more than comparing against the cached value
+    -- Crossing into a Drawing implementation can be more expensive than the comparison itself.
+    -- Cache the last applied properties so each simple overlay only writes actual changes.
     local function draw(record: any, name: string, properties: any)
         local object = record.Drawings[name]
-        if not object then
-            local kind = CONFIG.BASE_DRAWINGS[name]
-            if kind then ensureDrawing(record, name, kind); object = record.Drawings[name] end
-        end
+        if not object then ensureDrawing(record, name); object = record.Drawings[name] end
         if not object then return end
         local last = record.Last[name]
         if not last then last = {}; record.Last[name] = last end
@@ -138,9 +88,10 @@ return function(services: any): any
         end
     end
 
-    local function project(camera: Camera, position: Vector3): (Vector2, boolean)
-        local point, visible = camera:WorldToViewportPoint(position)
-        return Vector2.new(point.X, point.Y), visible and point.Z > 0
+    local function rootProjection(camera: Camera, position: Vector3): (Vector2, boolean)
+        local point = camera:WorldToViewportPoint(position)
+        local viewport = camera.ViewportSize
+        return Vector2.new(point.X, point.Y), point.Z > 0 and point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y
     end
 
     local function bounds(camera: Camera, character: Model): (Vector2?, Vector2?)
@@ -158,69 +109,29 @@ return function(services: any): any
     local function cachedBounds(record: any, camera: Camera, character: Model, anchor: Vector2, now: number): (Vector2?, Vector2?)
         local stale = record.BoundsCharacter ~= character or record.BoundsCamera ~= camera or now - record.BoundsAt >= CONFIG.BOUNDS_INTERVAL
         if stale then
-            record.BoundsPosition, record.BoundsSize = bounds(camera, character)
-            record.BoundsAnchor = anchor
+            local position, size = bounds(camera, character)
+            record.BoundsPosition, record.BoundsSize, record.BoundsAnchor = position, size, anchor
             record.BoundsAt, record.BoundsCharacter, record.BoundsCamera = now, character, camera
         end
         if not record.BoundsPosition or not record.BoundsSize or not record.BoundsAnchor then return nil, nil end
-        -- The cached box size is sufficiently stable between samples. Translate its origin by the
-        -- cheap per-frame root projection so camera pans and player motion do not look low-FPS.
         return record.BoundsPosition + (anchor - record.BoundsAnchor), record.BoundsSize
     end
 
-    local function cachedVisibility(record: any, part: BasePart, character: Model, now: number): boolean
-        local stale = record.VisibilityCharacter ~= character or now - record.VisibilityAt >= CONFIG.VISIBILITY_INTERVAL
-        if stale then
-            record.Visibility = filter:IsVisible(part)
-            record.VisibilityAt, record.VisibilityCharacter = now, character
-        end
-        return record.Visibility == true
+    local function updateTool(record: any, character: Model, now: number)
+        if record.ToolCharacter == character and now - record.ToolAt < CONFIG.TOOL_REFRESH_INTERVAL then return end
+        local tool = character:FindFirstChildOfClass("Tool")
+        record.ToolCharacter, record.ToolAt = character, now
+        record.ToolText = if tool then `[{tool.Name}]` else "[None]"
     end
 
-    local function rootProjection(camera: Camera, position: Vector3): (Vector2, boolean)
-        local point = camera:WorldToViewportPoint(position)
-        local viewport = camera.ViewportSize
-        local screen = Vector2.new(point.X, point.Y)
-        return screen, point.Z > 0 and point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y
-    end
-
-    local function updateInventory(record: any, character: Model)
-        if os.clock() - record.InventoryAt < CONFIG.INVENTORY_REFRESH then return end
-        record.InventoryAt = os.clock()
-        local equipped, backpack = {}, {}
-        for _, tool in ipairs(character:GetChildren()) do if tool:IsA("Tool") then table.insert(equipped, tool.Name) end end
-        local bag = record.Player:FindFirstChildOfClass("Backpack")
-        if bag then for _, tool in ipairs(bag:GetChildren()) do if tool:IsA("Tool") then table.insert(backpack, tool.Name) end end end
-        table.sort(equipped); table.sort(backpack)
-        local signature = `{table.concat(equipped, "\0")}\1{table.concat(backpack, "\0")}`
-        if signature ~= record.Signature then
-            record.Signature, record.ToolText, record.InventoryText = signature, table.concat(equipped, ", "), table.concat(backpack, ", ")
-        end
-    end
-
-    local function rainbowColor(): Color3
-        return Color3.fromHSV((os.clock() * CONFIG.RAINBOW_SPEED) % 1, 0.75, 1)
-    end
-
-    local function overlayColor(player: Player, config: any, fallback: Color3, source: string?): Color3
-        if config.Rainbow then return rainbowColor() end
-        local resolver = state:GetTransient("PlayerColorResolver")
-        if type(resolver) == "function" then
-            local ok, color = pcall(resolver, player, source or "ESP")
-            if ok and typeof(color) == "Color3" then return color end
-        end
-        if config.UseTeamColor then return filter:GetTeamColor(player) end
-        return fallback
-    end
-
-    local function chams(record: any, assets: any, config: any)
+    local function chams(record: any, character: Model)
         if not ESPController._chamsAvailable then return end
         if not record.Highlight or not record.Highlight.Parent then
             local ok, highlight = pcall(function()
                 local object = Instance.new("Highlight")
-                record.Scope:Bind("Highlight", object)
                 object.Name = "B0XazChams"
-                object.Adornee, object.Parent = assets.Character, assets.Character
+                record.Scope:Bind("Highlight", object)
+                object.Adornee, object.Parent = character, character
                 return object
             end)
             if not ok then
@@ -232,217 +143,57 @@ return function(services: any): any
             record.Highlight = highlight
         end
         local object = record.Highlight
-        local fill = overlayColor(record.Player, config, config.FillColor, "Chams")
-        if object.Adornee ~= assets.Character then object.Adornee, object.Parent = assets.Character, assets.Character end
-        if object.FillColor ~= fill then object.FillColor = fill end
-        local fillTransparency = math.clamp(tonumber(config.FillTransparency) or 0.55, CONFIG.CHAMS_TRANSPARENCY_MIN, CONFIG.CHAMS_TRANSPARENCY_MAX)
-        if object.FillTransparency ~= fillTransparency then object.FillTransparency = fillTransparency end
-        local outline = if config.Rainbow then fill:Lerp(Color3.new(1, 1, 1), CONFIG.OUTLINE_LIGHTEN) else config.OutlineColor
-        if object.OutlineColor ~= outline then object.OutlineColor = outline end
-        local outlineTransparency = math.clamp(tonumber(config.OutlineTransparency) or 0.1, CONFIG.CHAMS_TRANSPARENCY_MIN, CONFIG.CHAMS_TRANSPARENCY_MAX)
-        if object.OutlineTransparency ~= outlineTransparency then object.OutlineTransparency = outlineTransparency end
-        local depth = if state:Peek("ESP.DepthMode") == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
-        if object.DepthMode ~= depth then object.DepthMode = depth end
+        if object.Adornee ~= character then object.Adornee, object.Parent = character, character end
+        if object.FillColor ~= CONFIG.COLOR then object.FillColor = CONFIG.COLOR end
+        if object.OutlineColor ~= CONFIG.COLOR then object.OutlineColor = CONFIG.COLOR end
+        if object.FillTransparency ~= CONFIG.CHAMS_FILL_TRANSPARENCY then object.FillTransparency = CONFIG.CHAMS_FILL_TRANSPARENCY end
+        if object.OutlineTransparency ~= CONFIG.CHAMS_OUTLINE_TRANSPARENCY then object.OutlineTransparency = CONFIG.CHAMS_OUTLINE_TRANSPARENCY end
+        if object.DepthMode ~= Enum.HighlightDepthMode.AlwaysOnTop then object.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
         if not object.Enabled then object.Enabled = true end
-    end
-
-    local function boneParts(record: any, assets: any): any
-        if record.Rig == assets.Character and record.BoneParts then return record.BoneParts end
-        record.Rig = assets.Character
-        local pairsForRig = if assets.Humanoid.RigType == Enum.HumanoidRigType.R15 then CONFIG.R15_BONES else CONFIG.R6_BONES
-        local parts = {}
-        for index, pair in ipairs(pairsForRig) do
-            local first, second = assets.Character:FindFirstChild(pair[1]), assets.Character:FindFirstChild(pair[2])
-            parts[index] = { first, second }
-        end
-        record.BoneParts = parts
-        return parts
-    end
-
-    local function cachedSkeleton(record: any, assets: any, camera: Camera, anchor: Vector2, refresh: boolean): any
-        local stale = refresh or record.SkeletonCharacter ~= assets.Character or record.SkeletonLines == nil or record.SkeletonAnchor == nil
-        if stale then
-            local lines = {}
-            for index, pair in ipairs(boneParts(record, assets)) do
-                local first, second = pair[1], pair[2]
-                if first and second and first:IsA("BasePart") and second:IsA("BasePart") then
-                    local a, aVisible = project(camera, first.Position)
-                    local b, bVisible = project(camera, second.Position)
-                    if aVisible and bVisible then lines[index] = { From = a, To = b } end
-                end
-            end
-            record.SkeletonLines, record.SkeletonAnchor, record.SkeletonCharacter = lines, anchor, assets.Character
-        end
-        if not record.SkeletonLines or not record.SkeletonAnchor then return nil end
-        local delta = anchor - record.SkeletonAnchor
-        return record.SkeletonLines, delta
-    end
-
-    local function visualOpacity(config: any): number
-        return math.clamp(tonumber(config.Opacity) or 1, CONFIG.OPACITY_MIN, CONFIG.OPACITY_MAX)
-    end
-
-    local function lineThickness(config: any): number
-        return math.clamp(tonumber(config.BoxThickness) or 1, CONFIG.LINE_THICKNESS_MIN, CONFIG.LINE_THICKNESS_MAX)
-    end
-
-    local function drawCornerBox(record: any, position: Vector2, size: Vector2, color: Color3, thickness: number, opacity: number)
-        ensureLines(record, CONFIG.CORNER_SEGMENTS)
-        local width, height = math.max(4, size.X * 0.26), math.max(4, size.Y * 0.2)
-        local left, top, right, bottom = position.X, position.Y, position.X + size.X, position.Y + size.Y
-        local properties = { Color = color, Thickness = thickness, Transparency = opacity }
-        draw(record, "Corner1", { From = Vector2.new(left, top), To = Vector2.new(left + width, top), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner2", { From = Vector2.new(left, top), To = Vector2.new(left, top + height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner3", { From = Vector2.new(right, top), To = Vector2.new(right - width, top), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner4", { From = Vector2.new(right, top), To = Vector2.new(right, top + height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner5", { From = Vector2.new(left, bottom), To = Vector2.new(left + width, bottom), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner6", { From = Vector2.new(left, bottom), To = Vector2.new(left, bottom - height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner7", { From = Vector2.new(right, bottom), To = Vector2.new(right - width, bottom), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Corner8", { From = Vector2.new(right, bottom), To = Vector2.new(right, bottom - height), Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-    end
-
-    local function drawOffscreenArrow(record: any, camera: Camera, worldPosition: Vector3, config: any, color: Color3, opacity: number): boolean
-        local point = camera:WorldToViewportPoint(worldPosition)
-        local viewport = camera.ViewportSize
-        if point.Z <= 0 or (point.X >= 0 and point.X <= viewport.X and point.Y >= 0 and point.Y <= viewport.Y) then return false end
-        local centre = viewport / 2
-        local offset = Vector2.new(point.X, point.Y) - centre
-        if offset.Magnitude < 0.01 then return false end
-        local maximumRadius = math.max(CONFIG.ARROW_RADIUS_MIN, math.min(viewport.X, viewport.Y) / 2 - CONFIG.ARROW_RADIUS_EDGE_PADDING)
-        local radius = math.clamp(tonumber(config.ArrowRadius) or 260, CONFIG.ARROW_RADIUS_MIN, maximumRadius)
-        local size = math.clamp(tonumber(config.ArrowSize) or 10, CONFIG.ARROW_SIZE_MIN, CONFIG.ARROW_SIZE_MAX)
-        local direction = offset.Unit
-        local anchor = centre + direction * radius
-        local tip = anchor + direction * size
-        local base = anchor - direction * size * 0.55
-        local perpendicular = Vector2.new(-direction.Y, direction.X) * size * 0.62
-        ensureLines(record, CONFIG.ARROW_SEGMENTS)
-        local properties = { Color = color, Thickness = lineThickness(config), Transparency = opacity }
-        draw(record, "Arrow1", { From = tip, To = base + perpendicular, Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Arrow2", { From = base + perpendicular, To = base - perpendicular, Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        draw(record, "Arrow3", { From = base - perpendicular, To = tip, Color = properties.Color, Thickness = properties.Thickness, Transparency = properties.Transparency })
-        return true
-    end
-
-    local function tracerOrigin(camera: Camera, origin: any): Vector2
-        local viewport = camera.ViewportSize
-        if origin == "Center" then return viewport / 2 end
-        if origin == "Top" then return Vector2.new(viewport.X / 2, 0) end
-        return Vector2.new(viewport.X / 2, viewport.Y)
-    end
-
-    local function drawHealth(record: any, position: Vector2, size: Vector2, fraction: number, config: any, opacity: number): number
-        if config.HealthStyle == "Bottom" then
-            local y = position.Y + size.Y + 4
-            draw(record, "HealthBackground", { Position = Vector2.new(position.X, y), Size = Vector2.new(size.X, CONFIG.HEALTH_BAR_WIDTH), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true, Transparency = opacity })
-            draw(record, "Health", { Position = Vector2.new(position.X + 1, y + 1), Size = Vector2.new(math.max(1, (size.X - 2) * fraction), CONFIG.HEALTH_BAR_INNER_WIDTH),
-                Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true, Transparency = opacity })
-            return CONFIG.HEALTH_BAR_WIDTH + 5
-        end
-        draw(record, "HealthBackground", { Position = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET, 0), Size = Vector2.new(CONFIG.HEALTH_BAR_WIDTH, size.Y), Color = CONFIG.HEALTH_BAR_BACKGROUND, Filled = true, Transparency = opacity })
-        draw(record, "Health", { Position = position - Vector2.new(CONFIG.HEALTH_BAR_OFFSET - 1, -size.Y * (1 - fraction)), Size = Vector2.new(CONFIG.HEALTH_BAR_INNER_WIDTH, size.Y * fraction),
-            Color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), Filled = true, Transparency = opacity })
-        return 0
     end
 
     local function render(dt: number)
         ESPController._renderElapsed += dt
-        skeletonElapsed += dt
         if ESPController._renderElapsed < CONFIG.RENDER_INTERVAL then return end
         ESPController._renderElapsed %= CONFIG.RENDER_INTERVAL
-        local updateSkeleton = skeletonElapsed >= CONFIG.SKELETON_INTERVAL
-        if updateSkeleton then skeletonElapsed %= CONFIG.SKELETON_INTERVAL end
-        local config, chamsConfig = state:Peek("ESP"), state:Peek("Chams")
-        local espEnabled = pool.Available and config.Enabled
-        local chamsEnabled = chamsConfig.Enabled
+        local espConfig, chamsConfig = state:Peek("ESP"), state:Peek("Chams")
+        local espEnabled, chamsEnabled = pool.Available and espConfig.Enabled, chamsConfig.Enabled
         if not espEnabled and not chamsEnabled then
             if not ESPController._idle then hideAll(); ESPController._idle = true end
             return
         end
         ESPController._idle = false
-        local camera = Workspace.CurrentCamera
-        local occluded, now = config.DepthMode == "Occluded", os.clock()
+        local camera, now = Workspace.CurrentCamera, os.clock()
         for player, record in pairs(ESPController._records) do
             table.clear(record.Shown)
             if not camera then hide(record); continue end
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
-            if config.TeamCheck and filter:IsTeammate(player) then hide(record); continue end
             local distance = (camera.CFrame.Position - assets.RootPart.Position).Magnitude
-            if distance > math.max(1, config.MaxDist) then hide(record); continue end
-            if chamsEnabled then chams(record, assets, chamsConfig)
+            if distance > CONFIG.MAX_DISTANCE then hide(record); continue end
+            if chamsEnabled then chams(record, assets.Character)
             elseif record.Highlight and record.Highlight.Enabled then record.Highlight.Enabled = false end
             if not espEnabled then hideDrawings(record); continue end
-            local color, opacity = overlayColor(player, config, config.Color, "ESP"), visualOpacity(config)
-            -- Off-screen records only need a single root projection for optional direction pointers;
-            -- skip their expensive occlusion raycast and 3D-box projection entirely.
-            local rootScreen, rootVisible = rootProjection(camera, assets.RootPart.Position)
-            if not rootVisible then
-                if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
-                concealUnused(record)
-                continue
+            local anchor, visible = rootProjection(camera, assets.RootPart.Position)
+            if not visible then concealUnused(record); continue end
+            local position, size = cachedBounds(record, camera, assets.Character, anchor, now)
+            if not position or not size then concealUnused(record); continue end
+            local centerX, bottom, color = position.X + size.X / 2, position.Y + size.Y, CONFIG.COLOR
+            if espConfig.Box then
+                draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = CONFIG.BOX_THICKNESS, Filled = false, Transparency = 1 })
             end
-            if occluded and not cachedVisibility(record, assets.Head or assets.RootPart, assets.Character, now) then hideDrawings(record); continue end
-            local position, size = cachedBounds(record, camera, assets.Character, rootScreen, now)
-            if not position or not size then
-                if config.OffscreenArrows then drawOffscreenArrow(record, camera, assets.RootPart.Position, config, color, opacity) end
-                concealUnused(record)
-                continue
+            if espConfig.Name then
+                draw(record, "Name", { Text = `{player.Name} [{math.floor(distance)}m]`, Position = Vector2.new(centerX, position.Y - CONFIG.TEXT_SIZE - 3),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
             end
-            local centerX, bottom = position.X + size.X / 2, position.Y + size.Y
-            local scale = if config.AutoScaling then math.clamp(CONFIG.SCALE_MAX - distance / CONFIG.SCALE_DISTANCE_REF, CONFIG.SCALE_MIN, CONFIG.SCALE_MAX) else 1
-            local baseTextSize = math.clamp(tonumber(config.TextSize) or 13, CONFIG.TEXT_SIZE_MIN, CONFIG.TEXT_SIZE_MAX)
-            local textSize, font = math.round(baseTextSize * scale), CONFIG.FONTS[config.Font] or CONFIG.FONTS.Plex
-            local thickness = lineThickness(config)
-            if config.Box then
-                if config.BoxFill then
-                    local fillOpacity = math.clamp(tonumber(config.BoxFillOpacity) or 0.12, 0, CONFIG.BOX_FILL_OPACITY_MAX) * opacity
-                    draw(record, "BoxFill", { Position = position, Size = size, Color = color, Filled = true, Transparency = fillOpacity })
-                end
-                if config.BoxStyle == "Full" then
-                    draw(record, "Box", { Position = position, Size = size, Color = color, Thickness = thickness, Filled = false, Transparency = opacity })
-                else
-                    drawCornerBox(record, position, size, color, thickness, opacity)
-                end
+            if espConfig.Health then
+                draw(record, "Health", { Text = tostring(math.max(0, math.floor(assets.Humanoid.Health))), Position = Vector2.new(position.X - 15, position.Y + size.Y / 2),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
             end
-            if config.Name then draw(record, "Name", { Text = `{player.DisplayName}{if player.DisplayName ~= player.Name then ` (@{player.Name})` else ""}`,
-                Position = Vector2.new(centerX, position.Y - textSize - 3), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity }) end
-            local healthOffset = 0
-            if config.Health then
-                local fraction = math.clamp(assets.Humanoid.Health / math.max(assets.Humanoid.MaxHealth, 1), 0, 1)
-                healthOffset = drawHealth(record, position, size, fraction, config, opacity)
-            end
-            local textY = bottom + 3 + healthOffset
-            if config.Distance then
-                draw(record, "Distance", { Text = `{math.floor(distance)} studs`, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity })
-                textY += textSize + 1
-            end
-            if config.Tool or config.Backpack then updateInventory(record, assets.Character) end
-            if config.Tool and record.ToolText ~= "" then
-                draw(record, "Tool", { Text = record.ToolText, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity }); textY += textSize + 1
-            end
-            if config.Backpack and record.InventoryText ~= "" then
-                draw(record, "Backpack", { Text = `Bag: {record.InventoryText}`, Position = Vector2.new(centerX, textY), Size = textSize, Font = font, Outline = config.Outline, Color = color, Transparency = opacity })
-            end
-            if config.Tracers then draw(record, "Tracer", { From = tracerOrigin(camera, config.TracerOrigin), To = Vector2.new(centerX, bottom), Color = color, Thickness = thickness, Transparency = opacity }) end
-            local head, headVisible = nil, false
-            if config.HeadDot or config.LookDir then head, headVisible = project(camera, assets.Head.Position) end
-            if config.HeadDot and headVisible then draw(record, "HeadDot", { Position = head, Radius = math.clamp(size.X / 8, CONFIG.HEAD_DOT_MIN, CONFIG.HEAD_DOT_MAX), Filled = true, Color = color, Transparency = opacity }) end
-            if config.LookDir and headVisible then
-                local endpoint, visible = project(camera, assets.Head.Position + assets.Head.CFrame.LookVector * CONFIG.LOOK_DIRECTION_LENGTH)
-                if visible then draw(record, "LookDir", { From = head, To = endpoint, Color = color, Thickness = thickness, Transparency = opacity }) end
-            end
-            if config.Skeleton then
-                ensureBones(record)
-                -- Full joint projection stays at the skeleton cadence. Between samples, translate
-                -- cached line endpoints by the same cheap root projection used by the box so a
-                -- camera pan no longer makes a visible skeleton step at 20 Hz.
-                local lines, delta = cachedSkeleton(record, assets, camera, rootScreen, updateSkeleton)
-                if lines and delta then
-                    for index, line in pairs(lines) do
-                        draw(record, `Bone{index}`, { From = line.From + delta, To = line.To + delta, Color = color, Thickness = thickness, Transparency = opacity })
-                    end
-                end
+            if espConfig.Tool then
+                updateTool(record, assets.Character, now)
+                draw(record, "Tool", { Text = record.ToolText, Position = Vector2.new(centerX, bottom + 4),
+                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
             end
             concealUnused(record)
         end

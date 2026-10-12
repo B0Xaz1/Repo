@@ -84,9 +84,9 @@ return function(services: any, tab: any): any
         local camera = Workspace.CurrentCamera
         if camera then
             local distance = math.floor((camera.CFrame.Position - assets.RootPart.Position).Magnitude)
-            return `ACTIVE  •  {distance} studs away`, "Success"
+            return `{distance} studs away`, "Success"
         end
-        return "ACTIVE", "Success"
+        return "Ready", "Success"
     end
 
     local function setStatus(player: Player?)
@@ -154,6 +154,7 @@ return function(services: any, tab: any): any
     end
 
     local function refreshActionLabels()
+        spectateButton.Text = if selectedPlayer and tracker:GetSpectatingTarget() == selectedPlayer then "Stop spectating" else "Spectate"
         selectTargetButton.Text = if selectedPlayer and aimbot:GetPreferredTarget() == selectedPlayer then "Clear target" else "Select as Target"
         highlightButton.Text = if selectedPlayer and highlightedPlayer == selectedPlayer then "Remove highlight" else "Highlight"
     end
@@ -200,8 +201,15 @@ return function(services: any, tab: any): any
         services:Get("EventBus"):Publish("Notify", if ok then "Teleported" else "Teleport unavailable", message)
     end)
     actionScope:ConnectImmediate(spectateButton.Activated, function()
-        local ok, message = tracker:StartSpectate(selectedPlayer)
-        services:Get("EventBus"):Publish("Notify", if ok then "Spectating" else "Spectate unavailable", message)
+        local ok, message
+        if selectedPlayer and tracker:GetSpectatingTarget() == selectedPlayer then
+            tracker:StopSpectate()
+            ok, message = true, "Camera subject restored"
+        else
+            ok, message = tracker:StartSpectate(selectedPlayer)
+        end
+        refreshActionLabels()
+        services:Get("EventBus"):Publish("Notify", if ok then "Spectate" else "Spectate unavailable", message)
     end)
     actionScope:ConnectImmediate(selectTargetButton.Activated, function()
         if not selectedPlayer then
@@ -262,7 +270,6 @@ return function(services: any, tab: any): any
     end)
 
     local utilities = section:Create(tab.LeftCol, "Player utilities")
-    textbox:CreateButton(utilities, "Stop spectating", function() tracker:StopSpectate(); return true, "Camera subject restored" end)
     textbox:CreateButton(utilities, "Copy username", function() return tracker:CopyName(selectedPlayer) end)
     local whitelist = section:Create(tab.RightCol, "Target whitelist", "Settings")
     local summary = section:Info(whitelist, tracker:GetWhitelistSummary())

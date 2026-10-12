@@ -26,18 +26,10 @@ local CONFIG = deepFreeze({
             CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false, TouchTeleportEnabled = false, NoClip = false,
             FreecamEnabled = false, FreecamSpeed = 32, MouseLockEnabled = false, WallWalkEnabled = false,
         },
-        ESP = {
-            Enabled = false,
-            Box = true, BoxStyle = "Corner", BoxThickness = 1, BoxFill = false, BoxFillOpacity = 0.12,
-            Name = true, Health = true, HealthStyle = "Left", Distance = true, Tool = false, Backpack = false,
-            Tracers = false, TracerOrigin = "Bottom", Skeleton = false, HeadDot = false, LookDir = false,
-            OffscreenArrows = false, ArrowRadius = 260, ArrowSize = 10,
-            TeamCheck = false, UseTeamColor = false, Rainbow = false, Opacity = 1, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
-            Font = "Plex", TextSize = 13, Outline = true, AutoScaling = true, DepthMode = "AlwaysOnTop",
-        },
-        Chams = { Enabled = false, UseTeamColor = false, Rainbow = false, DepthMode = "AlwaysOnTop",
-            FillColor = Color3.fromRGB(117, 143, 255), OutlineColor = Color3.fromRGB(222, 230, 255),
-            FillTransparency = 0.55, OutlineTransparency = 0.1 },
+        -- The player overlay intentionally stays minimal: full box, name/range, tool, numeric health,
+        -- and an optional native Highlight. Advanced overlay variants are retired rather than hidden.
+        ESP = { Enabled = false, Box = true, Name = true, Tool = true, Health = true },
+        Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
         Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
@@ -79,7 +71,6 @@ local CONFIG = deepFreeze({
     ALIASES = {
         ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
         ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
-        ["ESP.DepthMode"] = "Chams.DepthMode", ["Chams.DepthMode"] = "ESP.DepthMode",
     },
     GAME_BOOLEAN_FLAGS = {
         "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
@@ -301,11 +292,6 @@ return function(eventBus: any, disposer: any): any
         else
             normalized.Settings.MenuKeybind = normalized.Settings.Binds.Menu
         end
-        local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
-        local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode
-        if type(incomingEsp) == "string" then normalized.ESP.DepthMode = incomingEsp
-        elseif type(incomingChams) == "string" then normalized.ESP.DepthMode = incomingChams end
-        normalized.Chams.DepthMode = normalized.ESP.DepthMode
         if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
         if not table.find({ "Comfortable", "Compact" }, normalized.Settings.InterfaceDensity) then normalized.Settings.InterfaceDensity = "Compact" end
         normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)

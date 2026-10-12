@@ -2,12 +2,13 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    -- Only the root-point projection runs at display cadence. The full 3D box remains cached,
-    -- preserving smooth camera pans without bringing expensive eight-corner bounds work back per frame.
-    RENDER_INTERVAL = 1 / 60,
-    BOUNDS_INTERVAL = 1 / 20,
-    VISIBILITY_INTERVAL = 0.15,
-    TOOL_REFRESH_INTERVAL = 0.2,
+    -- Drawing writes cross into the executor, so a steady 30 Hz overlay protects frame time in
+    -- populated servers. Cached root translation keeps the box readable while full 3D bounds stay
+    -- off the display-rate path.
+    RENDER_INTERVAL = 1 / 30,
+    BOUNDS_INTERVAL = 1 / 12,
+    VISIBILITY_INTERVAL = 0.25,
+    TOOL_REFRESH_INTERVAL = 0.5,
     TEXT_SIZE = 14,
     BOX_THICKNESS = 1,
     CORNER_WIDTH_FACTOR = 0.26,
@@ -57,7 +58,7 @@ return function(services: any): any
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, Highlight = nil,
             BoundsAt = -math.huge, BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil,
-            VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false,
+            BodyCharacter = nil, BodyParts = nil, VisibilityAt = -math.huge, VisibilityCharacter = nil, Visibility = false,
             ToolAt = -math.huge, ToolCharacter = nil, ToolText = "[None]" }
         ESPController._records[player] = record
         owner:Add(function()
@@ -144,19 +145,32 @@ return function(services: any): any
         return Vector2.new(centerX - width / 2, headPoint.Y - height * 0.14), Vector2.new(width, height)
     end
 
-    local function bounds(camera: Camera, character: Model): (Vector2?, Vector2?)
-        local minX, minY, maxX, maxY, projected = math.huge, math.huge, -math.huge, -math.huge, 0
+    -- Rigs do not normally gain or lose limbs while alive. Cache their recognized body parts once
+    -- per character instead of repeatedly scanning the model on every bounds refresh.
+    local function bodyParts(record: any, character: Model): { BasePart }
+        if record.BodyCharacter == character and record.BodyParts then return record.BodyParts end
+        local parts = {}
         for _, name in ipairs(CONFIG.BODY_PART_NAMES) do
             local part = character:FindFirstChild(name)
-            if not part or not part:IsA("BasePart") then continue end
-            local size = part.Size
-            for x = -1, 1, 2 do for y = -1, 1, 2 do for z = -1, 1, 2 do
-                local point = camera:WorldToViewportPoint((part.CFrame * CFrame.new(size.X * x / 2, size.Y * y / 2, size.Z * z / 2)).Position)
-                if point.Z > 0 then
-                    minX, minY, maxX, maxY = math.min(minX, point.X), math.min(minY, point.Y), math.max(maxX, point.X), math.max(maxY, point.Y)
-                    projected += 1
-                end
-            end end end
+            if part and part:IsA("BasePart") then table.insert(parts, part) end
+        end
+        record.BodyCharacter, record.BodyParts = character, parts
+        return parts
+    end
+
+    local function bounds(record: any, camera: Camera, character: Model): (Vector2?, Vector2?)
+        local minX, minY, maxX, maxY, projected = math.huge, math.huge, -math.huge, -math.huge, 0
+        for _, part in ipairs(bodyParts(record, character)) do
+            if part.Parent == character then
+                local size = part.Size
+                for x = -1, 1, 2 do for y = -1, 1, 2 do for z = -1, 1, 2 do
+                    local point = camera:WorldToViewportPoint((part.CFrame * CFrame.new(size.X * x / 2, size.Y * y / 2, size.Z * z / 2)).Position)
+                    if point.Z > 0 then
+                        minX, minY, maxX, maxY = math.min(minX, point.X), math.min(minY, point.Y), math.max(maxX, point.X), math.max(maxY, point.Y)
+                        projected += 1
+                    end
+                end end end
+            end
         end
         if projected == 0 or maxX < 0 or minX > camera.ViewportSize.X or maxY < 0 or minY > camera.ViewportSize.Y then return nil, nil end
         local size = Vector2.new(maxX - minX, maxY - minY)
@@ -167,7 +181,7 @@ return function(services: any): any
     local function cachedBounds(record: any, camera: Camera, character: Model, anchor: Vector2, now: number): (Vector2?, Vector2?)
         local stale = record.BoundsCharacter ~= character or record.BoundsCamera ~= camera or now - record.BoundsAt >= CONFIG.BOUNDS_INTERVAL
         if stale then
-            local position, size = bounds(camera, character)
+            local position, size = bounds(record, camera, character)
             record.BoundsPosition, record.BoundsSize, record.BoundsAnchor = position, size, anchor
             record.BoundsAt, record.BoundsCharacter, record.BoundsCamera = now, character, camera
         end

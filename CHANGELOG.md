@@ -5,6 +5,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 ## Unreleased
 
 - Restored the automatic, internal repair for executors that fall back to 60 FPS after Roblox GUI focus or a fresh scene render. It requests a high executor ceiling at launch, after menu-open settlement and coalesced camera motion, and on unload; its guarded scheduler-target companion is reapplied on each repair so a later player-visibility reset is not left at 60. There is no frame-rate slider, button, setting, polling loop, or ESP visual throttle.
+- Moved the compact per-player ESP readout back from a native `TextLabel` to one cached executor Drawing text object. This removes per-target native GUI layout/composition work on every render frame while retaining the combined, independently switchable name, range, numeric health, and tool lines. Default Full-box ESP now uses two Drawing primitives per visible target (three only with the optional health bar enabled).
 
 - Rebuilt Performance around reversible, incremental rendering changes that avoid full-world restoration and repeated scans whenever an individual toggle changes.
 - Added Balanced and Maximum performance presets, a visual-quality restore action, dynamic-light and highlight reduction, and expanded atmosphere, clouds, terrain, particle, shadow, texture, and material optimization.

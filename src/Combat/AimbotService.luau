@@ -12,7 +12,6 @@ local CONFIG = table.freeze({
     CAMERA_EPSILON = 0.001,
     SMOOTHNESS_MIN = 1,
     SMOOTHNESS_MAX = 100,
-    MOUSE_MAX_STEP = 200,
     HITPARTS = {
         Head = { "Head" }, Torso = { "UpperTorso", "Torso", "LowerTorso" },
         HumanoidRootPart = { "HumanoidRootPart" }, UpperTorso = { "UpperTorso", "Torso" }, LowerTorso = { "LowerTorso", "Torso" },
@@ -62,11 +61,6 @@ return function(services: any): any
         return best
     end
 
-    local function clampAxis(step: number, remaining: number): number
-        if step * remaining <= 0 then return 0 end
-        return math.sign(remaining) * math.min(math.abs(step), math.abs(remaining))
-    end
-
     local function stableLookAt(eye: Vector3, target: Vector3, currentUp: Vector3?): CFrame?
         local offset = target - eye
         local dist = offset.Magnitude
@@ -82,6 +76,11 @@ return function(services: any): any
             end
         end
         return CFrame.lookAt(eye, target, up)
+    end
+
+    local function applyCameraCorrection(camera: Camera, goal: Vector3, alpha: number)
+        local look = stableLookAt(camera.CFrame.Position, goal, camera.CFrame.UpVector)
+        if look then cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(look, alpha), true) end
     end
 
     local function update(dt: number)
@@ -141,43 +140,16 @@ return function(services: any): any
         end
         AimbotService._lastCursor = point
         local alpha = AimbotService:SmoothingAlpha(dt, config.Smoothness)
-        if not config.UseCamera and not environment.Capabilities.MouseMove then
-            if not AimbotService._warnedMouse then
-                AimbotService._warnedMouse = true
-                bus:Publish("Notify", "Aimbot", "Native mouse movement is disabled for safety; using in-client camera correction")
-            end
-            state:Set("Aimbot.UseCamera", true); config.UseCamera = true
+        -- Roblox virtual mouse events can be accepted without steering the client camera. Keep
+        -- aim functional in mouse mode with the same in-client CFrame correction, never by
+        -- falling back to an executor or OS-level cursor API.
+        if not config.UseCamera and not AimbotService._warnedMouse then
+            AimbotService._warnedMouse = true
+            bus:Publish("Notify", "Mouse aim fallback", "Virtual mouse movement cannot steer this Roblox client; using in-client camera correction")
         end
-        if config.UseCamera then
-            local look = stableLookAt(camera.CFrame.Position, goal, camera.CFrame.UpVector)
-            if look then
-                cameraChanges:SetProperty(camera, "CFrame", camera.CFrame:Lerp(look, alpha), true)
-            end
-            AimbotService._remainder = Vector2.zero
-        else
-            cameraChanges:ReleaseProperties()
-            local remaining = screen - point
-            local delta = remaining * alpha
-            -- Relative mouse input only moves whole pixels, so the sub-pixel rest is carried forward
-            local remainder = AimbotService._remainder
-            if remaining.X * remainder.X < 0 then remainder = Vector2.new(0, remainder.Y) end
-            if remaining.Y * remainder.Y < 0 then remainder = Vector2.new(remainder.X, 0) end
-            local total = delta + remainder
-            local x = clampAxis(math.round(total.X), math.sign(remaining.X) * math.floor(math.abs(remaining.X)))
-            local y = clampAxis(math.round(total.Y), math.sign(remaining.Y) * math.floor(math.abs(remaining.Y)))
-            -- Clamp per-frame mouse steps to avoid camera spin when the target is far or
-            -- when a lower hitpart (Torso/HRP) sits near the bottom edge of the screen.
-            x = math.clamp(x, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
-            y = math.clamp(y, -CONFIG.MOUSE_MAX_STEP, CONFIG.MOUSE_MAX_STEP)
-            AimbotService._remainder = Vector2.new(math.clamp(total.X - x, -1, 1), math.clamp(total.Y - y, -1, 1))
-            if x ~= 0 or y ~= 0 then
-                local moved, moveReason = environment:MouseMove(x, y)
-                if not moved then
-                    state:Set("Aimbot.UseCamera", true)
-                    bus:Publish("Notify", "Aimbot", `Virtual mouse input is unavailable ({moveReason or "unknown reason"}); using camera correction`)
-                end
-            end
-        end
+        applyCameraCorrection(camera, goal, alpha)
+        AimbotService._remainder = Vector2.zero
+
     end
 
     function AimbotService:SmoothingAlpha(dt: number, smoothness: number): number

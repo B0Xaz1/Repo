@@ -12,6 +12,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 - Rebuilt the player ESP workspace with corner or full frames, optional frame tinting, horizontal or vertical health, configurable label scale and opacity, selectable tracer origins, off-screen pointers, and fully tunable native chams transparency.
 - Kept all player ESP and chams controls under one top-level node with lightweight internal disclosure rows, and reduced ESP frame cost through 30 Hz sampling, cached bounds and visibility results, off-screen early culling, and lazy Drawing allocation.
 - Restored client-contained virtual mouse movement for input-driven features. Virtual-input features now pause only when Roblox is not the focused window (or client-contained virtual input is unavailable); UI, text, and keybind state no longer globally suppress active player-input automation.
+- Replaced the mouse-aim path that could accept virtual mouse events without moving Roblox's camera with deterministic in-client camera correction, while retaining the no-desktop-input policy.
 - FPS and ping telemetry now use the active menu accent and the same typography as the watermark.
 - Simplified the in-game Full/Lite edition picker into a straightforward menu with clear option rows and a normal checkbox-style remember choice.
 - The entire menu top bar is now a drag surface except for its controls. The X button now asks for confirmation before fully unloading and restoring the session, with a high-contrast confirmation label.

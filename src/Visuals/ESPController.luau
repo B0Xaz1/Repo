@@ -12,6 +12,8 @@ local CONFIG = table.freeze({
     VISIBILITY_CAMERA_EPSILON = 2,
     VISIBILITY_LOOK_DOT = 0.995,
     TEXT_SIZE = 14,
+    READOUT_WIDTH = 180,
+    READOUT_HEIGHT = 84,
     BOX_THICKNESS = 1,
     CORNER_WIDTH_FACTOR = 0.26,
     CORNER_HEIGHT_FACTOR = 0.2,
@@ -27,24 +29,73 @@ local CONFIG = table.freeze({
     BODY_PART_NAMES = { "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
         "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
         "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
-    -- The default full-box readout uses two executor primitives per player: the box and one
-    -- compact, multi-line readout. Keeping this entirely in Drawing avoids a per-target native
-    -- GUI composition path. The optional health bar is a third primitive only when enabled.
-    BASE_DRAWINGS = { Box = "Square", Readout = "Text", HealthBar = "Line",
+    -- The default full-box readout uses one executor Drawing primitive per player: the box.
+    -- Its compact, multi-line readout is one native TextLabel per target; this avoids both the
+    -- executor Drawing-object threshold and the two-label-per-target composition regression.
+    -- The optional health bar is a second Drawing primitive only when enabled.
+    BASE_DRAWINGS = { Box = "Square", HealthBar = "Line",
         Corner1 = "Line", Corner2 = "Line", Corner3 = "Line", Corner4 = "Line", Corner5 = "Line", Corner6 = "Line", Corner7 = "Line", Corner8 = "Line" },
 })
 
 return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
-    local scheduler, bus = services:Get("TaskScheduler"), services:Get("EventBus")
+    local scheduler, bus, environment = services:Get("TaskScheduler"), services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
-    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil }
+    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _textGui = nil }
+
+    local function ensureTextGui(): ScreenGui?
+        local gui = ESPController._textGui
+        if gui and gui.Parent then return gui end
+        local parent = environment:GetSafeGuiParent()
+        if not parent then return nil end
+        gui = Instance.new("ScreenGui")
+        gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "B0XazESPReadouts", false, true
+        gui.DisplayOrder, gui.ZIndexBehavior = 1001, Enum.ZIndexBehavior.Sibling
+        gui.Parent = parent
+        ESPController._textGui = gui
+        scope:Bind("ESP readouts", gui)
+        return gui
+    end
+
+    local function ensureReadout(record: any): TextLabel?
+        local label = record.ReadoutLabel
+        if label and label.Parent then return label end
+        local gui = ensureTextGui()
+        if not gui then return nil end
+        label = Instance.new("TextLabel")
+        label.Name, label.BackgroundTransparency, label.BorderSizePixel = "B0XazReadout", 1, 0
+        label.AnchorPoint, label.Size = Vector2.new(0.5, 1), UDim2.fromOffset(CONFIG.READOUT_WIDTH, CONFIG.READOUT_HEIGHT)
+        label.Font, label.TextSize = Enum.Font.Gotham, CONFIG.TEXT_SIZE
+        label.TextXAlignment, label.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Bottom
+        label.TextStrokeColor3, label.TextStrokeTransparency, label.ZIndex = Color3.new(0, 0, 0), 0, 5
+        label.Visible, label.Parent = false, gui
+        record.ReadoutLabel = label
+        record.Scope:Add(label)
+        return label
+    end
+
+    local function drawReadout(record: any, text: string, position: Vector2, color: Color3)
+        local label = ensureReadout(record)
+        if not label then return end
+        local rounded = UDim2.fromOffset(math.round(position.X), math.round(position.Y))
+        if label.Text ~= text then label.Text = text end
+        if label.Position ~= rounded then label.Position = rounded end
+        if label.TextColor3 ~= color then label.TextColor3 = color end
+        if not label.Visible then label.Visible = true end
+        record.ReadoutShown = true
+    end
+
+    local function hideReadout(record: any)
+        local label = record.ReadoutLabel
+        if label and label.Visible then label.Visible = false end
+    end
 
     local function hideDrawings(record: any)
         for _, object in pairs(record.Drawings) do
             if object.Visible then object.Visible = false end
         end
         for _, last in pairs(record.Last) do last.Visible = false end
+        hideReadout(record)
     end
 
     local function disableChams(record: any)
@@ -63,7 +114,7 @@ return function(services: any): any
     local function createRecord(player: Player)
         if player == Players.LocalPlayer or ESPController._records[player] then return end
         local owner = scope:CreateChild(`ESP {player.UserId}`)
-        local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, Highlight = nil,
+        local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, ReadoutLabel = nil, ReadoutShown = false, Highlight = nil,
             BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil, BoundsDepth = nil,
             BoundsCenterOffset = nil, BoundsRootPosition = nil, BoundsCameraPosition = nil, BoundsViewport = nil, BoundsFOV = nil,
             BodyCharacter = nil, BodyParts = nil, BodyPartsDirty = true, VisibilityCharacter = nil, VisibilityPart = nil,
@@ -111,6 +162,7 @@ return function(services: any): any
                 if last then last.Visible = false end
             end
         end
+        if not record.ReadoutShown then hideReadout(record) end
     end
 
     local function drawCornerBox(record: any, position: Vector2, size: Vector2, color: Color3)
@@ -291,6 +343,7 @@ return function(services: any): any
         local camera = Workspace.CurrentCamera
         for player, record in pairs(ESPController._records) do
             table.clear(record.Shown)
+            record.ReadoutShown = false
             if not camera then hide(record); continue end
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
@@ -323,8 +376,7 @@ return function(services: any): any
                 table.insert(readout, record.ToolText)
             end
             if #readout > 0 then
-                draw(record, "Readout", { Text = table.concat(readout, "\n"), Position = Vector2.new(centerX, position.Y - CONFIG.TEXT_SIZE * #readout - 3),
-                    Size = CONFIG.TEXT_SIZE, Font = 2, Center = true, Outline = true, Color = color, Transparency = 1 })
+                drawReadout(record, table.concat(readout, "\n"), Vector2.new(centerX, position.Y - 3), color)
             end
             if espConfig.HealthBar then drawHealthBar(record, position, size, healthFraction) end
             concealUnused(record)

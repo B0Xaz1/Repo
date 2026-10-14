@@ -50,7 +50,7 @@ return function(services: any): any
     local state, tracker, pool, filter = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("DrawingPool"), services:Get("TargetFilter")
     local scheduler, bus, environment = services:Get("TaskScheduler"), services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("ESPController")
-    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _job = nil, _textGui = nil,
+    local ESPController = { _records = {}, _initialized = false, _chamsAvailable = true, _idle = true, _menuCovered = false, _job = nil, _textGui = nil,
         _frameRateRepairQueued = false }
 
     -- Visibility transitions can make some executors reapply their 60-FPS fallback after the
@@ -435,6 +435,13 @@ return function(services: any): any
     end
 
     local function render(_dt: number)
+        -- Executor Drawing primitives cannot reliably sit below Roblox UI. Suppress the complete
+        -- overlay while the suite menu is open so neither boxes nor readouts bleed through it.
+        if state:Peek("Settings.MenuVisible") == true then
+            if not ESPController._menuCovered then hideAll(); ESPController._menuCovered = true end
+            return
+        end
+        ESPController._menuCovered = false
         local espConfig, chamsConfig = state:Peek("ESP"), state:Peek("Chams")
         local espEnabled, chamsEnabled = pool.Available and espConfig.Enabled, chamsConfig.Enabled
         if not espEnabled and not chamsEnabled then
@@ -503,8 +510,16 @@ return function(services: any): any
     end
 
     local function syncJob()
-        local on = state:Peek("ESP.Enabled") == true or state:Peek("Chams.Enabled") == true
+        local menuVisible = state:Peek("Settings.MenuVisible") == true
+        local on = (state:Peek("ESP.Enabled") == true or state:Peek("Chams.Enabled") == true) and not menuVisible
         if ESPController._job then ESPController._job.Enabled = on end
+        if menuVisible then
+            hideAll()
+            stopAllActivityTracking()
+            ESPController._idle, ESPController._menuCovered = true, true
+            return
+        end
+        ESPController._menuCovered = false
         if not state:Peek("ESP.Enabled") or state:Peek("ESP.ActivityStatus") ~= true then stopAllActivityTracking() end
         if not on then hideAll(); ESPController._idle = true end
     end
@@ -518,6 +533,7 @@ return function(services: any): any
         self._job = scheduler:RegisterRender("Visuals.ESP", 10, render)
         scope:Add(state:Observe("ESP.Enabled", syncJob))
         scope:Add(state:Observe("Chams.Enabled", syncJob))
+        scope:Add(state:Observe("Settings.MenuVisible", syncJob))
         scope:Add(state:Observe("ESP.ShowSelf", syncSelfRecord))
         scope:Add(state:Observe("ESP.ActivityStatus", function(enabled: boolean)
             if enabled ~= true then stopAllActivityTracking() end

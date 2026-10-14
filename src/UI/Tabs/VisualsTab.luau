@@ -12,7 +12,7 @@ return function(services: any, tab: any): any
     -- Keep every player visual, including native chams, in one short node. The default is a
     -- compact stacked readout so full-box ESP stays light with multiple visible players.
     local esp = section:Create(tab.LeftCol, "Player ESP")
-    section:Info(esp, "A compact menu-accent readout: full or corner boxes, optional name, distance, health, equipped tool, optional health bar, and native chams.")
+    section:Info(esp, "A compact menu-accent readout: full or corner boxes, optional name, distance, health, equipped tool, estimated activity status, optional health bar, and native chams.")
     if not services:Get("DrawingPool").Available then
         section:Info(esp, "Drawing is unavailable. Boxes, names, tools, and health will not render; native chams can still work.")
     end
@@ -24,6 +24,7 @@ return function(services: any, tab: any): any
     toggle(esp, "Distance", "ESP.Distance", nil)
     toggle(esp, "Tools", "ESP.Tool", nil)
     toggle(esp, "Health", "ESP.Health", nil)
+    toggle(esp, "Estimated AFK status (60s idle)", "ESP.ActivityStatus", nil)
     toggle(esp, "Health bar", "ESP.HealthBar", nil)
     toggle(esp, "Chams", "Chams.Enabled", nil)
     color(esp, "ESP color", "ESP.Color", function() state:Set("ESP.ColorFollowsTheme", false) end)

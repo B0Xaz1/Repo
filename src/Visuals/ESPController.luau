@@ -12,6 +12,10 @@ local CONFIG = table.freeze({
     VISIBILITY_CAMERA_EPSILON = 2,
     VISIBILITY_LOOK_DOT = 0.995,
     TEXT_SIZE = 14,
+    -- This is intentionally an activity estimate. Roblox does not expose another client's window focus to an ESP client.
+    AFK_IDLE_SECONDS = 60,
+    AFK_POSITION_EPSILON = 1.25,
+    AFK_ACTIVITY_SPEED = 1,
     -- Four compact status rows fit without allocating the oversized native-label surface used
     -- by the prior readout experiment.
     READOUT_WIDTH = 168,
@@ -146,7 +150,8 @@ return function(services: any): any
             BoundsCenterOffset = nil, BoundsRootPosition = nil, BoundsCameraPosition = nil, BoundsViewport = nil, BoundsFOV = nil,
             BodyCharacter = nil, BodyParts = nil, BodyPartsDirty = true, VisibilityCharacter = nil, VisibilityPart = nil,
             VisibilityPartPosition = nil, VisibilityCameraPosition = nil, VisibilityCameraLook = nil, Visibility = false,
-            ToolCharacter = nil, ToolDirty = true, ToolText = "[None]", ChamsCharacter = nil, ChamsColor = nil, ChamsDepth = nil }
+            ToolCharacter = nil, ToolDirty = true, ToolText = "[None]", ChamsCharacter = nil, ChamsColor = nil, ChamsDepth = nil,
+            ActivityWatch = nil, ActivityCharacter = nil, ActivityRoot = nil, ActivityHumanoid = nil, ActivityPosition = nil, LastActivityAt = 0 }
         ESPController._records[player] = record
         owner:Add(function()
             for _, object in pairs(record.Drawings) do pool:Release(object) end
@@ -331,6 +336,70 @@ return function(services: any): any
         record.ToolText, record.ToolDirty = if tool then `[{tool.Name}]` else "[None]", false
     end
 
+    -- Window focus is private to each Roblox client, so another player's focus cannot be
+    -- observed here. Track replicated character activity instead, only while the optional ESP
+    -- status is enabled. The watch is event-driven for off-screen targets; the existing render
+    -- pass supplies a small current-motion safeguard for visible targets.
+    local function markActivity(record: any, position: Vector3?)
+        record.LastActivityAt = os.clock()
+        if position then record.ActivityPosition = position end
+    end
+
+    local function stopActivityTracking(record: any)
+        local watch = record.ActivityWatch
+        record.ActivityWatch = nil
+        record.ActivityCharacter, record.ActivityRoot, record.ActivityHumanoid, record.ActivityPosition = nil, nil, nil, nil
+        if watch then watch:Dispose() end
+    end
+
+    local function ensureActivityTracking(record: any, assets: any)
+        local character, root, humanoid = assets.Character, assets.RootPart, assets.Humanoid
+        if record.ActivityCharacter == character and record.ActivityRoot == root and record.ActivityHumanoid == humanoid and record.ActivityWatch then return end
+        stopActivityTracking(record)
+        local watch = record.Scope:CreateChild("Activity status")
+        record.ActivityWatch, record.ActivityCharacter, record.ActivityRoot, record.ActivityHumanoid = watch, character, root, humanoid
+        markActivity(record, root.Position)
+        local function current(): boolean
+            return record.ActivityWatch == watch and record.ActivityCharacter == character and record.ActivityRoot == root
+                and root.Parent ~= nil and humanoid.Parent ~= nil
+        end
+        watch:ConnectImmediate(root:GetPropertyChangedSignal("Position"), function()
+            if not current() then return end
+            local position, prior = root.Position, record.ActivityPosition
+            if not prior or (position - prior).Magnitude >= CONFIG.AFK_POSITION_EPSILON then markActivity(record, position) end
+        end)
+        watch:ConnectImmediate(humanoid.Running, function(speed: number)
+            if current() and speed >= CONFIG.AFK_ACTIVITY_SPEED then markActivity(record, root.Position) end
+        end)
+        watch:ConnectImmediate(humanoid.StateChanged, function(_old: Enum.HumanoidStateType, nextState: Enum.HumanoidStateType)
+            if not current() then return end
+            if nextState == Enum.HumanoidStateType.Jumping or nextState == Enum.HumanoidStateType.Climbing
+                or nextState == Enum.HumanoidStateType.Swimming then markActivity(record, root.Position) end
+        end)
+        watch:ConnectImmediate(character.ChildAdded, function(child: Instance)
+            if current() and child:IsA("Tool") then markActivity(record, root.Position) end
+        end)
+        watch:ConnectImmediate(character.ChildRemoved, function(child: Instance)
+            if current() and child:IsA("Tool") then markActivity(record, root.Position) end
+        end)
+    end
+
+    local function activityStatus(record: any, assets: any): string
+        ensureActivityTracking(record, assets)
+        local root, humanoid = assets.RootPart, assets.Humanoid
+        local position, prior = root.Position, record.ActivityPosition
+        if not prior or (position - prior).Magnitude >= CONFIG.AFK_POSITION_EPSILON then
+            markActivity(record, position)
+        elseif humanoid.MoveDirection.Magnitude > 0.05 or root.AssemblyLinearVelocity.Magnitude >= CONFIG.AFK_ACTIVITY_SPEED then
+            markActivity(record, position)
+        end
+        return if os.clock() - record.LastActivityAt >= CONFIG.AFK_IDLE_SECONDS then "AFK" else "Active"
+    end
+
+    local function stopAllActivityTracking()
+        for _, record in pairs(ESPController._records) do stopActivityTracking(record) end
+    end
+
     local function chams(record: any, character: Model, color: Color3, depthMode: string)
         if not ESPController._chamsAvailable then return end
         local depth = if depthMode == "Occluded" then Enum.HighlightDepthMode.Occluded else Enum.HighlightDepthMode.AlwaysOnTop
@@ -381,6 +450,7 @@ return function(services: any): any
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
             local rootPosition = assets.RootPart.Position
+            local status = if espEnabled and espConfig.ActivityStatus then activityStatus(record, assets) else nil
             local distance = (camera.CFrame.Position - rootPosition).Magnitude
             if distance > math.max(1, espConfig.MaxDistance) then hide(record); continue end
             local anchor, visible, depth = rootProjection(camera, rootPosition)
@@ -403,7 +473,12 @@ return function(services: any): any
             local readout = {}
             if espConfig.Name then table.insert(readout, player.Name) end
             if espConfig.Distance then table.insert(readout, `[{math.floor(distance)}m]`) end
-            if espConfig.Health then table.insert(readout, `HP: {math.max(0, math.floor(assets.Humanoid.Health))}`) end
+            if espConfig.Health then
+                local healthText = `HP: {math.max(0, math.floor(assets.Humanoid.Health))}`
+                table.insert(readout, if status then `{healthText} | {status}` else healthText)
+            elseif status then
+                table.insert(readout, `Status: {status}`)
+            end
             if espConfig.Tool then
                 updateTool(record, assets.Character)
                 table.insert(readout, record.ToolText)
@@ -424,6 +499,7 @@ return function(services: any): any
     local function syncJob()
         local on = state:Peek("ESP.Enabled") == true or state:Peek("Chams.Enabled") == true
         if ESPController._job then ESPController._job.Enabled = on end
+        if not state:Peek("ESP.Enabled") or state:Peek("ESP.ActivityStatus") ~= true then stopAllActivityTracking() end
         if not on then hideAll(); ESPController._idle = true end
     end
 
@@ -436,6 +512,9 @@ return function(services: any): any
         self._job = scheduler:RegisterRender("Visuals.ESP", 10, render)
         scope:Add(state:Observe("ESP.Enabled", syncJob))
         scope:Add(state:Observe("Chams.Enabled", syncJob))
+        scope:Add(state:Observe("ESP.ActivityStatus", function(enabled: boolean)
+            if enabled ~= true then stopAllActivityTracking() end
+        end))
         scope:Add(state:Observe("ESP.ColorFollowsTheme", function(follows: boolean)
             if follows then syncThemeColor() end
         end))

@@ -28,7 +28,7 @@ local CONFIG = deepFreeze({
         },
         -- The player overlay uses one compact text readout with a full box by default. The health
         -- bar remains available but starts off so the default readout stays within two primitives.
-        ESP = { Enabled = false, Box = true, BoxStyle = "Full", Name = true, Distance = true, Tool = true, Health = true, HealthBar = false,
+        ESP = { Enabled = false, Box = true, BoxStyle = "Full", Name = true, Distance = true, Tool = true, Health = true, HealthBar = false, ActivityStatus = true,
             MaxDistance = 2500, Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
         Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },

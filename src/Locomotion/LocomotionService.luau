@@ -27,7 +27,6 @@ local CONFIG = table.freeze({
     TOUCH_FLING_BOOST = 10000,
     TOUCH_FLING_OFFSET = 0.1,
     TOUCH_TELEPORT_DEBOUNCE = 0.35,
-    FOLLOW_DISTANCE = 5,
 })
 
 return function(services: any): any
@@ -206,14 +205,12 @@ return function(services: any): any
         self._followTarget = nil
         state:SetTransient("FollowTarget", nil)
         if self._followJob then self._followJob.Enabled = false end
-        local assets = tracker:GetLocalAssets()
-        if assets and assets.Humanoid.Health > 0 then pcall(function() assets.Humanoid:Move(Vector3.zero, false) end) end
     end
 
     function LocomotionService:StartFollowing(player: Player): (boolean, string)
         if not player or player == Players.LocalPlayer or not player.Parent then return false, "Select another player who is still in the server" end
         local config = state:Peek("Movement")
-        if config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled or config.CFrameSpeed then return false, "Stop flight, freecam, wall walk, or CFrame speed before following" end
+        if config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled then return false, "Stop flight, freecam, or wall walk before following" end
         if self._flingTarget then return false, "Stop the fling before following" end
         local target = tracker:GetPlayerAssets(player)
         if not target or target.Humanoid.Health <= 0 then return false, "Target character is not ready" end
@@ -233,22 +230,17 @@ return function(services: any): any
         end
         if not player.Parent then LocomotionService:StopFollowing(); return end
         local config = state:Peek("Movement")
-        if LocomotionService._flingTarget or config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled or config.CFrameSpeed then
+        if LocomotionService._flingTarget or config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled then
             LocomotionService:StopFollowing()
             return
         end
         local localAssets, targetAssets = tracker:GetLocalAssets(), tracker:GetPlayerAssets(player)
         if not localAssets or localAssets.Humanoid.Health <= 0 then return end
-        -- Keep the requested target through a short death/respawn gap, then resume normally once
-        -- PlayerTracker has fresh assets. Following uses standard Humanoid input, never CFrame warps.
+        -- Keep the requested target through a short death/respawn gap, then resume once
+        -- PlayerTracker has fresh assets. This intentionally mirrors repeatedly pressing the
+        -- existing Teleport-to-player action, including its placement offset and anti-fling guard.
         if not targetAssets or targetAssets.Humanoid.Health <= 0 then return end
-        local offset = targetAssets.RootPart.Position - localAssets.RootPart.Position
-        local horizontal = Vector3.new(offset.X, 0, offset.Z)
-        if horizontal.Magnitude <= CONFIG.FOLLOW_DISTANCE then
-            localAssets.Humanoid:Move(Vector3.zero, false)
-        else
-            localAssets.Humanoid:Move(horizontal.Unit, false)
-        end
+        teleportPermanently(localAssets.RootPart, targetAssets.RootPart.CFrame + CONFIG.TELEPORT_OFFSET)
     end
 
     local function sprintHeld(config: any): boolean

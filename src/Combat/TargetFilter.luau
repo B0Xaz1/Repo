@@ -11,7 +11,16 @@ return function(services: any): any
     local scope = services:Get("Disposer"):CreateChild("TargetFilter")
     local params = RaycastParams.new()
     params.FilterType, params.IgnoreWater = Enum.RaycastFilterType.Exclude, true
-    local TargetFilter = { _friends = {}, _pending = {} }
+    local TargetFilter = { _friends = {}, _pending = {}, _raycastCharacter = nil }
+
+    local function syncRaycastExclusion()
+        local character = Players.LocalPlayer and Players.LocalPlayer.Character
+        if TargetFilter._raycastCharacter == character then return end
+        TargetFilter._raycastCharacter = character
+        -- A single cached exclusion list avoids allocating a table for every ESP occlusion ray.
+        -- Cameras are not raycastable instances, so only the local character needs excluding.
+        params.FilterDescendantsInstances = if character then { character } else {}
+    end
 
     function TargetFilter:IsTeammate(player: Player): boolean
         local localPlayer = Players.LocalPlayer
@@ -55,10 +64,7 @@ return function(services: any): any
     end
 
     function TargetFilter:Raycast(origin: Vector3, direction: Vector3): RaycastResult?
-        local exclude = {}
-        if Players.LocalPlayer.Character then table.insert(exclude, Players.LocalPlayer.Character) end
-        if Workspace.CurrentCamera then table.insert(exclude, Workspace.CurrentCamera) end
-        params.FilterDescendantsInstances = exclude
+        syncRaycastExclusion()
         return Workspace:Raycast(origin, direction, params)
     end
 

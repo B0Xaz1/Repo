@@ -27,6 +27,7 @@ local CONFIG = table.freeze({
     TOUCH_FLING_BOOST = 10000,
     TOUCH_FLING_OFFSET = 0.1,
     TOUCH_TELEPORT_DEBOUNCE = 0.35,
+    FOLLOW_DISTANCE = 5,
 })
 
 return function(services: any): any
@@ -40,7 +41,7 @@ return function(services: any): any
     local teleportChanges = scope:CreateChild("One-shot teleports")
     local touchTeleportScope = scope:CreateChild("Touch teleport")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
-        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0,
+        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _followTarget = nil, _followJob = nil, _touchTeleportTarget = nil, _lastTouchTeleport = 0,
         _noClipCharacter = nil, _noClipWatch = nil, _watchedHumanoid = nil, _initialized = false }
 
     local function suppress(duration: number)
@@ -185,6 +186,7 @@ return function(services: any): any
         if state:Get("Movement.FlyEnabled") then return false, "Stop flight before a fling attack" end
         local assets = tracker:GetLocalAssets()
         if not assets then return false, "Your character is not ready" end
+        self:StopFollowing()
         stopFling()
         self._flingScope = scope:CreateChild("Fling cycle")
         self._flingTarget, self._flingElapsed = player, 0
@@ -197,6 +199,57 @@ return function(services: any): any
     end
 
     function LocomotionService:StopFling() stopFling() end
+
+    function LocomotionService:GetFollowingTarget(): Player? return self._followTarget end
+
+    function LocomotionService:StopFollowing()
+        self._followTarget = nil
+        state:SetTransient("FollowTarget", nil)
+        if self._followJob then self._followJob.Enabled = false end
+        local assets = tracker:GetLocalAssets()
+        if assets and assets.Humanoid.Health > 0 then pcall(function() assets.Humanoid:Move(Vector3.zero, false) end) end
+    end
+
+    function LocomotionService:StartFollowing(player: Player): (boolean, string)
+        if not player or player == Players.LocalPlayer or not player.Parent then return false, "Select another player who is still in the server" end
+        local config = state:Peek("Movement")
+        if config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled or config.CFrameSpeed then return false, "Stop flight, freecam, wall walk, or CFrame speed before following" end
+        if self._flingTarget then return false, "Stop the fling before following" end
+        local target = tracker:GetPlayerAssets(player)
+        if not target or target.Humanoid.Health <= 0 then return false, "Target character is not ready" end
+        if self._followTarget == player then return true, `Already following {player.Name}` end
+        self:StopFollowing()
+        self._followTarget = player
+        state:SetTransient("FollowTarget", player)
+        if self._followJob then self._followJob.Enabled = true end
+        return true, `Following {player.Name}`
+    end
+
+    local function updateFollowing()
+        local player = LocomotionService._followTarget
+        if not player then
+            if LocomotionService._followJob then LocomotionService._followJob.Enabled = false end
+            return
+        end
+        if not player.Parent then LocomotionService:StopFollowing(); return end
+        local config = state:Peek("Movement")
+        if LocomotionService._flingTarget or config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled or config.CFrameSpeed then
+            LocomotionService:StopFollowing()
+            return
+        end
+        local localAssets, targetAssets = tracker:GetLocalAssets(), tracker:GetPlayerAssets(player)
+        if not localAssets or localAssets.Humanoid.Health <= 0 then return end
+        -- Keep the requested target through a short death/respawn gap, then resume normally once
+        -- PlayerTracker has fresh assets. Following uses standard Humanoid input, never CFrame warps.
+        if not targetAssets or targetAssets.Humanoid.Health <= 0 then return end
+        local offset = targetAssets.RootPart.Position - localAssets.RootPart.Position
+        local horizontal = Vector3.new(offset.X, 0, offset.Z)
+        if horizontal.Magnitude <= CONFIG.FOLLOW_DISTANCE then
+            localAssets.Humanoid:Move(Vector3.zero, false)
+        else
+            localAssets.Humanoid:Move(horizontal.Unit, false)
+        end
+    end
 
     local function sprintHeld(config: any): boolean
         return config.SprintEnabled == true and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey")
@@ -372,6 +425,9 @@ return function(services: any): any
         self._initialized = true
         scope:Spawn(touchFlingLoop)
         scope:Add(scheduler:RegisterHeartbeat("Movement.Overrides", 10, update))
+        self._followJob = scheduler:RegisterHeartbeat("Movement.Follow", 12, updateFollowing)
+        self._followJob.Enabled = self._followTarget ~= nil
+        scope:Add(self._followJob)
         scope:Connect(UIS.JumpRequest, function()
             if not state:Get("Movement.InfJump") or UIS:GetFocusedTextBox() then return end
             local assets = tracker:GetLocalAssets()
@@ -398,12 +454,16 @@ return function(services: any): any
             bindTouchTeleport(assets.Character)
         end
         scope:Add(state:Observe("Movement.Fling", function(value: boolean) if not value then stopFling() end end))
+        scope:Add(bus:Subscribe("PlayerLeft", function(player: Player)
+            if self._followTarget == player then self:StopFollowing() end
+        end))
     end
 
     function LocomotionService:Destroy() scope:Dispose() end
 
     scope:Add(function()
         stopFling()
+        LocomotionService:StopFollowing()
         stopNoClip()
         local assets = tracker:GetLocalAssets()
         if assets then

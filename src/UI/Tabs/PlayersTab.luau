@@ -75,6 +75,7 @@ return function(services: any, tab: any): any
     local highlightedPlayer: Player? = nil
     local highlightScope: any = nil
     local statusScope: any = nil
+    local followButton: any = nil
 
     local function currentStatus(player: Player?): (string, string)
         if not player or not player.Parent then return "No target selected", "TextMuted" end
@@ -157,6 +158,7 @@ return function(services: any, tab: any): any
         spectateButton.Text = if selectedPlayer and tracker:GetSpectatingTarget() == selectedPlayer then "Stop spectating" else "Spectate"
         selectTargetButton.Text = if selectedPlayer and aimbot:GetPreferredTarget() == selectedPlayer then "Clear target" else "Select as Target"
         highlightButton.Text = if selectedPlayer and highlightedPlayer == selectedPlayer then "Remove highlight" else "Highlight"
+        if followButton then followButton:_Render("") end
     end
 
     local function setSelected(player: Player?)
@@ -237,6 +239,7 @@ return function(services: any, tab: any): any
     -- The active target can change from the Combat workspace, so keep this small status area
     -- synchronized without scanning the player list or running any per-frame 3D work.
     scope:Add(services:Get("EventBus"):Subscribe("TransientChanged:AimbotPreferredTarget", refreshActionLabels))
+    scope:Add(services:Get("EventBus"):Subscribe("TransientChanged:FollowTarget", refreshActionLabels))
     scope:Add(services:Get("EventBus"):Subscribe("TransientChanged:AimbotTarget", function()
         if selectedPlayer then setStatus(selectedPlayer) end
         refreshActionLabels()
@@ -271,6 +274,23 @@ return function(services: any, tab: any): any
 
     local utilities = section:Create(tab.LeftCol, "Player utilities")
     textbox:CreateButton(utilities, "Copy username", function() return tracker:CopyName(selectedPlayer) end)
+    followButton = textbox:CreateButton(utilities, "Follow selected player", function()
+        if selectedPlayer and movement:GetFollowingTarget() == selectedPlayer then
+            movement:StopFollowing()
+            refreshActionLabels()
+            return true, "Stopped following"
+        end
+        local ok, message = movement:StartFollowing(selectedPlayer)
+        refreshActionLabels()
+        return ok, message
+    end)
+    local baseFollowRender = followButton._Render
+    function followButton:_Render(_value: string)
+        local following = movement:GetFollowingTarget()
+        local label = if following == selectedPlayer and following then "Stop following"
+            elseif following then `Following {following.Name}` else "Follow selected player"
+        baseFollowRender(self, label)
+    end
     local whitelist = section:Create(tab.RightCol, "Target whitelist", "Settings")
     local summary = section:Info(whitelist, tracker:GetWhitelistSummary())
     scope:Add(state:Observe("Settings.Whitelist", function() summary:Set(tracker:GetWhitelistSummary()) end))

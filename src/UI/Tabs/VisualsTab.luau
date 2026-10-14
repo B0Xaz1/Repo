@@ -17,6 +17,7 @@ return function(services: any, tab: any): any
         section:Info(esp, "Drawing is unavailable. Boxes, names, tools, and health will not render; native chams can still work.")
     end
     toggle(esp, "Enable player ESP", "ESP.Enabled", nil)
+    toggle(esp, "Show self ESP", "ESP.ShowSelf", nil)
     slider(esp, "Render distance", "ESP.MaxDistance", 50, 10000, 50, " studs", nil)
     toggle(esp, "Boxes", "ESP.Box", nil)
     dropdown(esp, "Box style", "ESP.BoxStyle", { "Full", "Corner" }, nil)

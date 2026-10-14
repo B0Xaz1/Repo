@@ -143,7 +143,7 @@ return function(services: any): any
     end
 
     local function createRecord(player: Player)
-        if player == Players.LocalPlayer or ESPController._records[player] then return end
+        if ESPController._records[player] or (player == Players.LocalPlayer and state:Peek("ESP.ShowSelf") ~= true) then return end
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, ReadoutLabel = nil, ReadoutShown = false, Highlight = nil,
             BoundsCharacter = nil, BoundsCamera = nil, BoundsPosition = nil, BoundsSize = nil, BoundsAnchor = nil, BoundsDepth = nil,
@@ -491,6 +491,12 @@ return function(services: any): any
         end
     end
 
+    local function syncSelfRecord(showSelf: boolean)
+        local player = Players.LocalPlayer
+        if not player then return end
+        if showSelf == true then createRecord(player) else removeRecord(player) end
+    end
+
     local function syncThemeColor()
         if state:Peek("ESP.ColorFollowsTheme") ~= true then return end
         state:Set("ESP.Color", services:Get("ThemeEngine"):GetToken("Accent"))
@@ -512,6 +518,7 @@ return function(services: any): any
         self._job = scheduler:RegisterRender("Visuals.ESP", 10, render)
         scope:Add(state:Observe("ESP.Enabled", syncJob))
         scope:Add(state:Observe("Chams.Enabled", syncJob))
+        scope:Add(state:Observe("ESP.ShowSelf", syncSelfRecord))
         scope:Add(state:Observe("ESP.ActivityStatus", function(enabled: boolean)
             if enabled ~= true then stopAllActivityTracking() end
         end))
@@ -520,6 +527,7 @@ return function(services: any): any
         end))
         scope:Add(bus:Subscribe("ThemeChanged", syncThemeColor))
         syncThemeColor()
+        syncSelfRecord(state:Peek("ESP.ShowSelf") == true)
         syncJob()
     end
 

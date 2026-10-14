@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Reworked the Player ESP hot path without any visual timer or Hz cap: camera state is shared per render, screen bounds use scalar caches, native labels rebuild text only when their source values change, and Drawing primitives only receive changed scalar geometry. Cached occlusion rays now reuse their exclusion data instead of allocating it per ray. Rendering remains frame-synchronous.
 - Player ESP, readouts, and chams now hide while the suite menu is open, so executor Drawing primitives cannot bleed through the menu. Its render job and activity watches resume when the menu closes.
 - Added a **Show self ESP** toggle, off by default, so the compact player ESP can also render the local character when wanted.
 - Added a selected-player **Follow** control in Players → Player utilities. It repeatedly performs the same offset teleport as the existing Teleport-to-player action while active, changes to **Stop following**, survives a brief target respawn gap, and stops if that player leaves or an incompatible movement mode is enabled.

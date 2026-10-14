@@ -7,6 +7,7 @@ local CONFIG = table.freeze({
     SPEED_MIN = 1,
     SPEED_MAX = 300,
     JUMP_POWER_MAX = 300,
+    INF_JUMP_FALLBACK_VELOCITY = 50,
     CFRAME_SPEED_MAX = 200,
     DELTA_TIME_CAP = 0.1,
     GRAVITY_MIN = 0.1,
@@ -33,13 +34,14 @@ return function(services: any): any
     local environment, filter, bus = services:Get("Environment"), services:Get("TargetFilter"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("LocomotionService")
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
+    local humanoidWatch = scope:CreateChild("Humanoid override watch")
     local noClipChanges = scope:CreateChild("No clip")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
     local teleportChanges = scope:CreateChild("One-shot teleports")
     local touchTeleportScope = scope:CreateChild("Touch teleport")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
         _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0,
-        _noClipCharacter = nil, _noClipWatch = nil, _initialized = false }
+        _noClipCharacter = nil, _noClipWatch = nil, _watchedHumanoid = nil, _initialized = false }
 
     local function suppress(duration: number)
         state:SetTransient("AntiFlingSuppressUntil", math.max(state:GetTransient("AntiFlingSuppressUntil") or 0, os.clock() + duration))
@@ -196,6 +198,59 @@ return function(services: any): any
 
     function LocomotionService:StopFling() stopFling() end
 
+    local function sprintHeld(config: any): boolean
+        return config.SprintEnabled == true and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey")
+            and (UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift))
+    end
+
+    -- Some experiences set WalkSpeed, JumpPower, or UseJumpPower from their own controller after
+    -- a normal client heartbeat. Keep the requested override active through a focused property
+    -- watcher rather than relying on one write winning that race.
+    local function applyHumanoidOverrides(humanoid: Humanoid)
+        local config = state:Peek("Movement")
+        -- Freecam owns the character freeze. Releasing our leases first preserves the
+        -- Disposer's priority ordering instead of moving a movement override above it.
+        if config.FreecamEnabled == true then
+            characterChanges:RestoreProperty(humanoid, "WalkSpeed")
+            characterChanges:RestoreProperty(humanoid, "JumpPower")
+            characterChanges:RestoreProperty(humanoid, "UseJumpPower")
+            return
+        end
+        local speed = if sprintHeld(config) then config.SprintSpeed else config.Speed
+        if speed > 0 then
+            characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, CONFIG.SPEED_MIN, CONFIG.SPEED_MAX), true)
+        else
+            characterChanges:RestoreProperty(humanoid, "WalkSpeed")
+        end
+        if config.JumpPower > 0 then
+            -- Many games leave UseJumpPower false and consume JumpHeight instead. Enabling this
+            -- switch is required for the configured Jump power to have any effect in those rigs.
+            characterChanges:SetProperty(humanoid, "UseJumpPower", true, true)
+            characterChanges:SetProperty(humanoid, "JumpPower", math.clamp(config.JumpPower, 0, CONFIG.JUMP_POWER_MAX), true)
+        else
+            characterChanges:RestoreProperty(humanoid, "JumpPower")
+            characterChanges:RestoreProperty(humanoid, "UseJumpPower")
+        end
+    end
+
+    local function bindHumanoidOverrides(humanoid: Humanoid)
+        humanoidWatch:Dispose()
+        humanoidWatch = scope:CreateChild("Humanoid override watch")
+        LocomotionService._watchedHumanoid = humanoid
+        local function reapply()
+            if scope:IsDisposed() or LocomotionService._watchedHumanoid ~= humanoid or not humanoid.Parent then return end
+            applyHumanoidOverrides(humanoid)
+        end
+        for _, property in ipairs({ "WalkSpeed", "JumpPower", "UseJumpPower" }) do
+            humanoidWatch:ConnectImmediate(humanoid:GetPropertyChangedSignal(property), reapply)
+        end
+    end
+
+    local function clearHumanoidOverrides()
+        humanoidWatch:Dispose()
+        LocomotionService._watchedHumanoid = nil
+    end
+
     local function update(dt: number)
         local config = state:Peek("Movement")
         local fov = state:Peek("Camera.FOV")
@@ -211,9 +266,17 @@ return function(services: any): any
         LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
+            -- Disconnect before releasing leases so an outgoing Humanoid cannot reapply a
+            -- transition-time override from one of its own property-change signals.
+            clearHumanoidOverrides()
             characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
-        elseif not assets then characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
+            bindHumanoidOverrides(assets.Humanoid)
+        elseif not assets and LocomotionService._humanoid then
+            clearHumanoidOverrides()
+            characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling()
+            LocomotionService._humanoid = nil
+        end
         if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
             if config.NoClip then
@@ -221,11 +284,7 @@ return function(services: any): any
             else
                 stopNoClip()
             end
-            local sprint = config.SprintEnabled and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and UIS:IsKeyDown(Enum.KeyCode.LeftShift)
-            local speed = if sprint then config.SprintSpeed else config.Speed
-            if speed > 0 then characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, CONFIG.SPEED_MIN, CONFIG.SPEED_MAX)) else characterChanges:RestoreProperty(humanoid, "WalkSpeed") end
-            if config.JumpPower > 0 then characterChanges:SetProperty(humanoid, "JumpPower", math.clamp(config.JumpPower, 0, CONFIG.JUMP_POWER_MAX))
-            else characterChanges:RestoreProperty(humanoid, "JumpPower") end
+            applyHumanoidOverrides(humanoid)
             if config.CFrameSpeed and not config.FlyEnabled and not LocomotionService._flingTarget then
                 suppress(0.3)
                 positionChanges:SetProperty(root, "CFrame", root.CFrame + humanoid.MoveDirection * math.clamp(config.CFrameSpeedValue, 0, CONFIG.CFRAME_SPEED_MAX) * math.min(dt, CONFIG.DELTA_TIME_CAP), true)
@@ -281,6 +340,33 @@ return function(services: any): any
         end
     end
 
+    local function getInfiniteJumpVelocity(humanoid: Humanoid): number
+        if humanoid.UseJumpPower then
+            return math.max(CONFIG.INF_JUMP_FALLBACK_VELOCITY, math.clamp(humanoid.JumpPower, 0, CONFIG.JUMP_POWER_MAX))
+        end
+        local jumpHeight = math.max(0, humanoid.JumpHeight)
+        return math.max(CONFIG.INF_JUMP_FALLBACK_VELOCITY, math.sqrt(2 * Workspace.Gravity * jumpHeight))
+    end
+
+    local function requestInfiniteJump(assets: any)
+        local humanoid, root = assets.Humanoid, assets.RootPart
+        if LocomotionService._jumpStates[humanoid] == nil then LocomotionService._jumpStates[humanoid] = humanoid:GetState() end
+        -- Request Roblox's ordinary transition first. The velocity safeguard only covers rigs
+        -- that reject or immediately override that state, and intentionally leaves X/Z motion intact.
+        pcall(function()
+            humanoid.Jump = true
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end)
+        if root and root.Parent then
+            suppress(0.35)
+            local jumpVelocity = getInfiniteJumpVelocity(humanoid)
+            pcall(function()
+                local velocity = root.AssemblyLinearVelocity
+                root.AssemblyLinearVelocity = Vector3.new(velocity.X, math.max(velocity.Y, jumpVelocity), velocity.Z)
+            end)
+        end
+    end
+
     function LocomotionService:Initialize()
         if self._initialized then return end
         self._initialized = true
@@ -289,10 +375,7 @@ return function(services: any): any
         scope:Connect(UIS.JumpRequest, function()
             if not state:Get("Movement.InfJump") or UIS:GetFocusedTextBox() then return end
             local assets = tracker:GetLocalAssets()
-            if assets and assets.Humanoid.Health > 0 then
-                if LocomotionService._jumpStates[assets.Humanoid] == nil then LocomotionService._jumpStates[assets.Humanoid] = assets.Humanoid:GetState() end
-                assets.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-            end
+            if assets and assets.Humanoid.Health > 0 then requestInfiniteJump(assets) end
         end)
         scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
             if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") or not state:Get("Settings.TpToMouse") then return end

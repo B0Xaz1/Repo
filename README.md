@@ -10,7 +10,7 @@ AI tools were used during development, including for code and documentation. The
 
 ## Getting started
 
-1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/66666bf96a74b74838b733eaf7e49b0429860d70/loader.luau).
+1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/529a2da116a5d497e145d602631fb571cbd54cd1/loader.luau).
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. On first launch, choose an edition in the in-game picker, then open the menu with **Right Shift** and enable the features you want.
 
@@ -20,7 +20,7 @@ The loader and queued rejoin bootstrap use an immutable full Git commit, not the
 
 ## Menu and profiles
 
-In Full, the menu has an Overview workspace plus tabs for Combat, Visuals, Movement, Players, Commands, Utility, Settings, and Game. Lite keeps the universal workspaces and omits Commands and Game. Visuals has a deliberately simple Player ESP: full or corner boxes, independently toggled names and range, numeric health with an optional health bar, equipped tools, optional chams, a render-distance limit, color/team-color choices, and optional occlusion. Its default color follows the active menu accent. Cinematic lighting adds Neutral, Golden Hour, Overcast, Moonlight, and Neon scene presets alongside the manual controls. Players includes a full-width selected-target card with account details plus Teleport, toggleable Spectate, transient Aimbot target selection, and local Highlight actions. Use search to find a control; on desktop press **Ctrl/Cmd + K** to focus it, and press **Escape** to clear it. Touch devices use a horizontally scrollable workspace picker. Star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
+In Full, the menu has an Overview workspace plus tabs for Combat, Visuals, Movement, Players, Commands, Utility, Settings, and Game. Lite keeps the universal workspaces and omits Commands and Game. Visuals has a deliberately simple Player ESP: full or corner boxes, independently toggled names and range, numeric health with an optional health bar, equipped tools, an estimated activity/AFK status, optional chams, a render-distance limit, color/team-color choices, and optional occlusion. Its default color follows the active menu accent. Cinematic lighting adds Neutral, Golden Hour, Overcast, Moonlight, and Neon scene presets alongside the manual controls. Players includes a full-width selected-target card with account details plus Teleport, toggleable Spectate, transient Aimbot target selection, and local Highlight actions. Use search to find a control; on desktop press **Ctrl/Cmd + K** to focus it, and press **Escape** to clear it. Touch devices use a horizontally scrollable workspace picker. Star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
 
 The Default profile restores default settings and cannot be overwritten. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
 

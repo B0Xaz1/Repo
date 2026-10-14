@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Player ESP, readouts, and chams now hide while the suite menu is open, so executor Drawing primitives cannot bleed through the menu. Its render job and activity watches resume when the menu closes.
 - Added a **Show self ESP** toggle, off by default, so the compact player ESP can also render the local character when wanted.
 - Added a selected-player **Follow** control in Players → Player utilities. It repeatedly performs the same offset teleport as the existing Teleport-to-player action while active, changes to **Stop following**, survives a brief target respawn gap, and stops if that player leaves or an incompatible movement mode is enabled.
 - Added an optional Player ESP activity row. It shows **Active** or estimated **AFK** after 60 seconds without replicated movement, relevant Humanoid activity, or tool changes. Roblox does not expose another player's window-focus state to a client, so this deliberately labels an idle/activity estimate rather than claiming to detect remote window focus.

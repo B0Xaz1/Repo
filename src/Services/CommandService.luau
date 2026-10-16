@@ -214,8 +214,16 @@ return function(services: any): any
             local source = message.TextSource
             return message.Text, if source then source.UserId else nil
         end)
-        if not ok or type(text) ~= "string" or not userId then return false end
-        return self:HandleDelegatedChat(text, Players:GetPlayerByUserId(userId))
+        if not ok or type(text) ~= "string" then return false end
+        local sender = if userId then Players:GetPlayerByUserId(userId) else nil
+        if text:match("^%s*![bB]%s+") and not sender then
+            local detail = if userId then `user ID {tostring(userId)}` else "no TextSource"
+            local output = `chat relay: received !b request but could not resolve its sender ({detail})`
+            pushHistory(output)
+            bus:Publish("CommandOutput", output)
+            return true
+        end
+        return self:HandleDelegatedChat(text, sender)
     end
 
     function CommandService:BuildDefaultCommands()
@@ -435,10 +443,43 @@ return function(services: any): any
         scope:Connect(Players.PlayerAdded, attachChatPlayer)
 
         local textChat = game:GetService("TextChatService")
-        if textChat and textChat.MessageReceived then
-            scope:Connect(textChat.MessageReceived, function(message: any)
-                self:HandleIncomingChatMessage(message)
-            end)
+        if textChat then
+            if textChat.MessageReceived then
+                scope:Connect(textChat.MessageReceived, function(message: any)
+                    self:HandleIncomingChatMessage(message)
+                end)
+            end
+            -- Text channels are the delivery point in some customized modern-chat experiences.
+            -- Subscribe to each channel as well as the service-level event; the relay's message
+            -- fingerprint coalesces the duplicate when both events fire.
+            local observedChannels = {}
+            local function attachTextChannel(candidate: Instance)
+                if not candidate:IsA("TextChannel") or observedChannels[candidate] then return end
+                observedChannels[candidate] = true
+                scope:Connect(candidate.MessageReceived, function(message: any)
+                    self:HandleIncomingChatMessage(message)
+                end)
+            end
+            for _, candidate in ipairs(textChat:GetDescendants()) do attachTextChannel(candidate) end
+            scope:Connect(textChat.DescendantAdded, attachTextChannel)
+
+            -- OnIncomingMessage is the remaining TextChatService receive path used by some chat
+            -- replacements. Preserve a prior formatter callback and restore it when unloading.
+            local originalIncoming: any = nil
+            pcall(function() originalIncoming = textChat.OnIncomingMessage end)
+            local relayIncoming = function(message: any)
+                pcall(function() self:HandleIncomingChatMessage(message) end)
+                if type(originalIncoming) == "function" then return originalIncoming(message) end
+                return nil
+            end
+            local assigned = pcall(function() textChat.OnIncomingMessage = relayIncoming end)
+            if assigned then
+                scope:Add(function()
+                    pcall(function()
+                        if textChat.OnIncomingMessage == relayIncoming then textChat.OnIncomingMessage = originalIncoming end
+                    end)
+                end)
+            end
         end
 
         -- Some experiences still use the legacy default chat events instead of TextChatService.

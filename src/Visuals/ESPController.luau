@@ -302,24 +302,6 @@ return function(services: any): any
         return frame
     end
 
-    local function drawFullBox(record: any, x: number, y: number, width: number, height: number, color: Color3)
-        local frame = ensureNativeBox(record)
-        if not frame then drawSquare(record, "Box", x, y, width, height, color); return end
-        local roundedX, roundedY, roundedWidth, roundedHeight = math.round(x), math.round(y), math.max(1, math.round(width)), math.max(1, math.round(height))
-        if record.NativeBoxX ~= roundedX or record.NativeBoxY ~= roundedY then
-            frame.Position, record.NativeBoxX, record.NativeBoxY = UDim2.fromOffset(roundedX, roundedY), roundedX, roundedY
-        end
-        if record.NativeBoxWidth ~= roundedWidth or record.NativeBoxHeight ~= roundedHeight then
-            frame.Size, record.NativeBoxWidth, record.NativeBoxHeight = UDim2.fromOffset(roundedWidth, roundedHeight), roundedWidth, roundedHeight
-        end
-        if record.NativeBoxColor ~= color then
-            for _, edge in ipairs(record.NativeBoxEdges) do edge.BackgroundColor3 = color end
-            record.NativeBoxColor = color
-        end
-        if not frame.Visible then frame.Visible = true; requestOverlayFrameRateRepair() end
-        record.NativeBoxShown = true
-    end
-
     local function drawNativeHealthBar(record: any, x: number, y: number, boxHeight: number, fraction: number)
         local frame = ensureNativeHealthBar(record)
         if not frame then return end

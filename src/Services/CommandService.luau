@@ -121,6 +121,10 @@ return function(services: any): any
         if type(message) ~= "string" then return false end
         local stripped = message:match("^%s*(.-)%s*$")
         if stripped == "" then return false end
+        -- !b is reserved for an incoming, whitelisted player's delegated target request.
+        -- The suite owner may see their own public chat echoed through Player.Chatted, so do not
+        -- parse that reserved prefix as a normal local command and report a misleading "b" error.
+        if stripped:match("^![bB]%s+") then return false end
         local prefix = stripped:match("^[/!]")
         if not prefix then return false end
         local actor = actorName or if Players.LocalPlayer then Players.LocalPlayer.Name else ""

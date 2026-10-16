@@ -155,7 +155,7 @@ return function(services: any): any
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, ReadoutLabel = nil, ReadoutShown = false,
             ReadoutText = nil, ReadoutAppliedText = nil, ReadoutX = nil, ReadoutY = nil, ReadoutColor = nil, ReadoutName = nil, ReadoutDistance = nil,
-            ReadoutHealth = nil, ReadoutStatus = nil, ReadoutTool = nil, NativeBox = nil, NativeBoxShown = false,
+            ReadoutHealth = nil, ReadoutStatus = nil, ReadoutTool = nil, NativeBox = nil, NativeBoxEdges = nil, NativeBoxShown = false,
             NativeBoxX = nil, NativeBoxY = nil, NativeBoxWidth = nil, NativeBoxHeight = nil, NativeBoxColor = nil,
             NativeHealthBar = nil, NativeHealthShown = false, NativeHealthX = nil, NativeHealthY = nil,
             NativeHealthWidth = nil, NativeHealthHeight = nil, NativeHealthColor = nil, Highlight = nil,
@@ -230,17 +230,33 @@ return function(services: any): any
     end
 
     -- Full boxes and health bars use native Frame geometry in the same shared ScreenGui as the
-    -- labels. That removes the per-target executor Drawing path from the common Full-box route;
-    -- Corner boxes retain their exact line geometry below.
+    -- labels. The box is one tracked container with four opaque child edges rather than relying
+    -- on Frame.BorderSizePixel; that border is silently omitted by some executor GUI hosts.
+    -- Corner boxes retain their exact Drawing line geometry below.
+    local function makeNativeBoxEdge(parent: Frame, name: string, position: UDim2, size: UDim2): Frame
+        local edge = Instance.new("Frame")
+        edge.Name, edge.BackgroundTransparency, edge.BorderSizePixel = name, 0, 0
+        edge.Position, edge.Size, edge.ZIndex, edge.Parent = position, size, 4, parent
+        return edge
+    end
+
     local function ensureNativeBox(record: any): Frame?
         local frame = record.NativeBox
-        if frame and frame.Parent then return frame end
+        if frame and frame.Parent and record.NativeBoxEdges then return frame end
         local gui = ensureTextGui()
         if not gui then return nil end
         frame = Instance.new("Frame")
-        frame.Name, frame.BackgroundTransparency, frame.BorderSizePixel = "B0XazESPBox", 1, 1
+        frame.Name, frame.BackgroundTransparency, frame.BorderSizePixel = "B0XazESPBox", 1, 0
         frame.AnchorPoint, frame.ZIndex, frame.Visible, frame.Parent = Vector2.zero, 4, false, gui
         record.NativeBox = frame
+        -- The four child edges have fixed relative layout. During rendering only the one parent
+        -- container receives position/size writes, so this stays on the lightweight native path.
+        record.NativeBoxEdges = {
+            makeNativeBoxEdge(frame, "Top", UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, CONFIG.BOX_THICKNESS)),
+            makeNativeBoxEdge(frame, "Bottom", UDim2.new(0, 0, 1, -CONFIG.BOX_THICKNESS), UDim2.new(1, 0, 0, CONFIG.BOX_THICKNESS)),
+            makeNativeBoxEdge(frame, "Left", UDim2.fromOffset(0, 0), UDim2.new(0, CONFIG.BOX_THICKNESS, 1, 0)),
+            makeNativeBoxEdge(frame, "Right", UDim2.new(1, -CONFIG.BOX_THICKNESS, 0, 0), UDim2.new(0, CONFIG.BOX_THICKNESS, 1, 0)),
+        }
         record.NativeBoxX, record.NativeBoxY, record.NativeBoxWidth, record.NativeBoxHeight, record.NativeBoxColor = nil, nil, nil, nil, nil
         record.Scope:Add(frame)
         return frame
@@ -271,7 +287,10 @@ return function(services: any): any
         if record.NativeBoxWidth ~= roundedWidth or record.NativeBoxHeight ~= roundedHeight then
             frame.Size, record.NativeBoxWidth, record.NativeBoxHeight = UDim2.fromOffset(roundedWidth, roundedHeight), roundedWidth, roundedHeight
         end
-        if record.NativeBoxColor ~= color then frame.BorderColor3, record.NativeBoxColor = color, color end
+        if record.NativeBoxColor ~= color then
+            for _, edge in ipairs(record.NativeBoxEdges) do edge.BackgroundColor3 = color end
+            record.NativeBoxColor = color
+        end
         if not frame.Visible then frame.Visible = true; requestOverlayFrameRateRepair() end
         record.NativeBoxShown = true
     end

@@ -26,8 +26,8 @@ local CONFIG = deepFreeze({
             CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false, TouchTeleportEnabled = false, NoClip = false,
             FreecamEnabled = false, FreecamSpeed = 32, MouseLockEnabled = false, WallWalkEnabled = false,
         },
-        -- The player overlay uses one compact text readout with a full box by default. The health
-        -- bar remains available but starts off so the default readout stays within two primitives.
+        -- The player overlay uses one compact text readout with a native full box by default. The
+        -- optional health bar starts off so the default overlay remains compact.
         ESP = { Enabled = false, ShowSelf = false, Box = true, BoxStyle = "Full", Name = true, Distance = true, Tool = true, Health = true, HealthBar = false, ActivityStatus = true,
             MaxDistance = 2500, Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
         Chams = { Enabled = false },

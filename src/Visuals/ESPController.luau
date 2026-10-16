@@ -38,12 +38,11 @@ local CONFIG = table.freeze({
     BODY_PART_NAMES = { "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
         "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
         "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
-    -- The default full-box readout uses one executor Drawing primitive per player: the box.
-    -- Its compact status lives in one shared ScreenGui with one lightweight native TextLabel per
-    -- target. This avoids the Drawing.Text visibility cap without creating per-target billboards.
-    -- The optional health bar is a second Drawing primitive only when enabled.
-    BASE_DRAWINGS = { Box = "Square", HealthBar = "Line",
-        Corner1 = "Line", Corner2 = "Line", Corner3 = "Line", Corner4 = "Line", Corner5 = "Line", Corner6 = "Line", Corner7 = "Line", Corner8 = "Line" },
+    -- The common full-box route uses lightweight native Frames in the one shared ScreenGui beside
+    -- its native status labels. Executor Drawing is retained only for the optional corner style
+    -- (and as a full-box fallback if no safe GUI parent is available).
+    BASE_DRAWINGS = { Box = "Square", Corner1 = "Line", Corner2 = "Line", Corner3 = "Line", Corner4 = "Line",
+        Corner5 = "Line", Corner6 = "Line", Corner7 = "Line", Corner8 = "Line" },
 })
 
 return function(services: any): any
@@ -124,7 +123,13 @@ return function(services: any): any
         if label and label.Visible then label.Visible = false end
     end
 
+    local function hideNativeGeometry(record: any)
+        if record.NativeBox and record.NativeBox.Visible then record.NativeBox.Visible = false end
+        if record.NativeHealthBar and record.NativeHealthBar.Visible then record.NativeHealthBar.Visible = false end
+    end
+
     local function hideDrawings(record: any)
+        hideNativeGeometry(record)
         for _, object in pairs(record.Drawings) do
             if object.Visible then object.Visible = false end
         end
@@ -150,7 +155,10 @@ return function(services: any): any
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, ReadoutLabel = nil, ReadoutShown = false,
             ReadoutText = nil, ReadoutAppliedText = nil, ReadoutX = nil, ReadoutY = nil, ReadoutColor = nil, ReadoutName = nil, ReadoutDistance = nil,
-            ReadoutHealth = nil, ReadoutStatus = nil, ReadoutTool = nil, Highlight = nil,
+            ReadoutHealth = nil, ReadoutStatus = nil, ReadoutTool = nil, NativeBox = nil, NativeBoxShown = false,
+            NativeBoxX = nil, NativeBoxY = nil, NativeBoxWidth = nil, NativeBoxHeight = nil, NativeBoxColor = nil,
+            NativeHealthBar = nil, NativeHealthShown = false, NativeHealthX = nil, NativeHealthY = nil,
+            NativeHealthWidth = nil, NativeHealthHeight = nil, NativeHealthColor = nil, Highlight = nil,
             BoundsCharacter = nil, BoundsCamera = nil, BoundsX = nil, BoundsY = nil, BoundsWidth = nil, BoundsHeight = nil, BoundsDepth = nil,
             BoundsCenterOffsetX = nil, BoundsCenterOffsetY = nil, BoundsRootPosition = nil, BoundsCameraPosition = nil, BoundsViewport = nil, BoundsFOV = nil,
             BodyCharacter = nil, BodyParts = nil, BodyPartsDirty = true, VisibilityCharacter = nil, VisibilityPart = nil,
@@ -199,6 +207,7 @@ return function(services: any): any
     local function drawSquare(record: any, name: string, x: number, y: number, width: number, height: number, color: Color3)
         local object, last = obtainDrawing(record, name)
         if not object or not last then return end
+        x, y, width, height = math.round(x), math.round(y), math.max(1, math.round(width)), math.max(1, math.round(height))
         if last.X ~= x or last.Y ~= y then object.Position, last.X, last.Y = Vector2.new(x, y), x, y end
         if last.Width ~= width or last.Height ~= height then object.Size, last.Width, last.Height = Vector2.new(width, height), width, height end
         if last.Color ~= color then object.Color, last.Color = color, color end
@@ -211,12 +220,80 @@ return function(services: any): any
     local function drawLine(record: any, name: string, fromX: number, fromY: number, toX: number, toY: number, color: Color3, thickness: number)
         local object, last = obtainDrawing(record, name)
         if not object or not last then return end
+        fromX, fromY, toX, toY = math.round(fromX), math.round(fromY), math.round(toX), math.round(toY)
         if last.FromX ~= fromX or last.FromY ~= fromY then object.From, last.FromX, last.FromY = Vector2.new(fromX, fromY), fromX, fromY end
         if last.ToX ~= toX or last.ToY ~= toY then object.To, last.ToX, last.ToY = Vector2.new(toX, toY), toX, toY end
         if last.Color ~= color then object.Color, last.Color = color, color end
         if last.Thickness ~= thickness then object.Thickness, last.Thickness = thickness, thickness end
         if last.Transparency ~= 1 then object.Transparency, last.Transparency = 1, 1 end
         showDrawing(record, name, object, last)
+    end
+
+    -- Full boxes and health bars use native Frame geometry in the same shared ScreenGui as the
+    -- labels. That removes the per-target executor Drawing path from the common Full-box route;
+    -- Corner boxes retain their exact line geometry below.
+    local function ensureNativeBox(record: any): Frame?
+        local frame = record.NativeBox
+        if frame and frame.Parent then return frame end
+        local gui = ensureTextGui()
+        if not gui then return nil end
+        frame = Instance.new("Frame")
+        frame.Name, frame.BackgroundTransparency, frame.BorderSizePixel = "B0XazESPBox", 1, 1
+        frame.AnchorPoint, frame.ZIndex, frame.Visible, frame.Parent = Vector2.zero, 4, false, gui
+        record.NativeBox = frame
+        record.NativeBoxX, record.NativeBoxY, record.NativeBoxWidth, record.NativeBoxHeight, record.NativeBoxColor = nil, nil, nil, nil, nil
+        record.Scope:Add(frame)
+        return frame
+    end
+
+    local function ensureNativeHealthBar(record: any): Frame?
+        local frame = record.NativeHealthBar
+        if frame and frame.Parent then return frame end
+        local gui = ensureTextGui()
+        if not gui then return nil end
+        frame = Instance.new("Frame")
+        frame.Name, frame.BackgroundTransparency, frame.BorderSizePixel = "B0XazESPHealth", 0, 0
+        frame.AnchorPoint, frame.ZIndex, frame.Visible, frame.Parent = Vector2.zero, 4, false, gui
+        record.NativeHealthBar = frame
+        record.NativeHealthX, record.NativeHealthY, record.NativeHealthWidth = nil, nil, nil
+        record.NativeHealthHeight, record.NativeHealthColor = nil, nil
+        record.Scope:Add(frame)
+        return frame
+    end
+
+    local function drawFullBox(record: any, x: number, y: number, width: number, height: number, color: Color3)
+        local frame = ensureNativeBox(record)
+        if not frame then drawSquare(record, "Box", x, y, width, height, color); return end
+        local roundedX, roundedY, roundedWidth, roundedHeight = math.round(x), math.round(y), math.max(1, math.round(width)), math.max(1, math.round(height))
+        if record.NativeBoxX ~= roundedX or record.NativeBoxY ~= roundedY then
+            frame.Position, record.NativeBoxX, record.NativeBoxY = UDim2.fromOffset(roundedX, roundedY), roundedX, roundedY
+        end
+        if record.NativeBoxWidth ~= roundedWidth or record.NativeBoxHeight ~= roundedHeight then
+            frame.Size, record.NativeBoxWidth, record.NativeBoxHeight = UDim2.fromOffset(roundedWidth, roundedHeight), roundedWidth, roundedHeight
+        end
+        if record.NativeBoxColor ~= color then frame.BorderColor3, record.NativeBoxColor = color, color end
+        if not frame.Visible then frame.Visible = true; requestOverlayFrameRateRepair() end
+        record.NativeBoxShown = true
+    end
+
+    local function drawNativeHealthBar(record: any, x: number, y: number, boxHeight: number, fraction: number)
+        local frame = ensureNativeHealthBar(record)
+        if not frame then return end
+        local thickness = CONFIG.HEALTH_BAR_INNER_WIDTH + 1
+        local bottom = y + boxHeight - 1
+        local top = math.max(y + 1, bottom - math.max(1, boxHeight * fraction - 2))
+        local roundedX, roundedY = math.round(x - thickness / 2), math.round(top)
+        local roundedHeight = math.max(1, math.round(bottom - top))
+        local color = CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction)
+        if record.NativeHealthX ~= roundedX or record.NativeHealthY ~= roundedY then
+            frame.Position, record.NativeHealthX, record.NativeHealthY = UDim2.fromOffset(roundedX, roundedY), roundedX, roundedY
+        end
+        if record.NativeHealthWidth ~= thickness or record.NativeHealthHeight ~= roundedHeight then
+            frame.Size, record.NativeHealthWidth, record.NativeHealthHeight = UDim2.fromOffset(thickness, roundedHeight), thickness, roundedHeight
+        end
+        if record.NativeHealthColor ~= color then frame.BackgroundColor3, record.NativeHealthColor = color, color end
+        if not frame.Visible then frame.Visible = true; requestOverlayFrameRateRepair() end
+        record.NativeHealthShown = true
     end
 
     local function concealUnused(record: any)
@@ -227,6 +304,8 @@ return function(services: any): any
                 if last then last.Visible = false end
             end
         end
+        if not record.NativeBoxShown and record.NativeBox and record.NativeBox.Visible then record.NativeBox.Visible = false end
+        if not record.NativeHealthShown and record.NativeHealthBar and record.NativeHealthBar.Visible then record.NativeHealthBar.Visible = false end
         if not record.ReadoutShown then hideReadout(record) end
     end
 
@@ -242,12 +321,6 @@ return function(services: any): any
         drawLine(record, "Corner6", left, bottom, left, bottom - height, color, CONFIG.BOX_THICKNESS)
         drawLine(record, "Corner7", right, bottom, right - width, bottom, color, CONFIG.BOX_THICKNESS)
         drawLine(record, "Corner8", right, bottom, right, bottom - height, color, CONFIG.BOX_THICKNESS)
-    end
-
-    local function drawHealthBar(record: any, x: number, y: number, boxWidth: number, boxHeight: number, fraction: number)
-        local barX, bottom = x - CONFIG.HEALTH_BAR_OFFSET + 2, y + boxHeight - 1
-        local top = math.max(y + 1, bottom - math.max(1, boxHeight * fraction - 2))
-        drawLine(record, "HealthBar", barX, bottom, barX, top, CONFIG.HEALTH_LOW:Lerp(CONFIG.HEALTH_HIGH, fraction), CONFIG.HEALTH_BAR_INNER_WIDTH + 1)
     end
 
     local function rootProjection(camera: Camera, viewport: Vector2, position: Vector3): (number, number, boolean, number)
@@ -517,7 +590,7 @@ return function(services: any): any
         end
         ESPController._menuCovered = false
         local espConfig, chamsConfig = state:Peek("ESP"), state:Peek("Chams")
-        local espEnabled, chamsEnabled = pool.Available and espConfig.Enabled, chamsConfig.Enabled
+        local espEnabled, chamsEnabled = espConfig.Enabled, chamsConfig.Enabled
         if not espEnabled and not chamsEnabled then
             if not ESPController._idle then hideAll(); ESPController._idle = true end
             return
@@ -529,7 +602,7 @@ return function(services: any): any
         local cameraPosition, cameraLook = cameraCFrame.Position, cameraCFrame.LookVector
         for player, record in pairs(ESPController._records) do
             table.clear(record.Shown)
-            record.ReadoutShown = false
+            record.ReadoutShown, record.NativeBoxShown, record.NativeHealthShown = false, false, false
             local assets = tracker:GetPlayerAssets(player)
             if not assets or assets.Humanoid.Health <= 0 then hide(record); continue end
             local rootPosition = assets.RootPart.Position
@@ -550,13 +623,13 @@ return function(services: any): any
             local centerX = x + width / 2
             if espConfig.Box then
                 if espConfig.BoxStyle == "Corner" then drawCornerBox(record, x, y, width, height, color)
-                else drawSquare(record, "Box", x, y, width, height, color) end
+                else drawFullBox(record, x, y, width, height, color) end
             end
             local text = readoutText(record, player, espConfig, distance, assets.Humanoid, status, assets.Character)
             if text then drawReadout(record, text, centerX, y - 3, color) end
             if espConfig.HealthBar then
                 local healthFraction = math.clamp(assets.Humanoid.Health / math.max(assets.Humanoid.MaxHealth, 1), 0, 1)
-                drawHealthBar(record, x, y, width, height, healthFraction)
+                drawNativeHealthBar(record, x - CONFIG.HEALTH_BAR_OFFSET + 2, y, height, healthFraction)
             end
             concealUnused(record)
         end

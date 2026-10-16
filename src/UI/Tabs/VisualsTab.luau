@@ -14,7 +14,7 @@ return function(services: any, tab: any): any
     local esp = section:Create(tab.LeftCol, "Player ESP")
     section:Info(esp, "A compact menu-accent readout: full or corner boxes, optional name, distance, health, equipped tool, estimated activity status, optional health bar, and native chams.")
     if not services:Get("DrawingPool").Available then
-        section:Info(esp, "Drawing is unavailable. Boxes, names, tools, and health will not render; native chams can still work.")
+        section:Info(esp, "Drawing is unavailable. Full boxes and native readouts can still work, but Corner boxes are unavailable; native chams can still work.")
     end
     toggle(esp, "Enable player ESP", "ESP.Enabled", nil)
     toggle(esp, "Show self ESP", "ESP.ShowSelf", nil)

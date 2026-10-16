@@ -10,7 +10,7 @@ AI tools were used during development, including for code and documentation. The
 
 ## Getting started
 
-1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/234bbef64e4bf885ade41605a7b81afcbc38d36f/loader.luau).
+1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/2201478ac1c5f9477c7d53bffe25a211b028f992/loader.luau).
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. On first launch, choose an edition in the in-game picker, then open the menu with **Right Shift** and enable the features you want.
 
@@ -26,7 +26,7 @@ The Default profile restores default settings and cannot be overwritten. Local s
 
 ### Whitelisted chat target actions
 
-In the **Full** edition, add a player through **Players → Target & chat whitelist** to allow their public `!b` chat requests. The permitted forms are `!b tp`, `!b follow`, `!b unfollow`, `!b spectate`, `!b stopspectate`, `!b target`, and `!b cleartarget`. Each request always uses the speaker as the target and operates only on the suite owner’s running client—for example, `!b follow` makes the owner follow the speaker. A distinct, whitelisted player must send the request; the suite owner's own `!b` chat echo is intentionally ignored. The relay supports the TextChat service and channel events, its incoming callback, and the legacy default chat event. If a received `!b` request is not authorized or its sender cannot be resolved, the owner’s Commands console identifies that failure. `!b target` requires the owner to turn off Combat → Ignore Whitelisted, since the same whitelist normally protects that player from targeting. The relay does not grant general menu control, settings access, or the ability to name another target.
+In the **Full** edition, add a player through **Players → Target & chat whitelist** to allow their public `!b` chat requests. The permitted forms are `!b tp`, `!b follow`, `!b unfollow`, `!b spectate`, `!b stopspectate`, `!b target`, and `!b cleartarget`. Each request always uses the speaker as the target and operates only on the suite owner’s running client—for example, `!b follow` makes the owner follow the speaker. A distinct, whitelisted player must send the request; the suite owner's own `!b` chat echo is intentionally ignored. The relay supports the TextChat service and channel events, its incoming callback, and the legacy default chat event. In Catalog Avatar Creator, it preserves the game's tag-formatting callback while keeping the relay installed. If a received `!b` request is not authorized or its sender cannot be resolved, the owner’s Commands console identifies that failure. `!b target` requires the owner to turn off Combat → Ignore Whitelisted, since the same whitelist normally protects that player from targeting. The relay does not grant general menu control, settings access, or the ability to name another target.
 
 ## Supported experiences
 

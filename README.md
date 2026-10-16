@@ -10,7 +10,7 @@ AI tools were used during development, including for code and documentation. The
 
 ## Getting started
 
-1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/a9eda5bb17252079f16b2fb74738432e0897d1be/loader.luau).
+1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/6bbaf9a11e31707a6efaa4ed9270f6336d4779ea/loader.luau).
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
 3. On first launch, choose an edition in the in-game picker, then open the menu with **Right Shift** and enable the features you want.
 
@@ -26,7 +26,7 @@ The Default profile restores default settings and cannot be overwritten. Local s
 
 ### Whitelisted chat target actions
 
-In the **Full** edition, add a player through **Players → Target & chat whitelist** to allow their public `!b` chat requests. The permitted forms are `!b tp`, `!b follow`, `!b unfollow`, `!b spectate`, `!b stopspectate`, `!b target`, and `!b cleartarget`. Each request always uses the speaker as the target and operates only on the suite owner’s running client—for example, `!b follow` makes the owner follow the speaker. `!b target` requires the owner to turn off Combat → Ignore Whitelisted, since the same whitelist normally protects that player from targeting. The relay does not grant general menu control, settings access, or the ability to name another target.
+In the **Full** edition, add a player through **Players → Target & chat whitelist** to allow their public `!b` chat requests. The permitted forms are `!b tp`, `!b follow`, `!b unfollow`, `!b spectate`, `!b stopspectate`, `!b target`, and `!b cleartarget`. Each request always uses the speaker as the target and operates only on the suite owner’s running client—for example, `!b follow` makes the owner follow the speaker. A distinct, whitelisted player must send the request; the suite owner's own `!b` chat echo is intentionally ignored. `!b target` requires the owner to turn off Combat → Ignore Whitelisted, since the same whitelist normally protects that player from targeting. The relay does not grant general menu control, settings access, or the ability to name another target.
 
 ## Supported experiences
 

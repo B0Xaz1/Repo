@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Removed the `/status` utility command.
 - Fixed a Full-box ESP runtime override that referenced a removed native-box function and could stop the overlay render job entirely. The intended native Full-box renderer is now the only Full-box renderer.
 - Selected-player Highlight now reattaches to a target's newly resolved character after death/respawn. Its retries are limited to the respawn handoff and it continues to follow theme changes.
 - Moved common Full-box ESP geometry and the optional health bar into the existing shared native ScreenGui, eliminating the per-target executor Drawing path for the default mode. Each Full-box outline has four opaque native edges under an almost-transparent container, avoiding executor GUI hosts that cull fully transparent containers while reducing each moving box to one position write and one size write. Corner boxes retain their line-based style. ESP still renders synchronously rather than on a visual timer.

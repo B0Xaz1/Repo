@@ -3,9 +3,10 @@ local Players = game:GetService("Players")
 return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("CommandService")
-    local CommandService = { _commands = {}, _history = {}, _initialized = false }
-    -- /end only answers to these accounts, whether it comes from the menu or from chat
+    local CommandService = { _commands = {}, _history = {}, _initialized = false, _delegatedRecent = {} }
+    -- /end stays locally guarded; delegated chat is restricted to the target-action allowlist below.
     local END_USERS = { ["140_b"] = true, ["b0xaz2"] = true, ["eyfurgct"] = true }
+    local DELEGATE_HELP = "Whitelisted target actions: !b tp, !b follow, !b unfollow, !b spectate, !b stopspectate, !b target, !b cleartarget"
 
     local function normalizeName(value: string): string
         return tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("^[/!]+", "")
@@ -127,19 +128,86 @@ return function(services: any): any
         return true
     end
 
+    local function reportDelegatedResult(sender: Player, success: boolean, message: string): (boolean, string)
+        local source, output = `delegate:{sender.Name}`, ""
+        output = makeOutput(source, message)
+        pushHistory(output)
+        bus:Publish("CommandOutput", output)
+        return success, message
+    end
+
+    function CommandService:ExecuteDelegatedTargetAction(action: string, sender: Player): (boolean, string)
+        local key = normalizeName(action)
+        local invoked, success, message = pcall(function()
+            local tracker = services:Get("PlayerTracker")
+            local movement = services:Get("LocomotionService")
+            local aimbot = services:Get("AimbotService")
+            if key == "help" then
+                return true, DELEGATE_HELP
+            elseif key == "tp" or key == "teleport" then
+                local ok, result = movement:TeleportToPlayer(sender)
+                return ok, if ok then `Teleported to {sender.Name}` else result
+            elseif key == "follow" then
+                return movement:StartFollowing(sender)
+            elseif key == "unfollow" then
+                if movement:GetFollowingTarget() ~= sender then return false, "You are not the active follow target" end
+                movement:StopFollowing()
+                return true, `Stopped following {sender.Name}`
+            elseif key == "spectate" then
+                return tracker:StartSpectate(sender)
+            elseif key == "stopspectate" then
+                if tracker:GetSpectatingTarget() ~= sender then return false, "You are not the active spectate target" end
+                tracker:StopSpectate()
+                return true, `Stopped spectating {sender.Name}`
+            elseif key == "target" then
+                if state:Get("Aimbot.WhitelistCheck") == true then
+                    return false, "Disable Combat → Ignore Whitelisted before accepting a whitelisted manual target"
+                end
+                return aimbot:SetPreferredTarget(sender)
+            elseif key == "cleartarget" then
+                if aimbot:GetPreferredTarget() ~= sender then return false, "You are not the active manual target" end
+                return aimbot:ClearPreferredTarget()
+            end
+            return false, `Unknown delegated target action '{key}'. {DELEGATE_HELP}`
+        end)
+        if not invoked then return reportDelegatedResult(sender, false, `Delegated action failed: {tostring(success)}`) end
+        return reportDelegatedResult(sender, success == true, tostring(message or if success then "Command executed" else "Command failed"))
+    end
+
+    function CommandService:HandleDelegatedChat(message: string, sender: Player?): boolean
+        if type(message) ~= "string" or not sender or sender == Players.LocalPlayer then return false end
+        local text = message:match("^%s*(.-)%s*$")
+        local body = text:match("^![bB]%s+(.+)$")
+        if not body then return false end
+        local tracker = services:Get("PlayerTracker")
+        if not tracker:IsWhitelisted(sender) then return false end
+
+        -- Legacy Player.Chatted and TextChatService can both surface one public message. Coalesce
+        -- only that near-simultaneous duplicate delivery; this is event-driven and never polls chat.
+        local now, key = os.clock(), `{sender.UserId}:{body:lower()}`
+        for priorKey, timestamp in pairs(self._delegatedRecent) do
+            if now - timestamp > 0.5 then self._delegatedRecent[priorKey] = nil end
+        end
+        if self._delegatedRecent[key] then return true end
+        self._delegatedRecent[key] = now
+
+        local words = {}
+        for word in body:gmatch("%S+") do table.insert(words, word) end
+        if #words ~= 1 then
+            reportDelegatedResult(sender, false, `Delegated target actions do not take arguments. {DELEGATE_HELP}`)
+            return true
+        end
+        self:ExecuteDelegatedTargetAction(words[1], sender)
+        return true
+    end
+
     function CommandService:HandleIncomingChatMessage(message: any): boolean
         local ok, text, userId = pcall(function()
             local source = message.TextSource
             return message.Text, if source then source.UserId else nil
         end)
-        if not ok then return false end
-        if type(text) ~= "string" then return false end
-        if not userId then return false end
-        local sender = Players:GetPlayerByUserId(userId)
-        if not sender or sender == Players.LocalPlayer then return false end
-        local commandName = normalizeName(text:match("^%s*(%S+)") or "")
-        if commandName ~= "end" or not END_USERS[sender.Name:lower()] then return false end
-        return self:HandleChat(text, sender.Name)
+        if not ok or type(text) ~= "string" or not userId then return false end
+        return self:HandleDelegatedChat(text, Players:GetPlayerByUserId(userId))
     end
 
     function CommandService:BuildDefaultCommands()
@@ -286,7 +354,7 @@ return function(services: any): any
             return true, "Spectate stopped"
         end)
 
-        self:Register("whitelist", "Players", "Manage the shared player whitelist.", "/whitelist <add|remove|clear> <player>", function(_raw: string, args: { string }, _source: string)
+        self:Register("whitelist", "Players", "Manage the shared target and chat-action whitelist.", "/whitelist <add|remove|clear> <player>", function(_raw: string, args: { string }, _source: string)
             local tracker = services:Get("PlayerTracker")
             if #args < 1 then return false, "Usage: /whitelist <add|remove|clear> <player>" end
             local action = args[1]:lower()
@@ -341,20 +409,22 @@ return function(services: any): any
         self._initialized = true
         self:BuildDefaultCommands()
 
-        local player = Players.LocalPlayer
-        if player then
-            scope:Connect(player.Chatted, function(message: string)
-                self:HandleChat(message, player.Name)
-            end)
-        else
-            scope:Connect(Players.PlayerAdded, function(candidate: Player)
-                if candidate == Players.LocalPlayer then
-                    scope:Connect(candidate.Chatted, function(message: string)
-                        self:HandleChat(message, candidate.Name)
-                    end)
-                end
-            end)
+        local function attachChatPlayer(candidate: Player)
+            if candidate == Players.LocalPlayer then
+                scope:Connect(candidate.Chatted, function(message: string)
+                    self:HandleChat(message, candidate.Name)
+                end)
+            else
+                -- Legacy chat can still surface remote Player.Chatted events. Authorization stays
+                -- inside HandleDelegatedChat so adding/removing someone from the whitelist applies
+                -- immediately without rebuilding these event connections.
+                scope:Connect(candidate.Chatted, function(message: string)
+                    self:HandleDelegatedChat(message, candidate)
+                end)
+            end
         end
+        for _, candidate in ipairs(Players:GetPlayers()) do attachChatPlayer(candidate) end
+        scope:Connect(Players.PlayerAdded, attachChatPlayer)
 
         local textChat = game:GetService("TextChatService")
         if textChat and textChat.MessageReceived then

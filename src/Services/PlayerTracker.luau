@@ -132,6 +132,21 @@ return function(services: any): any
         table.clear(self._cameraOriginals)
     end
 
+    function PlayerTracker:IsWhitelisted(player: Player?): boolean
+        if not player then return false end
+        local whitelist = services:Get("StateStore"):Get("Settings.Whitelist")
+        local userId, name = tostring(player.UserId), player.Name:lower()
+        for key, value in pairs(whitelist) do
+            if value == true then
+                local entry = tostring(key):lower()
+                if entry == userId or entry == name then return true end
+            elseif tostring(value):lower() == userId or tostring(value):lower() == name then
+                return true
+            end
+        end
+        return false
+    end
+
     function PlayerTracker:AddWhitelist(player: Player): (boolean, string)
         if not player then return false, "Select a player" end
         local state = services:Get("StateStore")

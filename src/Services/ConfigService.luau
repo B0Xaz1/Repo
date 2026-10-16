@@ -7,6 +7,8 @@ local CONFIG = table.freeze({
     AUTOSAVE_FILE = "Configs/_autoload.json",
     BACKUP_FILE = "Configs/_backup.json",
     AUTOSAVE_INTERVAL = 1.5,
+    EDITION_PREFERENCE_FILE = "edition-preference.json",
+    MAX_EDITION_PREFERENCE_BYTES = 4096,
     BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" },
 })
 
@@ -14,6 +16,11 @@ return function(services: any): any
     local environment, state = services:Get("Environment"), services:Get("StateStore")
     local bus, scope = services:Get("EventBus"), services:Get("Disposer"):CreateChild("ConfigService")
     local ConfigService = { Dirty = false, _isLoading = false, _initialized = false, _activeProfile = "Default", _applyingLaunch = false }
+
+    local function setActiveProfile(name: string)
+        ConfigService._activeProfile = name
+        bus:Publish("ActiveProfileChanged", name)
+    end
 
     local function serialize(value: any, depth: number?): any
         local level = depth or 0
@@ -63,6 +70,27 @@ return function(services: any): any
         return (tostring(name):gsub('[/\\%.:%*%?<>|"%z\1-\31\127]', ""):gsub("^%s+", ""):gsub("%s+$", "")):sub(1, CONFIG.MAX_NAME_LENGTH)
     end
 
+    -- The launch edition lives outside profiles/autoload so changing a game configuration
+    -- can never silently change what the loader starts on a future launch.
+    local function normalizeEditionPreference(value: any): string
+        local normalized = tostring(value or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if normalized == "lite" then return "Lite" end
+        if normalized == "full" then return "Full" end
+        return "Ask"
+    end
+
+    local function editionPreferenceLabel(preference: string): string
+        return if preference == "Ask" then "Ask every launch" else preference
+    end
+
+    local function readEditionPreference(): string
+        local raw = environment:ReadFile(CONFIG.EDITION_PREFERENCE_FILE)
+        if type(raw) ~= "string" or #raw > CONFIG.MAX_EDITION_PREFERENCE_BYTES then return "Ask" end
+        local ok, payload = pcall(function() return HttpService:JSONDecode(raw) end)
+        if not ok or type(payload) ~= "table" then return "Ask" end
+        return normalizeEditionPreference(payload.Edition)
+    end
+
     local function builtinKey(name: string): string?
         local key = string.lower(sanitize(name))
         return if CONFIG.BUILTIN_LABELS[key] then key else nil
@@ -75,10 +103,8 @@ return function(services: any): any
             snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck = true, true, true
             snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 70, true, 120
             snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.2
-            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Health, snapshot.ESP.Distance = true, true, true, true, true
-            snapshot.ESP.Tool, snapshot.ESP.Backpack, snapshot.ESP.Tracers, snapshot.ESP.Skeleton, snapshot.ESP.HeadDot, snapshot.ESP.LookDir = false, false, false, false, false, false
-            snapshot.ESP.TeamCheck, snapshot.ESP.UseTeamColor, snapshot.ESP.Rainbow, snapshot.ESP.MaxDist = true, true, false, 800
-            snapshot.Chams.Enabled, snapshot.Chams.UseTeamColor, snapshot.Chams.Rainbow = false, true, false
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, false
+            snapshot.ESP.BoxStyle, snapshot.ESP.MaxDistance, snapshot.Chams.Enabled = "Full", 800, false
             snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling, snapshot.Movement.InfJump = false, false, false, false
             snapshot.Extras.Hitbox.Enabled, snapshot.Extras.SpinBot.Enabled = false, false
         elseif key == "rage" then
@@ -87,10 +113,8 @@ return function(services: any): any
             snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 360, true, 800
             snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = true, 0.02
             snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = false, false
-            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Health, snapshot.ESP.Distance = true, true, true, true, true
-            snapshot.ESP.Tool, snapshot.ESP.Backpack, snapshot.ESP.Tracers, snapshot.ESP.Skeleton, snapshot.ESP.HeadDot, snapshot.ESP.LookDir = true, true, true, true, true, true
-            snapshot.ESP.TeamCheck, snapshot.ESP.UseTeamColor, snapshot.ESP.Rainbow, snapshot.ESP.MaxDist = false, false, false, 10000
-            snapshot.Chams.Enabled, snapshot.Chams.UseTeamColor, snapshot.Chams.Rainbow = true, false, false
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, false
+            snapshot.ESP.BoxStyle, snapshot.ESP.MaxDistance, snapshot.Chams.Enabled = "Full", 10000, true
             snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling = false, false, false
         end
         return snapshot
@@ -103,15 +127,35 @@ return function(services: any): any
         return `Configs/{name}.json`, name
     end
 
-    local function hydrate(snapshot: any)
+    local function hydrate(snapshot: any, label: string?)
         ConfigService._isLoading = true
+        if label then bus:Publish("ConfigApplyStarted", label) end
         local ok, err = pcall(function() state:LoadSettingsSnapshot(snapshot) end)
         ConfigService._isLoading = false
-        if not ok then error(err) end
+        if not ok then
+            if label then bus:Publish("ConfigApplyFinished", false, label, tostring(err)) end
+            error(err)
+        end
         ConfigService.Dirty = false
+        if label then bus:Publish("ConfigApplyFinished", true, label) end
     end
 
     function ConfigService:SanitizeName(name: string): string return sanitize(name) end
+
+    function ConfigService:GetEditionPreference(): string
+        return readEditionPreference()
+    end
+
+    function ConfigService:SetEditionPreference(preference: any): (boolean, string)
+        if not environment.Capabilities.Files then return false, "Edition preferences require local file persistence" end
+        local normalized = normalizeEditionPreference(preference)
+        local ok, encoded = pcall(function()
+            return HttpService:JSONEncode({ Format = 1, Edition = normalized })
+        end)
+        if not ok then return false, tostring(encoded) end
+        local written, message = environment:WriteFile(CONFIG.EDITION_PREFERENCE_FILE, encoded)
+        return written, message or `Edition preference set to {editionPreferenceLabel(normalized)}`
+    end
 
     function ConfigService:Save(name: string): (boolean, string)
         local path, clean = pathFor(name)
@@ -119,7 +163,7 @@ return function(services: any): any
         local ok, json = pcall(encode, state:GetSettingsSnapshot())
         if not ok then return false, tostring(json) end
         local written, message = environment:WriteFile(path, json)
-        if written then self._activeProfile = clean; bus:Publish("ProfilesChanged") end
+        if written then setActiveProfile(clean); bus:Publish("ProfilesChanged") end
         return written, message or `Saved {clean}`
     end
 
@@ -132,7 +176,7 @@ return function(services: any): any
                 local current = state:GetSettingsSnapshot()
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
             end
-            hydrate(snapshot); self._activeProfile = CONFIG.BUILTIN_LABELS[key]
+            hydrate(snapshot, `Loading {CONFIG.BUILTIN_LABELS[key]}`); setActiveProfile(CONFIG.BUILTIN_LABELS[key])
             self:PersistLoadedProfile()
             return true, `Loaded {CONFIG.BUILTIN_LABELS[key]}`
         end
@@ -142,7 +186,7 @@ return function(services: any): any
         if not raw then return false, readError or "Profile not found" end
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, `Invalid profile: {tostring(snapshot)}` end
-        hydrate(snapshot); self._activeProfile = clean
+        hydrate(snapshot, `Loading {clean}`); setActiveProfile(clean)
         self:PersistLoadedProfile()
         return true, `Loaded {clean}`
     end
@@ -151,6 +195,35 @@ return function(services: any): any
         if self._applyingLaunch then return end
         self.Dirty = true
         self:Flush()
+    end
+
+    function ConfigService:ResetInterfacePreferences(): (boolean, string)
+        local defaults = state:GetDefaultSettings()
+        -- Apply values from the immutable defaults without replacing the user's profiles, binds, or favorites.
+        state:Set("Settings.UIScale", defaults.Settings.UIScale)
+        state:Set("Settings.CompactMenu", defaults.Settings.CompactMenu)
+        state:Set("Settings.InterfaceDensity", defaults.Settings.InterfaceDensity)
+        state:Set("Settings.ShowMenuIcon", defaults.Settings.ShowMenuIcon)
+        state:Set("Settings.MotionMode", defaults.Settings.MotionMode)
+        state:Set("Settings.MotionSpeed", defaults.Settings.MotionSpeed)
+        self.Dirty = true
+        self:Flush()
+        return true, "Interface scale, density, and motion settings were restored"
+    end
+
+    function ConfigService:ResetTheme(): (boolean, string)
+        state:Set("Theme.CustomTokens", {})
+        state:Set("Theme.ActivePreset", "Midnight")
+        self.Dirty = true
+        self:Flush()
+        return true, "Midnight theme restored"
+    end
+
+    function ConfigService:ResetAllSettings(): (boolean, string)
+        hydrate(state:GetDefaultSettings(), "Restoring all defaults")
+        setActiveProfile("Default")
+        self:PersistLoadedProfile()
+        return true, "All settings were restored to defaults"
     end
 
     function ConfigService:Delete(name: string): (boolean, string)
@@ -209,7 +282,7 @@ return function(services: any): any
         if not valid then return false, validationError or "Backup validation failed" end
         local ok, snapshot = pcall(decode, raw)
         if not ok then return false, `Backup validation failed: {tostring(snapshot)}` end
-        hydrate(snapshot); self._activeProfile = "Backup restore"
+        hydrate(snapshot, "Restoring backup"); setActiveProfile("Backup restore")
         self:PersistLoadedProfile()
         return true, "Backup restored"
     end
@@ -221,7 +294,7 @@ return function(services: any): any
         if not valid then return false, validationError or "Invalid config JSON" end
         local ok, snapshot = pcall(decode, json)
         if not ok then return false, `Invalid config JSON: {tostring(snapshot)}` end
-        hydrate(snapshot); self._activeProfile = "Imported"
+        hydrate(snapshot, "Importing config"); setActiveProfile("Imported")
         self:PersistLoadedProfile()
         return true, "Imported config"
     end
@@ -256,8 +329,8 @@ return function(services: any): any
         if preferences.RestoreOnLaunch == false then
             local defaults = state:GetDefaultSettings()
             defaults.Settings.RestoreOnLaunch, defaults.Settings.StartupProfile = false, startup
-            hydrate(defaults)
-            self._activeProfile = "Default"
+            hydrate(defaults, "Restoring defaults")
+            setActiveProfile("Default")
             self:Flush()
             return "disabled"
         end
@@ -282,11 +355,11 @@ return function(services: any): any
             end
         end
         if raw then
-            hydrate(raw)
-            self._activeProfile = "Autosaved session"
+            hydrate(raw, "Restoring session")
+            setActiveProfile("Autosaved session")
             return "autoload"
         end
-        hydrate(state:GetDefaultSettings())
+        hydrate(state:GetDefaultSettings(), "Preparing defaults")
         return "defaults"
     end
 

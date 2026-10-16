@@ -207,15 +207,6 @@ return function(services: any): any
             return ok, if ok then if desired then "Menu opened" else "Menu hidden" else message or "Menu toggle failed"
         end)
 
-        self:Register("status", "Utility", "Print key feature states.", "/status", function(_raw: string, _args: { string }, _source: string)
-            local statusPairs = {
-                { "Aimbot", state:Get("Aimbot.Enabled") == true }, { "ESP", state:Get("ESP.Enabled") == true },
-                { "Flight", state:Get("Movement.FlyEnabled") == true }, { "Menu", state:Get("Settings.MenuVisible") ~= false },
-            }
-            local output = {}
-            for _, item in ipairs(statusPairs) do table.insert(output, `{item[1]}={if item[2] then "on" else "off"}`) end
-            return true, table.concat(output, ", ")
-        end)
 
         self:Register("fullbright", "Visuals", "Toggle fullbright mode.", "/fullbright [on|off]", function(_raw: string, args: { string }, _source: string)
             local enabled = state:Get("Visuals.Fullbright") == true

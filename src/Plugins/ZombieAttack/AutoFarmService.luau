@@ -18,6 +18,7 @@ return function(services: any, Aura: any?): any
         _placements = 0,
         _failures = 0,
         _lockDistance = 0,
+        _lastPlacementAt = 0,
         _state = "off",
     }
 
@@ -74,10 +75,14 @@ return function(services: any, Aura: any?): any
         end
 
         local target = AutoFarm._locked
-        if LocomotionService:Teleport(engageFrame(target)) then
-            AutoFarm._placements += 1
-        else
-            AutoFarm._failures += 1
+        local now = os.clock()
+        if now - AutoFarm._lastPlacementAt >= farmConfig.RepositionInterval then
+            AutoFarm._lastPlacementAt = now
+            if LocomotionService:Teleport(engageFrame(target)) then
+                AutoFarm._placements += 1
+            else
+                AutoFarm._failures += 1
+            end
         end
 
         AutoFarm._state = `locked on {target.Model.Name} at {math.floor(target.Humanoid.Health)} hp`
@@ -103,6 +108,7 @@ return function(services: any, Aura: any?): any
 
     function AutoFarm:Reset(_reason: string?)
         self._locked = nil
+        self._lastPlacementAt = 0
         self._state = if StateStore:Get("Game.ZombieFarm") == true then "idle" else "off"
     end
 

@@ -3,7 +3,8 @@ local Players = game:GetService("Players")
 local CONFIG = table.freeze({
     VERSION = "2.4.9",
     NOT_FOUND_BODY = "404" .. ": Not Found",
-    DEFAULT_REF = "main",
+    -- Keep every module request on the immutable revision selected by loader.luau.
+    DEFAULT_REF = "94f3b32b3181a8251aafbeca9092e912efbef2f3",
     REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
     READINESS_TIMEOUT = 15,
     READINESS_POLL = 0.1,
@@ -14,7 +15,6 @@ local CONFIG = table.freeze({
     MIN_SOURCE_LENGTH = 10,
     LAUNCH_LOCK_WINDOW = 90,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
-    LAUNCH_GUARD_SUFFIXES = { "/init.luau", "/loader.luau", "/init.lua", "/loader.lua", "/B0XazUniversal", "/B0Xaz-Universal", "/Universal" },
     PATH_PREFIXES = { "B0XazUniversal/", "B0Xaz-Universal/", "Universal/" },
 })
 
@@ -24,6 +24,29 @@ if type(runtime.getgenv) == "function" then
     local ok, value = pcall(runtime.getgenv)
     if ok and type(value) == "table" then globals = value end
 end
+
+-- Do not trust a previously-set base URL: it can redirect requireModule to arbitrary
+-- remote code. A full commit id is immutable; anything else falls back to this build.
+local function resolveRef(value: any): string
+    if type(value) == "string" and #value == 40 and value:match("^[0-9a-fA-F]+$") then
+        return value:lower()
+    end
+    return CONFIG.DEFAULT_REF
+end
+
+local function resolveEdition(value: any): string
+    if type(value) == "string" and value:lower() == "lite" then return "Lite" end
+    return "Full"
+end
+
+local ref = resolveRef(globals.B0XazRef)
+local edition = resolveEdition(globals.B0XazEdition)
+local base = `{CONFIG.REPOSITORY}{ref}/`
+local initUrl = `{base}init.luau`
+local loaderUrl = `{base}loader.luau`
+globals.B0XazRef, globals.B0XazBaseURL = ref, base:sub(1, -2)
+globals.B0XazEdition = edition
+globals.B0XazInitURL, globals.B0XazLoaderURL = initUrl, loaderUrl
 
 local consoleFns = {}
 for index, name in ipairs(CONFIG.CONSOLE_CLEAR_NAMES) do consoleFns[index] = runtime[name] end
@@ -58,8 +81,12 @@ end
 
 function globals.B0XazRelaunch()
     if globals.B0XazLoaderBusy then return end
-    local url = globals.B0XazInitURL
+    -- Use this session's canonical URL instead of a mutable global override.
+    local url = initUrl
+    local activeEdition = resolveEdition(globals.B0XazEdition)
     globals.B0XazUnload()
+    -- Relaunches stay in the active edition rather than re-opening a picker mid-session.
+    globals.B0XazEdition = activeEdition
     local ticket = {}
     globals.B0XazLoaderBusy = ticket
     local relaunched, relaunchError = pcall(function()
@@ -85,19 +112,6 @@ function globals.B0XazRelaunch()
 end
 
 globals.B0XazRunning = globals.B0XazRunning == true
-local base: string = if type(globals.B0XazBaseURL) == "string" then globals.B0XazBaseURL
-    else CONFIG.REPOSITORY .. (if type(globals.B0XazRef) == "string" then globals.B0XazRef else CONFIG.DEFAULT_REF)
-base = base:gsub("[?#].*$", ""):gsub("/+$", "")
--- A base URL may point at the launch script itself; strip every known suffix to reach the repository root
-local changed = true
-while changed do
-    changed = false
-    for _, suffix in ipairs(CONFIG.LAUNCH_GUARD_SUFFIXES) do
-        if base:sub(-#suffix) == suffix then base = base:sub(1, -#suffix - 1):gsub("/+$", ""); changed = true end
-    end
-end
-base ..= "/"
-globals.B0XazBaseURL, globals.B0XazInitURL = base, `{base}init.luau`
 
 local now = os.time()
 if type(globals.B0XazLaunching) == "number" and now - globals.B0XazLaunching < CONFIG.LAUNCH_LOCK_WINDOW then return end
@@ -228,6 +242,7 @@ local booted, bootError = pcall(function()
             Globals = globals,
             SessionId = sessionId,
             Version = CONFIG.VERSION,
+            Edition = edition,
             Require = requireModule,
             Step = step,
         })

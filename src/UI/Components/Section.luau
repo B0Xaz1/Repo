@@ -12,10 +12,10 @@ return function(services: any): any
         dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 6) })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
         theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Border")), "Color", "Border")
-        dom:CreatePadding(frame, 10, 12, 10, 12)
-        dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        local padding = dom:CreatePadding(frame, 10, 12, 10, 12)
+        local layout = dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
         local header = dom:Create("TextButton", { Parent = frame, Name = "SectionHeader", BackgroundTransparency = 1, BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 22), LayoutOrder = 0, Text = "", AutoButtonColor = false })
+            Size = UDim2.new(1, 0, 0, 22), LayoutOrder = 0, Text = "", AutoButtonColor = false, Selectable = true })
         local titleLabel = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Size = UDim2.new(1, -22, 1, 0),
             Text = title, Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
             TextColor3 = theme:GetToken("Accent") })
@@ -25,8 +25,18 @@ return function(services: any): any
             TextColor3 = theme:GetToken("TextMuted") })
         theme:BindToken(indicator, "TextColor3", "TextMuted")
         local content = dom:Create("Frame", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
-        dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
+        local contentLayout = dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
         local sectionScope = disposer:CreateChild(`Section {title}`)
+        local function applyDensity(value: any)
+            local compact = value == "Compact"
+            padding.PaddingTop, padding.PaddingRight = UDim.new(0, if compact then 8 else 10), UDim.new(0, if compact then 10 else 12)
+            padding.PaddingBottom, padding.PaddingLeft = UDim.new(0, if compact then 8 else 10), UDim.new(0, if compact then 10 else 12)
+            layout.Padding = UDim.new(0, if compact then 2 else 4)
+            contentLayout.Padding = UDim.new(0, if compact then 2 else 3)
+            header.Size = UDim2.new(1, 0, 0, if compact then 20 else 22)
+        end
+        applyDensity(state:Peek("Settings.InterfaceDensity"))
+        sectionScope:Add(state:Observe("Settings.InterfaceDensity", applyDensity))
         sectionScope:ConnectImmediate(header.Activated, function()
             content.Visible = not content.Visible
             indicator.Text = if content.Visible then "v" else ">"
@@ -67,7 +77,7 @@ return function(services: any): any
         owner:ConnectImmediate(original.Destroying, function() dom:DestroyInstance(slot or row) end)
         if decorated then
             pin = dom:Create("TextButton", { Parent = slot, Name = "Favorite", BackgroundTransparency = 1, BorderSizePixel = 0,
-                Position = UDim2.new(1, -20, 0, 0), Size = UDim2.fromOffset(20, 22), Text = "☆", TextSize = 17, Font = Enum.Font.Gotham, AutoButtonColor = false })
+                Position = UDim2.new(1, -20, 0, 0), Size = UDim2.fromOffset(20, 22), Text = "☆", TextSize = 17, Font = Enum.Font.Gotham, AutoButtonColor = false, Selectable = true })
             theme:BindToken(pin, "TextColor3", "TextMuted")
         end
         if services:Has("UIEngine") then owner:Add(services:Get("UIEngine"):RegisterControl(slot or row, label, pin, owner)) end
@@ -87,10 +97,46 @@ return function(services: any): any
         end
         return handle
     end
+    -- A subsection is a lightweight disclosure row inside an existing section, not another card.
+    -- It keeps long workspaces navigable while preserving one top-level menu node.
+    function Section:Subsection(parent: Instance, title: string, initiallyOpen: boolean?): Frame
+        orders[parent] = (orders[parent] or 0) + 1
+        local outer = dom:Create("Frame", { Parent = parent, Name = "Subsection", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent] })
+        outer:SetAttribute("B0XazSubsection", title)
+        dom:Create("UIListLayout", { Parent = outer, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+        local header = dom:Create("TextButton", { Parent = outer, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20),
+            LayoutOrder = 0, Text = "", AutoButtonColor = false, Selectable = true })
+        header:SetAttribute("B0XazBorderless", true)
+        local label = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Size = UDim2.new(1, -22, 1, 0), Text = title,
+            Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left })
+        local indicator = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.new(1, -20, 0, 0), Size = UDim2.fromOffset(20, 20),
+            Font = Enum.Font.Gotham, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center })
+        theme:BindToken(label, "TextColor3", "Accent")
+        theme:BindToken(indicator, "TextColor3", "TextMuted")
+        local content = dom:Create("Frame", { Parent = outer, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            LayoutOrder = 1, Visible = initiallyOpen ~= false })
+        dom:CreatePadding(content, 0, 4, 3, 4)
+        -- Controls use LayoutOrder, so each disclosure body needs its own vertical layout.
+        -- Without this, every control is positioned at the same origin when the group opens.
+        dom:Create("UIListLayout", { Parent = content, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
+        local owner = disposer:CreateChild(`Subsection {title}`)
+        local function paint()
+            indicator.Text = if content.Visible then "v" else ">"
+        end
+        paint()
+        owner:ConnectImmediate(header.Activated, function()
+            content.Visible = not content.Visible
+            paint()
+        end)
+        owner:Connect(outer.Destroying, function() owner:Dispose() end)
+        return content
+    end
+
     function Section:StyleButton(button: TextButton, owner: any, token: string?, borderless: boolean?)
         local normal = token or "Elem"
         if borderless then button:SetAttribute("B0XazBorderless", true) end
-        button.AutoButtonColor = false
+        button.AutoButtonColor, button.Selectable = false, true
         theme:BindToken(button, "BackgroundColor3", normal)
         theme:BindToken(button, "TextColor3", "Text")
         if not borderless then theme:BindToken(dom:CreateStroke(button, theme:GetToken("BorderDim")), "Color", "BorderDim") end

@@ -11,17 +11,20 @@ local CONFIG = table.freeze({
     FLING_UPWARD_CAP = 250,
     FLING_ANGULAR_CAP = 120,
     SPIN_SPEED_LIMIT = 3000,
+    HIP_HEIGHT_MIN = 0,
+    HIP_HEIGHT_MAX = 20,
 })
 
 return function(services: any): any
     local state, tracker, scheduler = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("TaskScheduler")
-    local bus = services:Get("EventBus")
+    local bus, environment = services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("ExtrasService")
     local guardChanges = scope:CreateChild("Anti-fling recovery")
     local virtualUser: any = nil
     pcall(function() virtualUser = game:GetService("VirtualUser") end)
     local ExtrasService = { _hitboxBackups = {}, _passive = {}, _spinScope = nil, _spinRoot = nil,
-        _baseline = nil, _baselineRoot = nil, _guardRoot = nil, _lastNotice = -math.huge, _scanElapsed = 0, _initialized = false }
+        _hipHeightScope = nil, _hipHeightHumanoid = nil, _baseline = nil, _baselineRoot = nil, _guardRoot = nil,
+        _lastNotice = -math.huge, _scanElapsed = 0, _initialized = false }
 
     local function restoreHitbox(player: Player)
         local backup = ExtrasService._hitboxBackups[player]
@@ -54,6 +57,35 @@ return function(services: any): any
             end
             owner:Dispose()
         end
+    end
+
+    local function clearHipHeight()
+        local owner = ExtrasService._hipHeightScope
+        ExtrasService._hipHeightScope, ExtrasService._hipHeightHumanoid = nil, nil
+        if owner then owner:Dispose() end
+    end
+
+    local function syncHipHeight()
+        local config = state:Peek("Extras.HipHeight")
+        -- Wall Walk owns the Humanoid hip offset while active, so avoid fighting its property
+        -- lease and automatically restore this override when Wall Walk stops.
+        if not config.Enabled or state:Peek("Movement.WallWalkEnabled") == true then clearHipHeight(); return end
+        local assets = tracker:GetLocalAssets()
+        if not assets or assets.Humanoid.Health <= 0 then clearHipHeight(); return end
+        local humanoid = assets.Humanoid
+        if ExtrasService._hipHeightHumanoid ~= humanoid then
+            clearHipHeight()
+            local owner = scope:CreateChild("Hip height")
+            ExtrasService._hipHeightScope, ExtrasService._hipHeightHumanoid = owner, humanoid
+            owner:ConnectImmediate(humanoid:GetPropertyChangedSignal("HipHeight"), function()
+                if ExtrasService._hipHeightScope ~= owner or state:Peek("Movement.WallWalkEnabled") == true then return end
+                local current = state:Peek("Extras.HipHeight")
+                local desired = math.clamp(tonumber(current.Value) or 2, CONFIG.HIP_HEIGHT_MIN, CONFIG.HIP_HEIGHT_MAX)
+                if current.Enabled == true and humanoid.HipHeight ~= desired then owner:SetProperty(humanoid, "HipHeight", desired, true) end
+            end)
+        end
+        local desired = math.clamp(tonumber(config.Value) or 2, CONFIG.HIP_HEIGHT_MIN, CONFIG.HIP_HEIGHT_MAX)
+        if humanoid.HipHeight ~= desired then ExtrasService._hipHeightScope:SetProperty(humanoid, "HipHeight", desired, true) end
     end
 
     local function updateHitboxes()
@@ -169,10 +201,16 @@ return function(services: any): any
             if not value then restoreDefence() end
         end))
         scope:Add(state:Observe("Extras.SpinBot.Enabled", function(value: boolean) if not value then stopSpin() end; syncHitboxSpin() end))
+        scope:Add(state:Observe("Extras.HipHeight.Enabled", syncHipHeight))
+        scope:Add(state:Observe("Extras.HipHeight.Value", syncHipHeight))
+        scope:Add(state:Observe("Movement.WallWalkEnabled", syncHipHeight))
+        scope:Add(tracker:OnLocalCharacterRespawn(syncHipHeight))
         syncHitboxSpin()
+        syncHipHeight()
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
         scope:Connect(Players.LocalPlayer.Idled, function()
-            if not state:Get("Settings.AntiAfk") or not virtualUser then return end
+            -- VirtualUser stays in Roblox and follows the shared focus-only input policy.
+            if not state:Get("Settings.AntiAfk") or not virtualUser or not environment:HasWindowFocus() then return end
             local sent = pcall(function()
                 virtualUser:CaptureController()
                 virtualUser:ClickButton2(Vector2.zero)
@@ -183,6 +221,6 @@ return function(services: any): any
 
     function ExtrasService:Destroy() scope:Dispose() end
 
-    scope:Add(function() restoreHitboxes(); restoreDefence(); stopSpin() end)
+    scope:Add(function() restoreHitboxes(); restoreDefence(); stopSpin(); clearHipHeight() end)
     return ExtrasService
 end

@@ -6,8 +6,10 @@ local GuiService = game:GetService("GuiService")
 local CONFIG = table.freeze({
     ROOT = "B0XazUniversal/",
     CONFIGS_SUBFOLDER = "Configs",
-    FPS_MIN = 15,
-    FPS_MAX = 1000,
+    -- Some executors revert to their 60-FPS fallback when Roblox GUI gains focus. This is an
+    -- internal recovery ceiling, not a user-configurable frame-rate control.
+    FRAME_RATE_TARGET = 1000,
+    FRAME_RATE_FFLAG = "DFIntTaskSchedulerTargetFps",
     CLICK_RELEASE_DELAY = 0.03,
     CONSOLE_CLEAR_NAMES = { "rconsoleclear", "consoleclear", "clearconsole", "clearoutput" },
 })
@@ -45,11 +47,26 @@ return function(disposer: any): any
     local getHui = first(probe("gethui"))
     local write, read, exists = first(probe("writefile")), first(probe("readfile")), first(probe("isfile"))
     local list, mkdir, delete = first(probe("listfiles")), first(probe("makefolder")), first(probe("delfile"))
-    local move = first(probe("mousemoverel"))
+    -- Desktop-relative pointer movement is intentionally opt-in for the aimbot's real mouse-lock
+    -- mode. It is never used for automated clicking.
+    local nativeMouseMove = first(probe("mousemoverel"))
     local clipSet, clipGet = first(probe("setclipboard")), first(probe("getclipboard"))
     local queue = first(probe("queue_on_teleport"), member(syn, "queue_on_teleport"), member(fluxus, "queue_on_teleport"))
-    local fps = first(probe("setfpscap"), probe("set_fps_cap"), probe("setfps"))
-    local click = first(probe("mouse1click"))
+    local setFflag = first(probe("setfflag"), member(globals, "setfflag"), member(syn, "setfflag"), member(fluxus, "setfflag"))
+    -- Executors use several aliases for the same setting, and may expose a non-working alias
+    -- alongside a functional one. Retain each distinct callable for the internal repair path.
+    local fpsSetters, seenFpsSetters = {}, {}
+    local function addFpsSetter(candidate: any)
+        if type(candidate) ~= "function" or seenFpsSetters[candidate] then return end
+        seenFpsSetters[candidate] = true
+        table.insert(fpsSetters, candidate)
+    end
+    for _, name in ipairs({ "setfpscap", "set_fps_cap", "setfps", "set_fps_limit", "setfpslimit" }) do
+        addFpsSetter(probe(name))
+        addFpsSetter(member(globals, name))
+        addFpsSetter(member(syn, name))
+        addFpsSetter(member(fluxus, name))
+    end
     local requestFn = first(probe("request"), probe("http_request"), member(syn, "request"), member(http, "request"))
     local drawingNew = first(member(probe("Drawing"), "new"))
     local drawing = if drawingNew then { new = drawingNew } else nil
@@ -71,15 +88,16 @@ return function(disposer: any): any
     local cachedParent: Instance? = nil
     local virtualInput: any = nil
     pcall(function() virtualInput = game:GetService("VirtualInputManager") end)
-    local mousePressed = false
+    local mousePressed, windowFocused = false, true
 
     local Environment = {
         Globals = globals, Root = CONFIG.ROOT, Drawing = drawing,
         Capabilities = table.freeze({
             Files = write ~= nil and read ~= nil, WriteFile = write ~= nil, ReadFile = read ~= nil,
-            ListFiles = list ~= nil, DeleteFile = delete ~= nil, MouseMove = move ~= nil,
+            ListFiles = list ~= nil, DeleteFile = delete ~= nil,
+            MouseMove = nativeMouseMove ~= nil, NativeMouseMove = nativeMouseMove ~= nil, NativeClick = false,
             ClipboardWrite = clipSet ~= nil, ClipboardRead = clipGet ~= nil,
-            QueueTeleport = queue ~= nil, FpsCap = fps ~= nil, NativeClick = click ~= nil,
+            QueueTeleport = queue ~= nil,
             VirtualInput = virtualInput ~= nil, HttpRequest = requestFn ~= nil,
             Drawing = type(drawing) == "table" and type(drawing.new) == "function",
         }),
@@ -149,15 +167,19 @@ return function(disposer: any): any
             cachedParent = nil
         end
         local candidates = {}
+        -- Prefer Roblox's engine-owned PlayerGui for visible UI. Some executor-provided GUI
+        -- hosts composite an active top-level ScreenGui at the display refresh rate, which can
+        -- make an otherwise uncapped client appear locked to 60 whenever this menu is visible.
+        -- The other locations remain compatibility fallbacks when PlayerGui is unavailable.
+        if Players.LocalPlayer then
+            local parent = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if parent then table.insert(candidates, parent) end
+        end
         if getHui then
             local ok, parent = pcall(getHui)
             if ok and typeof(parent) == "Instance" then table.insert(candidates, parent) end
         end
         pcall(function() table.insert(candidates, game:GetService("CoreGui")) end)
-        if Players.LocalPlayer then
-            local parent = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            if parent then table.insert(candidates, parent) end
-        end
         for _, parent in ipairs(candidates) do
             local folder = Instance.new("Folder")
             local writable = pcall(function() folder.Parent = parent end)
@@ -167,9 +189,13 @@ return function(disposer: any): any
         return nil
     end
 
-    function Environment:MouseMove(x: number, y: number): boolean
-        if not move then return false end
-        return pcall(move, math.round(x), math.round(y))
+    -- The user explicitly enabled real relative cursor movement for mouse aim. Keep it scoped to
+    -- the focused Roblox window; clicks remain client-contained VirtualInputManager events.
+    function Environment:MouseMove(x: number, y: number): (boolean, string?)
+        if not nativeMouseMove then return false, "Native relative mouse movement is unavailable" end
+        if not windowFocused then return false, "Roblox is not the focused window" end
+        local moved, moveError = pcall(nativeMouseMove, math.round(x), math.round(y))
+        return moved, if moved then nil else tostring(moveError)
     end
 
     function Environment:SetClipboard(text: string): (boolean, string?)
@@ -189,11 +215,22 @@ return function(disposer: any): any
         return pcall(queue, source)
     end
 
-    function Environment:HasFpsCap(): boolean return fps ~= nil end
-
-    function Environment:SetFpsCap(value: number): boolean
-        if not fps then return false end
-        return pcall(fps, if value == 0 then 0 else math.clamp(math.round(value), CONFIG.FPS_MIN, CONFIG.FPS_MAX))
+    -- Repair an executor-level 60-FPS fallback without exposing a slider, button, setting, or
+    -- other frame-rate control in the menu. Zero is deliberately avoided because some executors
+    -- interpret it as their 60-FPS default instead of unlimited.
+    function Environment:RepairFrameRate(): boolean
+        local applied = false
+        for _, setter in ipairs(fpsSetters) do
+            if pcall(setter, CONFIG.FRAME_RATE_TARGET) then applied = true end
+        end
+        -- Some executors accept their regular setter yet let Roblox reset the scheduler target
+        -- when the view starts rendering player geometry. Reapply this companion target on every
+        -- event-driven repair; a previous one-time write cannot correct a later scene reset.
+        if setFflag then
+            local changed = pcall(setFflag, CONFIG.FRAME_RATE_FFLAG, tostring(CONFIG.FRAME_RATE_TARGET))
+            if changed then applied = true end
+        end
+        return applied
     end
 
     function Environment:IsMobile(): boolean return UIS.TouchEnabled and not UIS.KeyboardEnabled end
@@ -254,17 +291,37 @@ return function(disposer: any): any
         return result, nil
     end
 
-    function Environment:MouseClick(): boolean
-        if click then return pcall(click) end
-        -- Without a native click API the press/release pair is synthesized, and mousePressed
-        -- keeps a delayed release from overlapping the next press
-        if not virtualInput or mousePressed then return false end
+    function Environment:HasWindowFocus(): boolean
+        return windowFocused
+    end
+
+    -- Virtual input is allowed whenever Roblox itself owns the focused window. Individual
+    -- features decide whether their own menu/keybind state should pause; this shared transport
+    -- layer must not treat normal Roblox or game HUD input as a global blocker.
+    function Environment:CanLockPointer(): boolean
+        return windowFocused
+    end
+
+    function Environment:CanSimulatePointerInput(): (boolean, string?)
+        if not virtualInput then return false, "Virtual input is unavailable" end
+        if not windowFocused then return false, "Roblox is not the focused window" end
+        return true
+    end
+
+    function Environment:MouseClick(): (boolean, string?)
+        local allowed, reason = self:CanSimulatePointerInput()
+        if not allowed then return false, reason end
+        if mousePressed then return false, "A simulated click is already in progress" end
         local point = UIS:GetMouseLocation()
-        local sent = pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0) end)
-        if not sent then return false end
+        local sent, sendError = pcall(function()
+            virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, true, game, 0)
+        end)
+        if not sent then return false, tostring(sendError) end
         mousePressed = true
         scope:Delay(CONFIG.CLICK_RELEASE_DELAY, function()
-            virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, false, game, 0)
+            if virtualInput then
+                pcall(function() virtualInput:SendMouseButtonEvent(point.X, point.Y, 0, false, game, 0) end)
+            end
             mousePressed = false
         end)
         return true
@@ -279,12 +336,25 @@ return function(disposer: any): any
 
     function Environment:Destroy() scope:Dispose() end
 
+    -- The focus flag prevents a queued automation action from being sent while another desktop
+    -- window is active. VirtualInputManager itself stays inside Roblox; this is an extra guard.
+    scope:ConnectImmediate(UIS.WindowFocusReleased, function()
+        windowFocused = false
+        if mousePressed and virtualInput then
+            mousePressed = false
+            pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
+        end
+    end)
+    scope:ConnectImmediate(UIS.WindowFocused, function() windowFocused = true end)
+
     scope:Add(function()
         if mousePressed and virtualInput then
             mousePressed = false
             pcall(function() virtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0) end)
         end
-        if fps then pcall(fps, 0) end
+        -- Leave the executor in its high-ceiling state after suite unload; otherwise a user can
+        -- return to the executor's 60-FPS fallback even though no menu control ever existed.
+        Environment:RepairFrameRate()
     end)
 
     return Environment

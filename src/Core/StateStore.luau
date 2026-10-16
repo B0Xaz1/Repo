@@ -12,7 +12,7 @@ local CONFIG = deepFreeze({
         Aimbot = {
             Enabled = false, UseCamera = true, Keybind = Enum.UserInputType.MouseButton2,
             Hitpart = "Head", Smoothness = 8,
-            LockMode = "Hold", Prediction = { Horizontal = 0, Vertical = 0 }, TeamCheck = true,
+            LockMode = "Hold", StickyAim = true, Prediction = { Horizontal = 0, Vertical = 0 }, TeamCheck = true,
             FriendCheck = false, WhitelistCheck = true, ForceFieldCheck = true, VisCheck = true,
             MaxDistance = 2000, ShakeIntensity = 0, UnlockOnDeath = true, BreakOnPull = true, MaxLockRadius = 250,
             Triggerbot = { Enabled = false, Keybind = Enum.KeyCode.Unknown, Delay = 0.15, TeamCheck = true, FriendCheck = false,
@@ -24,23 +24,21 @@ local CONFIG = deepFreeze({
             FlyEnabled = false, FlySpeed = 50, FlyKeybind = Enum.KeyCode.F,
             MobileFlyUp = false, MobileFlyDown = false, SprintEnabled = false, SprintSpeed = 28,
             CFrameSpeed = false, CFrameSpeedValue = 10, WorldGravity = 0, Fling = false, TouchFling = false, TouchTeleportEnabled = false, NoClip = false,
-            FreecamEnabled = false, FreecamSpeed = 32, WallWalkEnabled = false,
+            FreecamEnabled = false, FreecamSpeed = 32, MouseLockEnabled = false, WallWalkEnabled = false,
         },
-        ESP = {
-            Enabled = false, Box = true, Name = true, Health = true, Distance = true,
-            Tool = false, Backpack = false, Tracers = false, Skeleton = false, HeadDot = false, LookDir = false,
-            TeamCheck = false, UseTeamColor = false, Rainbow = false, MaxDist = 2500, Color = Color3.fromRGB(129, 167, 255),
-            Font = "Plex", Outline = true, AutoScaling = true, DepthMode = "AlwaysOnTop",
-        },
-        Chams = { Enabled = false, UseTeamColor = false, Rainbow = false, DepthMode = "AlwaysOnTop",
-            FillColor = Color3.fromRGB(117, 143, 255), OutlineColor = Color3.fromRGB(222, 230, 255) },
+        -- The player overlay uses one compact text readout with a native full box by default. The
+        -- optional health bar starts off so the default overlay remains compact.
+        ESP = { Enabled = false, ShowSelf = false, Box = true, BoxStyle = "Full", Name = true, Distance = true, Tool = true, Health = true, HealthBar = false, ActivityStatus = true,
+            MaxDistance = 2500, Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
+        Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
-        Lighting = { Mode = "Off", TimeOfDay = 14, CycleDuration = 240, Paused = false,
+        Lighting = { Mode = "Off", ScenePreset = "Custom", TimeOfDay = 14, CycleDuration = 240, Paused = false,
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
         Extras = { Hitbox = { Enabled = false, Size = 5 }, SpinBot = { Enabled = false, Speed = 180 },
+            HipHeight = { Enabled = false, Value = 2 },
             AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
-        Performance = { FpsCap = 0, NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
-            NoPostProcessing = false, NoShadows = false, NoParticles = false },
+        Performance = { NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
+            NoPostProcessing = false, NoShadows = false, NoParticles = false, NoLights = false, NoHighlights = false },
         Game = {
             NoSpread = false, FastFire = false, ForceAuto = false, ForceRange = false,
             FastFireDelay = 0.001, ForceRangeValue = 10000,
@@ -62,7 +60,7 @@ local CONFIG = deepFreeze({
         },
         Settings = {
             UIScale = 1, MenuVisible = true, ShowMenuIcon = true, MenuKeybind = Enum.KeyCode.RightShift, UnloadKeybind = Enum.KeyCode.End,
-            CompactMenu = false, PluginEnabled = true,
+            CompactMenu = false, InterfaceDensity = "Compact", PluginEnabled = true,
             Favorites = {}, MotionMode = "Full", MotionSpeed = 1,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Freecam = Enum.KeyCode.Unknown, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
@@ -75,7 +73,6 @@ local CONFIG = deepFreeze({
     ALIASES = {
         ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
         ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
-        ["ESP.DepthMode"] = "Chams.DepthMode", ["Chams.DepthMode"] = "ESP.DepthMode",
     },
     GAME_BOOLEAN_FLAGS = {
         "Game.NoSpread", "Game.FastFire", "Game.ForceAuto", "Game.ForceRange",
@@ -85,6 +82,7 @@ local CONFIG = deepFreeze({
     },
     NUMERIC_RANGES = {
         ["Aimbot.MaxDistance"] = { 50, 10000 },
+        ["ESP.MaxDistance"] = { 50, 10000 },
         ["Aimbot.Triggerbot.Delay"] = { 0, 2 },
         ["Aimbot.Triggerbot.MaxDistance"] = { 50, 10000 },
         ["Extras.SpinBot.Speed"] = { 0, 3000 },
@@ -297,12 +295,19 @@ return function(eventBus: any, disposer: any): any
         else
             normalized.Settings.MenuKeybind = normalized.Settings.Binds.Menu
         end
-        local incomingEsp = type(snapshot.ESP) == "table" and snapshot.ESP.DepthMode
-        local incomingChams = type(snapshot.Chams) == "table" and snapshot.Chams.DepthMode
-        if type(incomingEsp) == "string" then normalized.ESP.DepthMode = incomingEsp
-        elseif type(incomingChams) == "string" then normalized.ESP.DepthMode = incomingChams end
-        normalized.Chams.DepthMode = normalized.ESP.DepthMode
+        local incomingEsp = if type(snapshot.ESP) == "table" then snapshot.ESP else {}
+        local incomingChams = if type(snapshot.Chams) == "table" then snapshot.Chams else {}
+        -- Existing custom ESP colors should remain custom. The former blue default and snapshots
+        -- without a color follow the active menu accent when they migrate to this compact overlay.
+        if incomingEsp.ColorFollowsTheme == nil and typeof(incomingEsp.Color) == "Color3"
+            and incomingEsp.Color ~= Color3.fromRGB(129, 167, 255) then
+            normalized.ESP.ColorFollowsTheme = false
+        end
+        local savedDepth = if type(incomingEsp.DepthMode) == "string" then incomingEsp.DepthMode else incomingChams.DepthMode
+        if savedDepth == "Occluded" or savedDepth == "AlwaysOnTop" then normalized.ESP.DepthMode = savedDepth end
+        if not table.find({ "Custom", "Neutral", "Golden Hour", "Overcast", "Moonlight", "Neon" }, normalized.Lighting.ScenePreset) then normalized.Lighting.ScenePreset = "Custom" end
         if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
+        if not table.find({ "Comfortable", "Compact" }, normalized.Settings.InterfaceDensity) then normalized.Settings.InterfaceDensity = "Compact" end
         normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)
         local favorites, count = {}, 0
         for key, value in pairs(normalized.Settings.Favorites) do

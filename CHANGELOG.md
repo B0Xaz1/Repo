@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Added a Utility → **Hip height** override with an enable toggle and a 0–20-stud slider. It reapplies to a new local character after respawn, restores the original property when disabled or unloaded, and yields while Wall Walk temporarily owns HipHeight.
 - Removed the `/status` utility command.
 - Fixed a Full-box ESP runtime override that referenced a removed native-box function and could stop the overlay render job entirely. The intended native Full-box renderer is now the only Full-box renderer.
 - Selected-player Highlight now reattaches to a target's newly resolved character after death/respawn. Its retries are limited to the respawn handoff and it continues to follow theme changes.

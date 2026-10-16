@@ -35,6 +35,7 @@ local CONFIG = deepFreeze({
         Lighting = { Mode = "Off", ScenePreset = "Custom", TimeOfDay = 14, CycleDuration = 240, Paused = false,
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
         Extras = { Hitbox = { Enabled = false, Size = 5 }, SpinBot = { Enabled = false, Speed = 180 },
+            HipHeight = { Enabled = false, Value = 2 },
             AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
         Performance = { NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
             NoPostProcessing = false, NoShadows = false, NoParticles = false, NoLights = false, NoHighlights = false },

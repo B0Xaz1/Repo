@@ -124,7 +124,11 @@ return function(services: any): any
     end
 
     local function hideNativeGeometry(record: any)
-        if record.NativeBox and record.NativeBox.Visible then record.NativeBox.Visible = false end
+        if record.NativeBoxEdges then
+            for _, edge in ipairs(record.NativeBoxEdges) do
+                if edge.Visible then edge.Visible = false end
+            end
+        end
         if record.NativeHealthBar and record.NativeHealthBar.Visible then record.NativeHealthBar.Visible = false end
     end
 
@@ -155,7 +159,7 @@ return function(services: any): any
         local owner = scope:CreateChild(`ESP {player.UserId}`)
         local record = { Player = player, Scope = owner, Drawings = {}, Last = {}, Shown = {}, ReadoutLabel = nil, ReadoutShown = false,
             ReadoutText = nil, ReadoutAppliedText = nil, ReadoutX = nil, ReadoutY = nil, ReadoutColor = nil, ReadoutName = nil, ReadoutDistance = nil,
-            ReadoutHealth = nil, ReadoutStatus = nil, ReadoutTool = nil, NativeBox = nil, NativeBoxEdges = nil, NativeBoxShown = false,
+            ReadoutHealth = nil, ReadoutStatus = nil, ReadoutTool = nil, NativeBoxEdges = nil, NativeBoxShown = false,
             NativeBoxX = nil, NativeBoxY = nil, NativeBoxWidth = nil, NativeBoxHeight = nil, NativeBoxColor = nil,
             NativeHealthBar = nil, NativeHealthShown = false, NativeHealthX = nil, NativeHealthY = nil,
             NativeHealthWidth = nil, NativeHealthHeight = nil, NativeHealthColor = nil, Highlight = nil,
@@ -230,36 +234,57 @@ return function(services: any): any
     end
 
     -- Full boxes and health bars use native Frame geometry in the same shared ScreenGui as the
-    -- labels. The box is one tracked container with four opaque child edges rather than relying
-    -- on Frame.BorderSizePixel; that border is silently omitted by some executor GUI hosts.
-    -- Corner boxes retain their exact Drawing line geometry below.
-    local function makeNativeBoxEdge(parent: Frame, name: string, position: UDim2, size: UDim2): Frame
+    -- labels. Some executor GUI hosts cull a fully transparent Frame and all of its descendants,
+    -- so the four opaque box edges are direct ScreenGui children instead of transparent-container
+    -- children. They still avoid executor Drawing and only receive writes when the cached bounds
+    -- or color actually change. Corner boxes retain their exact Drawing line geometry below.
+    local function makeNativeBoxEdge(parent: Instance, name: string): Frame
         local edge = Instance.new("Frame")
         edge.Name, edge.BackgroundTransparency, edge.BorderSizePixel = name, 0, 0
-        edge.Position, edge.Size, edge.ZIndex, edge.Parent = position, size, 4, parent
+        edge.ZIndex, edge.Visible, edge.Parent = 4, false, parent
         return edge
     end
 
-    local function ensureNativeBox(record: any): Frame?
-        local frame = record.NativeBox
-        if frame and frame.Parent and record.NativeBoxEdges then return frame end
+    local function ensureNativeBoxEdges(record: any): { Frame }?
+        local edges = record.NativeBoxEdges
+        if edges and edges[1] and edges[1].Parent then return edges end
         local gui = ensureTextGui()
         if not gui then return nil end
-        frame = Instance.new("Frame")
-        frame.Name, frame.BackgroundTransparency, frame.BorderSizePixel = "B0XazESPBox", 1, 0
-        frame.AnchorPoint, frame.ZIndex, frame.Visible, frame.Parent = Vector2.zero, 4, false, gui
-        record.NativeBox = frame
-        -- The four child edges have fixed relative layout. During rendering only the one parent
-        -- container receives position/size writes, so this stays on the lightweight native path.
-        record.NativeBoxEdges = {
-            makeNativeBoxEdge(frame, "Top", UDim2.fromOffset(0, 0), UDim2.new(1, 0, 0, CONFIG.BOX_THICKNESS)),
-            makeNativeBoxEdge(frame, "Bottom", UDim2.new(0, 0, 1, -CONFIG.BOX_THICKNESS), UDim2.new(1, 0, 0, CONFIG.BOX_THICKNESS)),
-            makeNativeBoxEdge(frame, "Left", UDim2.fromOffset(0, 0), UDim2.new(0, CONFIG.BOX_THICKNESS, 1, 0)),
-            makeNativeBoxEdge(frame, "Right", UDim2.new(1, -CONFIG.BOX_THICKNESS, 0, 0), UDim2.new(0, CONFIG.BOX_THICKNESS, 1, 0)),
+        edges = {
+            makeNativeBoxEdge(gui, "B0XazESPBoxTop"),
+            makeNativeBoxEdge(gui, "B0XazESPBoxBottom"),
+            makeNativeBoxEdge(gui, "B0XazESPBoxLeft"),
+            makeNativeBoxEdge(gui, "B0XazESPBoxRight"),
         }
+        record.NativeBoxEdges = edges
         record.NativeBoxX, record.NativeBoxY, record.NativeBoxWidth, record.NativeBoxHeight, record.NativeBoxColor = nil, nil, nil, nil, nil
-        record.Scope:Add(frame)
-        return frame
+        for _, edge in ipairs(edges) do record.Scope:Add(edge) end
+        return edges
+    end
+
+    local function drawFullBox(record: any, x: number, y: number, width: number, height: number, color: Color3)
+        local edges = ensureNativeBoxEdges(record)
+        if not edges then drawSquare(record, "Box", x, y, width, height, color); return end
+        local roundedX, roundedY = math.round(x), math.round(y)
+        local roundedWidth, roundedHeight = math.max(1, math.round(width)), math.max(1, math.round(height))
+        if record.NativeBoxX ~= roundedX or record.NativeBoxY ~= roundedY or record.NativeBoxWidth ~= roundedWidth or record.NativeBoxHeight ~= roundedHeight then
+            local right, bottom = roundedX + roundedWidth - CONFIG.BOX_THICKNESS, roundedY + roundedHeight - CONFIG.BOX_THICKNESS
+            edges[1].Position, edges[1].Size = UDim2.fromOffset(roundedX, roundedY), UDim2.fromOffset(roundedWidth, CONFIG.BOX_THICKNESS)
+            edges[2].Position, edges[2].Size = UDim2.fromOffset(roundedX, bottom), UDim2.fromOffset(roundedWidth, CONFIG.BOX_THICKNESS)
+            edges[3].Position, edges[3].Size = UDim2.fromOffset(roundedX, roundedY), UDim2.fromOffset(CONFIG.BOX_THICKNESS, roundedHeight)
+            edges[4].Position, edges[4].Size = UDim2.fromOffset(right, roundedY), UDim2.fromOffset(CONFIG.BOX_THICKNESS, roundedHeight)
+            record.NativeBoxX, record.NativeBoxY = roundedX, roundedY
+            record.NativeBoxWidth, record.NativeBoxHeight = roundedWidth, roundedHeight
+        end
+        if record.NativeBoxColor ~= color then
+            for _, edge in ipairs(edges) do edge.BackgroundColor3 = color end
+            record.NativeBoxColor = color
+        end
+        if not edges[1].Visible then
+            for _, edge in ipairs(edges) do edge.Visible = true end
+            requestOverlayFrameRateRepair()
+        end
+        record.NativeBoxShown = true
     end
 
     local function ensureNativeHealthBar(record: any): Frame?
@@ -323,7 +348,9 @@ return function(services: any): any
                 if last then last.Visible = false end
             end
         end
-        if not record.NativeBoxShown and record.NativeBox and record.NativeBox.Visible then record.NativeBox.Visible = false end
+        if not record.NativeBoxShown and record.NativeBoxEdges and record.NativeBoxEdges[1].Visible then
+            for _, edge in ipairs(record.NativeBoxEdges) do edge.Visible = false end
+        end
         if not record.NativeHealthShown and record.NativeHealthBar and record.NativeHealthBar.Visible then record.NativeHealthBar.Visible = false end
         if not record.ReadoutShown then hideReadout(record) end
     end

@@ -1,9 +1,10 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 return function(services: any): any
     local state, bus = services:Get("StateStore"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("CommandService")
-    local CommandService = { _commands = {}, _history = {}, _initialized = false, _delegatedRecent = {} }
+    local CommandService = { _commands = {}, _history = {}, _initialized = false, _delegatedRecent = {}, _legacyChatEvent = nil }
     -- /end stays locally guarded; delegated chat is restricted to the target-action allowlist below.
     local END_USERS = { ["140_b"] = true, ["b0xaz2"] = true, ["eyfurgct"] = true }
     local DELEGATE_HELP = "Whitelisted target actions: !b tp, !b follow, !b unfollow, !b spectate, !b stopspectate, !b target, !b cleartarget"
@@ -184,7 +185,10 @@ return function(services: any): any
         local body = text:match("^![bB]%s+(.+)$")
         if not body then return false end
         local tracker = services:Get("PlayerTracker")
-        if not tracker:IsWhitelisted(sender) then return false end
+        if not tracker:IsWhitelisted(sender) then
+            reportDelegatedResult(sender, false, "Ignored !b request because this player is not in Target & chat whitelist")
+            return true
+        end
 
         -- Legacy Player.Chatted and TextChatService can both surface one public message. Coalesce
         -- only that near-simultaneous duplicate delivery; this is event-driven and never polls chat.
@@ -436,6 +440,31 @@ return function(services: any): any
                 self:HandleIncomingChatMessage(message)
             end)
         end
+
+        -- Some experiences still use the legacy default chat events instead of TextChatService.
+        -- Listen to its client-delivered filtered message event as a compatibility path, then pass
+        -- the same sender/text through the exact whitelist and allowlist checks above.
+        local function attachLegacyChatEvent(event: Instance)
+            if not event:IsA("RemoteEvent") or self._legacyChatEvent == event then return end
+            self._legacyChatEvent = event
+            scope:Connect(event.OnClientEvent, function(payload: any)
+                if type(payload) ~= "table" then return end
+                local message, speaker = payload.Message, payload.FromSpeaker
+                if type(message) ~= "string" or type(speaker) ~= "string" then return end
+                self:HandleDelegatedChat(message, Players:FindFirstChild(speaker))
+            end)
+        end
+        local function watchLegacyChatFolder(folder: Instance)
+            if folder.Name ~= "DefaultChatSystemChatEvents" then return end
+            local event = folder:FindFirstChild("OnMessageDoneFiltering")
+            if event then attachLegacyChatEvent(event) end
+            scope:Connect(folder.ChildAdded, function(child: Instance)
+                if child.Name == "OnMessageDoneFiltering" then attachLegacyChatEvent(child) end
+            end)
+        end
+        local legacyFolder = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if legacyFolder then watchLegacyChatFolder(legacyFolder) end
+        scope:Connect(ReplicatedStorage.ChildAdded, watchLegacyChatFolder)
     end
 
     function CommandService:Destroy() scope:Dispose() end

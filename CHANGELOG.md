@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Fixed a Full-box ESP runtime override that referenced a removed native-box function and could stop the overlay render job entirely. The direct native edge renderer is now the only Full-box renderer.
 - Selected-player Highlight now reattaches to a target's newly resolved character after death/respawn. Its retries are limited to the respawn handoff and it continues to follow theme changes.
 - Moved common Full-box ESP geometry and the optional health bar into the existing shared native ScreenGui, eliminating the per-target executor Drawing path for the default mode. Each Full-box outline uses four direct opaque GUI edges, avoiding executor GUI hosts that cull transparent containers or borders; their cached geometry only receives writes when a rendered screen pixel changes. Corner boxes retain their line-based style. ESP still renders synchronously rather than on a visual timer.
 - Reworked the Player ESP hot path without any visual timer or Hz cap: camera state is shared per render, screen bounds use scalar caches, native labels rebuild text only when their source values change, and Drawing primitives only receive changed scalar geometry. Cached occlusion rays now reuse their exclusion data instead of allocating it per ray. Rendering remains frame-synchronous.

@@ -463,23 +463,31 @@ return function(services: any): any
             for _, candidate in ipairs(textChat:GetDescendants()) do attachTextChannel(candidate) end
             scope:Connect(textChat.DescendantAdded, attachTextChannel)
 
-            -- OnIncomingMessage is the remaining TextChatService receive path used by some chat
-            -- replacements. Preserve a prior formatter callback and restore it when unloading.
+            -- Catalog Avatar Creator replaces OnIncomingMessage to style player tags. Keep a
+            -- wrapper installed even if that formatter assigns itself after this suite launches:
+            -- the wrapper relays the message first, then returns the active game formatter result.
             local originalIncoming: any = nil
-            pcall(function() originalIncoming = textChat.OnIncomingMessage end)
-            local relayIncoming = function(message: any)
+            local relayIncoming: any = nil
+            relayIncoming = function(message: any)
                 pcall(function() self:HandleIncomingChatMessage(message) end)
                 if type(originalIncoming) == "function" then return originalIncoming(message) end
                 return nil
             end
-            local assigned = pcall(function() textChat.OnIncomingMessage = relayIncoming end)
-            if assigned then
-                scope:Add(function()
-                    pcall(function()
-                        if textChat.OnIncomingMessage == relayIncoming then textChat.OnIncomingMessage = originalIncoming end
-                    end)
-                end)
+            local function installIncomingRelay()
+                local readOk, current = pcall(function() return textChat.OnIncomingMessage end)
+                if not readOk or current == relayIncoming then return end
+                originalIncoming = current
+                pcall(function() textChat.OnIncomingMessage = relayIncoming end)
             end
+            installIncomingRelay()
+            scope:Connect(textChat:GetPropertyChangedSignal("OnIncomingMessage"), function()
+                installIncomingRelay()
+            end)
+            scope:Add(function()
+                pcall(function()
+                    if textChat.OnIncomingMessage == relayIncoming then textChat.OnIncomingMessage = originalIncoming end
+                end)
+            end)
         end
 
         -- Some experiences still use the legacy default chat events instead of TextChatService.

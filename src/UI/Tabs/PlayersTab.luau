@@ -321,10 +321,7 @@ return function(services: any, tab: any): any
             elseif following then `Following {following.Name}` else "Follow selected player"
         baseFollowRender(self, label)
     end
-    local whitelist = section:Create(tab.RightCol, "Target & chat whitelist", "Settings")
-    section:Info(whitelist, if services.Edition == "Full"
-        then "Whitelisted players are ignored by optional combat checks and can request target-only actions from this client in public chat: !b tp, !b follow, !b unfollow, !b spectate, !b stopspectate, !b target, or !b cleartarget."
-        else "Whitelisted players are ignored by optional combat checks. The chat-action relay is available in the Full edition.")
+    local whitelist = section:Create(tab.RightCol, "Target whitelist", "Settings")
     local summary = section:Info(whitelist, tracker:GetWhitelistSummary())
     scope:Add(state:Observe("Settings.Whitelist", function() summary:Set(tracker:GetWhitelistSummary()) end))
     textbox:CreateButton(whitelist, "Whitelist selected player", function() return tracker:AddWhitelist(selectedPlayer) end)

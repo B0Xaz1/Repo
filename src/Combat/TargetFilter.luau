@@ -51,7 +51,12 @@ return function(services: any): any
     end
 
     function TargetFilter:IsWhitelisted(player: Player): boolean
-        return tracker:IsWhitelisted(player)
+        local whitelist = state:Get("Settings.Whitelist")
+        if whitelist[tostring(player.UserId)] == true or whitelist[player.UserId] == true then return true end
+        for _, name in ipairs(whitelist) do
+            if tostring(name):lower() == player.Name:lower() or tostring(name) == tostring(player.UserId) then return true end
+        end
+        return false
     end
 
     function TargetFilter:HasForceField(player: Player): boolean

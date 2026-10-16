@@ -33,8 +33,6 @@ return function(services: any, tab: any): any
 
     local info = section:Create(tab.RightCol, "Command details")
     local detailText = section:Info(info, "Select a command to see its usage.")
-    local delegates = section:Create(tab.RightCol, "Whitelisted chat actions")
-    section:Info(delegates, "A player in the Target & chat whitelist can request actions aimed only at themselves with public chat: !b tp, !b follow, !b unfollow, !b spectate, !b stopspectate, !b target, or !b cleartarget. These operate on this running client; they do not grant general menu control.")
     local recent = section:Create(tab.RightCol, "Recent")
     local recentText = section:Info(recent, "No recent commands yet.")
 

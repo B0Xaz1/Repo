@@ -128,10 +128,20 @@ return function(services: any, tab: any): any
         highlightedPlayer = player
         local owner = scope:CreateChild(`Target highlight {player.UserId}`)
         highlightScope = owner
-        local function attach()
-            if owner:IsDisposed() or highlightedPlayer ~= player then return end
+        local attachedCharacter: Model? = nil
+        local attachedHighlight: Highlight? = nil
+
+        local function detach()
+            attachedCharacter, attachedHighlight = nil, nil
+            owner:Unbind("Highlight")
+        end
+
+        local function attach(): boolean
+            if owner:IsDisposed() or highlightedPlayer ~= player then return false end
             local assets = tracker:GetPlayerAssets(player)
-            if not assets then return end
+            if not assets then return false end
+            if attachedCharacter == assets.Character and attachedHighlight and attachedHighlight.Parent then return true end
+            detach()
             local object = Instance.new("Highlight")
             object.Name = "B0XazSelectedTarget"
             object.Adornee, object.Parent = assets.Character, assets.Character
@@ -139,18 +149,38 @@ return function(services: any, tab: any): any
             object.FillTransparency, object.OutlineTransparency = CONFIG.HIGHLIGHT_FILL_TRANSPARENCY, CONFIG.HIGHLIGHT_OUTLINE_TRANSPARENCY
             object.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             owner:Bind("Highlight", object)
+            attachedCharacter, attachedHighlight = assets.Character, object
+            -- The target is now resolved; no retry connection is needed until its next respawn.
+            owner:Unbind("Highlight readiness")
+            return true
         end
-        owner:ConnectImmediate(player.CharacterAdded, attach)
+
+        local function watchCharacter(character: Model)
+            owner:Bind("Highlight readiness", character.ChildAdded:Connect(function(child: Instance)
+                if child:IsA("Humanoid") or child.Name == "HumanoidRootPart" then attach() end
+            end))
+            if attach() then return end
+            -- PlayerTracker resolves a newly spawned rig asynchronously. These are finite respawn
+            -- handoffs, not a persistent poll, and cover a character whose required parts existed
+            -- just before the readiness connection was installed.
+            owner:Delay(0.1, function()
+                if attach() then return end
+                owner:Delay(0.4, attach)
+            end)
+        end
+
+        owner:ConnectImmediate(player.CharacterAdded, watchCharacter)
+        owner:ConnectImmediate(player.CharacterRemoving, function(character: Model)
+            if attachedCharacter == character then detach() end
+        end)
         owner:ConnectImmediate(player.AncestryChanged, function(_, parent)
             if not parent and highlightedPlayer == player then clearHighlight() end
         end)
         owner:Add(services:Get("EventBus"):Subscribe("ThemeChanged", function()
-            -- The active instance is looked up by name so theme changes keep the selected cue in sync.
-            local assets = tracker:GetPlayerAssets(player)
-            local current = assets and assets.Character:FindFirstChild("B0XazSelectedTarget")
-            if current and current:IsA("Highlight") then current.FillColor, current.OutlineColor = theme:GetToken("AccentDim"), theme:GetToken("Accent") end
+            local current = attachedHighlight
+            if current and current.Parent then current.FillColor, current.OutlineColor = theme:GetToken("AccentDim"), theme:GetToken("Accent") end
         end))
-        attach()
+        if player.Character then watchCharacter(player.Character) end
         return true, `Highlighting {player.Name}`
     end
 

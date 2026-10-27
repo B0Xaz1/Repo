@@ -7,7 +7,7 @@ local CONFIG = table.freeze({
     FALLBACK_WARNING = Color3.fromRGB(244, 193, 111),
     TOKEN_NAMES = { "Bg", "Panel", "Elem", "ElemHover", "Side", "Accent", "AccentDark", "AccentDim", "Text", "TextDim", "TextMuted",
         "Border", "BorderDim", "ToggleOn", "ToggleOff", "Success", "Danger", "Warning" },
-    PRESET_NAMES = { "Midnight", "Graphite", "Ocean", "Rose", "Forest", "Paper" },
+    PRESET_NAMES = { "Midnight", "Ocean", "Rose", "Forest" },
     COLOR_PROPERTIES = { "BackgroundColor3", "TextColor3", "ImageColor3", "Color", "ScrollBarImageColor3", "PlaceholderColor3" },
     PRESET_SPECS = {
         Midnight = {
@@ -16,11 +16,6 @@ local CONFIG = table.freeze({
             Side = Color3.fromRGB(10, 10, 12), Accent = Color3.fromRGB(238, 238, 240), Text = Color3.fromRGB(250, 250, 252), TextDim = Color3.fromRGB(194, 194, 198),
             TextMuted = Color3.fromRGB(132, 132, 138), Border = Color3.fromRGB(67, 67, 73), BorderDim = Color3.fromRGB(44, 44, 49), ToggleOff = Color3.fromRGB(55, 55, 60),
             Success = Color3.fromRGB(230, 230, 232), Danger = Color3.fromRGB(194, 194, 198), Warning = Color3.fromRGB(164, 164, 170),
-        },
-        Graphite = {
-            Bg = Color3.fromRGB(20, 22, 25), Panel = Color3.fromRGB(28, 31, 35), Elem = Color3.fromRGB(38, 42, 47), ElemHover = Color3.fromRGB(49, 54, 60),
-            Side = Color3.fromRGB(24, 26, 29), Accent = Color3.fromRGB(157, 182, 208), Text = Color3.fromRGB(239, 241, 244), TextDim = Color3.fromRGB(179, 184, 191),
-            TextMuted = Color3.fromRGB(130, 137, 146), Border = Color3.fromRGB(62, 67, 74), BorderDim = Color3.fromRGB(46, 50, 56), ToggleOff = Color3.fromRGB(49, 54, 60),
         },
         Ocean = {
             Bg = Color3.fromRGB(12, 20, 29), Panel = Color3.fromRGB(17, 29, 41), Elem = Color3.fromRGB(25, 40, 55), ElemHover = Color3.fromRGB(34, 53, 71),
@@ -36,11 +31,6 @@ local CONFIG = table.freeze({
             Bg = Color3.fromRGB(15, 22, 19), Panel = Color3.fromRGB(22, 32, 27), Elem = Color3.fromRGB(31, 45, 37), ElemHover = Color3.fromRGB(42, 59, 48),
             Side = Color3.fromRGB(18, 27, 22), Accent = Color3.fromRGB(137, 202, 158), Text = Color3.fromRGB(235, 244, 237), TextDim = Color3.fromRGB(177, 204, 185),
             TextMuted = Color3.fromRGB(122, 153, 132), Border = Color3.fromRGB(53, 77, 61), BorderDim = Color3.fromRGB(39, 57, 46), ToggleOff = Color3.fromRGB(42, 60, 48),
-        },
-        Paper = {
-            Bg = Color3.fromRGB(239, 237, 231), Panel = Color3.fromRGB(250, 249, 246), Elem = Color3.fromRGB(232, 230, 223), ElemHover = Color3.fromRGB(221, 219, 211),
-            Side = Color3.fromRGB(232, 230, 222), Accent = Color3.fromRGB(119, 91, 66), Text = Color3.fromRGB(39, 40, 38), TextDim = Color3.fromRGB(78, 79, 75),
-            TextMuted = Color3.fromRGB(111, 112, 106), Border = Color3.fromRGB(197, 194, 184), BorderDim = Color3.fromRGB(216, 213, 204), ToggleOff = Color3.fromRGB(213, 210, 201),
         },
     },
 })

@@ -306,6 +306,8 @@ return function(eventBus: any, disposer: any): any
         local savedDepth = if type(incomingEsp.DepthMode) == "string" then incomingEsp.DepthMode else incomingChams.DepthMode
         if savedDepth == "Occluded" or savedDepth == "AlwaysOnTop" then normalized.ESP.DepthMode = savedDepth end
         if not table.find({ "Custom", "Neutral", "Golden Hour", "Overcast", "Moonlight", "Neon" }, normalized.Lighting.ScenePreset) then normalized.Lighting.ScenePreset = "Custom" end
+        -- Graphite and Paper are retired; old profiles and autosaves fall back to Midnight.
+        if not table.find({ "Midnight", "Ocean", "Rose", "Forest" }, normalized.Theme.ActivePreset) then normalized.Theme.ActivePreset = "Midnight" end
         if not table.find({ "Off", "Subtle", "Full" }, normalized.Settings.MotionMode) then normalized.Settings.MotionMode = "Full" end
         if not table.find({ "Comfortable", "Compact" }, normalized.Settings.InterfaceDensity) then normalized.Settings.InterfaceDensity = "Compact" end
         normalized.Settings.MotionSpeed = math.clamp(normalized.Settings.MotionSpeed, 0.5, 2)

@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Kept the Visuals → Player ESP **Telemetry & motion** controls visible by default instead of initially collapsing them.
 - Added a Player ESP **Name style** dropdown: choose **Username** (default) or **Display name**. Existing display-name-toggle preferences migrate automatically.
 - Removed the Graphite and Paper theme presets. Existing autosaves and profiles using either retired preset now fall back to Midnight.
 - Removed the Players selected-target card’s top accent strip and the selected-tab navigation indicator line.

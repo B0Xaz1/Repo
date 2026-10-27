@@ -34,16 +34,6 @@ return function(services: any, tab: any): any
     textbox(launch, "Startup profile", "", nil, "Settings.StartupProfile")
     textbox:CreateButton(launch, "Pin selected profile for launch", function() return config:PinStartupProfile(selected:Get() or "Default") end)
     textbox:CreateButton(launch, "Clear pinned profile", function() state:Set("Settings.StartupProfile", ""); return true, "Launch will use the autosaved session" end)
-    local editionLabels = { "Ask every launch", "Lite", "Full" }
-    local function editionLabel(value: string): string return if value == "Ask" then "Ask every launch" else value end
-    local editionChoice: any
-    editionChoice = dropdown(launch, "Edition next launch", editionLabel(config:GetEditionPreference()), editionLabels, function(label: string)
-        local preference = if label == "Ask every launch" then "Ask" else label
-        local ok, message = config:SetEditionPreference(preference)
-        if not ok then editionChoice:Set(editionLabel(config:GetEditionPreference()), true) end
-        services:Get("EventBus"):Publish("Notify", "Edition preference", message)
-    end, true)
-    section:Info(launch, `Current session: {services.Edition or "Full"}. This choice takes effect the next time the loader starts.`)
 
     local share = section:Create(tab.LeftCol, "Import & export")
     textbox:CreateButton(share, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)

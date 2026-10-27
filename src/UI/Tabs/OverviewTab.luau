@@ -30,7 +30,7 @@ return function(services: any, tab: any): any
 
     local readiness = createCard("SESSION", "Ready", "Your controls and profiles are available.", 0)
     local profile = createCard("CURRENT PROFILE", config:GetActiveProfile(), "Changes are saved with this workspace.", 1)
-    local experience = createCard("EXPERIENCE", if plugins then plugins:GetActivePluginName() else "Universal Edition", if plugins then "Adapter selected for this place." else "Lite starts without game-specific adapters.", 2)
+    local experience = createCard("EXPERIENCE", if plugins then plugins:GetActivePluginName() else "Universal Edition", if plugins then "Adapter selected for this place." else "No experience adapter is active for this place.", 2)
 
     local function refreshProfile()
         profile.Text = config:GetActiveProfile()

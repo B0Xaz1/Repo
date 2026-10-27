@@ -69,9 +69,8 @@ return function(services: any): any
         local ref = if type(rawRef) == "string" and #rawRef == 40 and rawRef:match("^[0-9a-fA-F]+$")
             then rawRef:lower() else CONFIG.DEFAULT_REF
         local loaderUrl = `{CONFIG.LOADER_REPOSITORY}{ref}/loader.luau`
-        local edition = if services.Edition == "Lite" then "Lite" else "Full"
-        return string.format('local g=_G;if type(getgenv)=="function" then local o,v=pcall(getgenv);if o and type(v)=="table" then g=v end end;g.B0XazRef=%q;g.B0XazEditionOverride=%q;local d=os.clock()+60;while not game:IsLoaded() or not game:GetService("Players").LocalPlayer do if os.clock()>d then return end;task.wait(.1) end;for a=1,5 do local o,s=pcall(function() return game:HttpGet(%q.."?t="..os.time().."_"..a) end);if o and type(s)=="string" and #s>=10 and not s:find("404"..": Not Found",1,true) then local f=loadstring(s,"@B0XazLoader");if f then pcall(f);break end end;task.wait(a*.7) end',
-            ref, edition, loaderUrl)
+        return string.format('local g=_G;if type(getgenv)=="function" then local o,v=pcall(getgenv);if o and type(v)=="table" then g=v end end;g.B0XazRef=%q;local d=os.clock()+60;while not game:IsLoaded() or not game:GetService("Players").LocalPlayer do if os.clock()>d then return end;task.wait(.1) end;for a=1,5 do local o,s=pcall(function() return game:HttpGet(%q.."?t="..os.time().."_"..a) end);if o and type(s)=="string" and #s>=10 and not s:find("404"..": Not Found",1,true) then local f=loadstring(s,"@B0XazLoader");if f then pcall(f);break end end;task.wait(a*.7) end',
+            ref, loaderUrl)
     end
 
     function HotkeyService:QueueLoader(): boolean

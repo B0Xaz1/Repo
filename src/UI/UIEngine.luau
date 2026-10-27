@@ -670,10 +670,7 @@ return function(services: any): any
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
 
         local tabEntries = {}
-        for _, entry in ipairs(CONFIG.TABS) do
-            local excludedFromLite = entry.Name == "Commands" or entry.Name == "Game"
-            if services.Edition ~= "Lite" or not excludedFromLite then table.insert(tabEntries, entry) end
-        end
+        for _, entry in ipairs(CONFIG.TABS) do table.insert(tabEntries, entry) end
         for index, entry in ipairs(tabEntries) do
             local button = dom:Create("TextButton", { Parent = rail, BackgroundColor3 = theme:GetToken("AccentDark"), BackgroundTransparency = 1, BorderSizePixel = 0,
                 Text = entry.Name, AutoButtonColor = false, Selectable = true, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,

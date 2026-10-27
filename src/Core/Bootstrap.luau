@@ -11,7 +11,7 @@ return function(context: any)
     local scheduler = step(function() return requireModule("src/Core/TaskScheduler.luau", master) end)
     local services = step(function() return requireModule("src/Core/ServiceContainer.luau", master) end)
     services.Version = context.Version
-    services.Edition = if context.Edition == "Lite" then "Lite" else "Full"
+    services.Edition = "Full"
     services.ContainerId = "root"
     services:Register("Disposer", master)
     services:Register("Environment", environment)
@@ -33,8 +33,7 @@ return function(context: any)
         if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end
     end)
 
-    -- Lite preserves the core shell and universal controls, but avoids all
-    -- command parsing and experience-specific adapter discovery/UI.
+    -- Full always initializes the complete universal, command, and adapter surface.
     local registration = {
         { "ConfigService", "src/Services/ConfigService.luau" }, { "PlayerTracker", "src/Services/PlayerTracker.luau" },
         { "OptimizerService", "src/Services/OptimizerService.luau" }, { "LightingService", "src/Services/LightingService.luau" }, { "HotkeyService", "src/Services/HotkeyService.luau" },
@@ -45,10 +44,8 @@ return function(context: any)
         { "WallWalkService", "src/Locomotion/WallWalkService.luau" }, { "ExtrasService", "src/Services/ExtrasService.luau" },
         { "AimbotService", "src/Combat/AimbotService.luau" }, { "TriggerbotService", "src/Combat/TriggerbotService.luau" },
     }
-    if services.Edition == "Full" then
-        table.insert(registration, { "CommandService", "src/Services/CommandService.luau" })
-        table.insert(registration, { "PluginManager", "src/Plugins/PluginManager.luau" })
-    end
+    table.insert(registration, { "CommandService", "src/Services/CommandService.luau" })
+    table.insert(registration, { "PluginManager", "src/Plugins/PluginManager.luau" })
     table.insert(registration, { "ThemeEngine", "src/UI/ThemeEngine.luau" })
     table.insert(registration, { "UIEngine", "src/UI/UIEngine.luau" })
     for _, entry in ipairs(registration) do

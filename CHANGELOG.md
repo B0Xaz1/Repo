@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Redesigned the edition picker with a clearer launch-setup layout, labelled edition cards, improved contrast, and an explicit blank label on the Remember choice control (fixing the stray default `Button` text).
 - Added a Utility → **Hip height** override with an enable toggle and a 0–20-stud slider. It reapplies to a new local character after respawn, restores the original property when disabled or unloaded, and yields while Wall Walk temporarily owns HipHeight.
 - Removed the `/status` utility command.
 - Fixed a Full-box ESP runtime override that referenced a removed native-box function and could stop the overlay render job entirely. The intended native Full-box renderer is now the only Full-box renderer.

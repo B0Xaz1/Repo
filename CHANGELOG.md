@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Removed the Players selected-target card’s top accent strip and the selected-tab navigation indicator line.
 - Removed the Full/Lite edition picker and launch-preference setting. The loader now always starts the complete Full feature set.
 - Added a Utility → **Hip height** override with an enable toggle and a 0–20-stud slider. It reapplies to a new local character after respawn, restores the original property when disabled or unloaded, and yields while Wall Walk temporarily owns HipHeight.
 - Removed the `/status` utility command.

@@ -9,7 +9,10 @@ return function(services: any, tab: any): any
     local textbox = load("src/UI/Components/Textbox.luau", services)
     local state, config, theme, environment = services:Get("StateStore"), services:Get("ConfigService"), services:Get("ThemeEngine"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("Settings tab")
-    local profiles = section:Create(tab.LeftCol, "Config profiles")
+    local bus = services:Get("EventBus")
+
+    local profiles = section:Create(tab.LeftCol, "Profiles")
+    local activeProfile = section:Info(profiles, `Active profile: {config:GetActiveProfile()}`)
     local profileNames = config:ListProfiles()
     local selected = dropdown(profiles, "Profile", nil, profileNames)
     local name = textbox(profiles, "Save as", "My profile")
@@ -25,32 +28,49 @@ return function(services: any, tab: any): any
     if not environment.Capabilities.Files then
         section:Info(profiles, "File persistence is unavailable; use JSON to save profiles.")
     end
-    scope:Add(services:Get("EventBus"):Subscribe("ProfilesChanged", function()
-        profileNames = config:ListProfiles(); selected:Refresh(profileNames, true)
-    end))
+    local function refreshProfiles()
+        profileNames = config:ListProfiles()
+        selected:Refresh(profileNames, true)
+        activeProfile:Set(`Active profile: {config:GetActiveProfile()}`)
+    end
+    scope:Add(bus:Subscribe("ProfilesChanged", refreshProfiles))
+    scope:Add(bus:Subscribe("ActiveProfileChanged", refreshProfiles))
 
-    local launch = section:Create(tab.LeftCol, "Launch behavior", "Settings")
+    local launch = section:Create(tab.LeftCol, "Launch & restore", "Settings")
+    section:Info(launch, "Choose whether the last saved session restores automatically, or pin one saved profile for launch.")
     toggle(launch, "Restore settings on launch", "Settings.RestoreOnLaunch")
     textbox(launch, "Startup profile", "", nil, "Settings.StartupProfile")
     textbox:CreateButton(launch, "Pin selected profile for launch", function() return config:PinStartupProfile(selected:Get() or "Default") end)
-    textbox:CreateButton(launch, "Clear pinned profile", function() state:Set("Settings.StartupProfile", ""); return true, "Launch will use the autosaved session" end)
+    textbox:CreateButton(launch, "Clear pinned profile", function()
+        state:Set("Settings.StartupProfile", "")
+        return true, "Launch will use the autosaved session"
+    end)
 
-    local share = section:Create(tab.LeftCol, "Import & export")
-    textbox:CreateButton(share, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)
-    textbox:CreateButton(share, "Import from clipboard", function() return config:Import("") end)
-    local interface = section:Create(tab.LeftCol, "Interface & lifecycle", "Settings")
+    local sharing = section:Create(tab.LeftCol, "Import & export")
+    section:Info(sharing, "Move a configuration between sessions without affecting your active profile until you import it.")
+    textbox:CreateButton(sharing, "Open JSON share editor", function() load("src/UI/Modals/ConfigShareModal.luau", services):Show() end)
+    textbox:CreateButton(sharing, "Import from clipboard", function() return config:Import("") end)
+
+    local interface = section:Create(tab.RightCol, "Interface", "Settings")
     slider(interface, "UI scale", "Settings.UIScale", 0.6, 1.5, 0.05, "x")
     dropdown(interface, "Interface density", "Settings.InterfaceDensity", { "Comfortable", "Compact" })
-    dropdown(interface, "Animation style", "Settings.MotionMode", { "Off", "Subtle", "Full" })
-    slider(interface, "Animation speed", "Settings.MotionSpeed", 0.5, 2, 0.1, "x")
-    section:Info(interface, "Use ☆ to pin a control above the sections in its own tab. Favorites are saved with your configuration.")
-    textbox:CreateButton(interface, "Clear all favorites", function() state:Set("Settings.Favorites", {}); return true, "All controls returned to their sections" end)
     toggle(interface, "Compact menu mode", "Settings.CompactMenu")
     toggle(interface, "Show menu button", "Settings.ShowMenuIcon")
-    keybind(interface, "Menu hotkey", "Settings.MenuKeybind")
-    keybind(interface, "Quick unload hotkey", "Settings.UnloadKeybind")
-    section:Info(interface, "Click to bind. Press Escape to clear; hiding the menu cancels recording.")
-    local hotkeys = section:Create(tab.RightCol, "Feature hotkeys", "Settings")
+    section:Info(interface, "Use ☆ beside a control to pin it at the top of its workspace.")
+    textbox:CreateButton(interface, "Clear all favorites", function()
+        state:Set("Settings.Favorites", {})
+        return true, "All controls returned to their sections"
+    end)
+
+    local motion = section:Create(tab.RightCol, "Motion")
+    section:Info(motion, "Animation choices apply throughout the menu without changing feature behavior.")
+    dropdown(motion, "Animation style", "Settings.MotionMode", { "Off", "Subtle", "Full" })
+    slider(motion, "Animation speed", "Settings.MotionSpeed", 0.5, 2, 0.1, "x")
+
+    local hotkeys = section:Create(tab.RightCol, "Hotkeys", "Settings")
+    section:Info(hotkeys, "Click a binding, then press a key. Escape clears the binding and hiding the menu cancels recording.")
+    keybind(hotkeys, "Menu hotkey", "Settings.MenuKeybind")
+    keybind(hotkeys, "Quick unload hotkey", "Settings.UnloadKeybind")
     for _, target in ipairs(services:Get("HotkeyService"):GetBindTargets()) do
         if target.Key ~= "Menu" then keybind(hotkeys, target.Label, `Settings.Binds.{target.Key}`) end
     end
@@ -61,15 +81,19 @@ return function(services: any, tab: any): any
         state:Set("Settings.UnloadKeybind", state:GetDefaultSettings().Settings.UnloadKeybind)
         return true, "All hotkeys reset"
     end)
-    local appearance = section:Create(tab.RightCol, "Theme palette", "Theme")
+
+    local appearance = section:Create(tab.RightCol, "Theme")
     dropdown(appearance, "Theme preset", "Theme.ActivePreset", theme:GetPresetNames(), function(value: string) theme:SetPreset(value) end)
     local pickers = {}
-    for _, token in ipairs(theme:GetTokenNames()) do pickers[token] = color(appearance, token, theme:GetToken(token), function(value: Color3) theme:UpdateToken(token, value) end) end
-    scope:Add(services:Get("EventBus"):Subscribe("ThemeChanged", function()
+    for _, token in ipairs(theme:GetTokenNames()) do
+        pickers[token] = color(appearance, token, theme:GetToken(token), function(value: Color3) theme:UpdateToken(token, value) end)
+    end
+    scope:Add(bus:Subscribe("ThemeChanged", function()
         for token, picker in pairs(pickers) do picker:Set(theme:GetToken(token), true) end
     end))
-    local recovery = section:Create(tab.RightCol, "Recovery & defaults")
-    section:Info(recovery, "Recover the interface without affecting your named profiles, hotkeys, or pinned controls.")
+
+    local recovery = section:Create(tab.RightCol, "Recovery & destructive actions", nil, "Danger")
+    section:Info(recovery, "These actions change the current workspace or session. Named profiles remain available unless you reset every setting.")
     textbox:CreateButton(recovery, "Reset interface layout", function() return config:ResetInterfacePreferences() end)
     textbox:CreateButton(recovery, "Restore Midnight theme", function() return config:ResetTheme() end)
     local confirmResetUntil = 0
@@ -80,10 +104,11 @@ return function(services: any, tab: any): any
         end
         confirmResetUntil = 0
         return config:ResetAllSettings()
-    end)
+    end, "Danger")
+
     local session = section:Create(tab.RightCol, "Session")
-    section:Info(session, `Build {services.Version}`)
+    section:Info(session, `Build {services.Version} · Full workspace set enabled`)
     textbox:CreateButton(session, "Relaunch this build", function() environment.Globals.B0XazRelaunch() end)
-    textbox:CreateButton(session, "Unload & restore everything", function() environment.Globals.B0XazUnload() end)
+    textbox:CreateButton(session, "Unload & restore everything", function() environment.Globals.B0XazUnload() end, "Danger")
     return { Name = tab.Name }
 end

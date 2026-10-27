@@ -8,19 +8,19 @@ local CONFIG = table.freeze({
     TOAST_DURATION_DEFAULT = 4,
     TOAST_DURATION_MIN = 1,
     TOAST_DURATION_MAX = 20,
-    WINDOW_WIDTH = 920,
-    WINDOW_HEIGHT = 600,
-    WINDOW_MOBILE_PADDING = 28,
+    WINDOW_WIDTH = 960,
+    WINDOW_HEIGHT = 620,
+    WINDOW_MOBILE_PADDING = 24,
     WINDOW_MOBILE_MIN_WIDTH = 320,
-    WINDOW_MOBILE_MAX_WIDTH = 720,
-    SCREEN_MARGIN = 24,
-    HEADER_HEIGHT = 52,
-    FOOTER_HEIGHT = 26,
-    RAIL_WIDTH = 172,
-    COMPACT_RAIL_WIDTH = 112,
-    MOBILE_TAB_HEIGHT = 42,
-    STACKED_BREAKPOINT = 620,
-    TOAST_WIDTH = 330,
+    WINDOW_MOBILE_MAX_WIDTH = 760,
+    SCREEN_MARGIN = 20,
+    HEADER_HEIGHT = 54,
+    FOOTER_HEIGHT = 30,
+    RAIL_WIDTH = 184,
+    COMPACT_RAIL_WIDTH = 120,
+    MOBILE_TAB_HEIGHT = 44,
+    STACKED_BREAKPOINT = 680,
+    TOAST_WIDTH = 340,
     SCALE_MIN_SETTING = 0.6,
     SCALE_MAX_SETTING = 1.5,
     FALLBACK_VIEWPORT = Vector2.new(1280, 720),
@@ -325,9 +325,14 @@ return function(services: any): any
         if not color then theme:BindToken(stroke, "Color", "Accent") end
         dom:CreatePadding(frame, 12, 14)
         dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
-        local heading = dom:Create("TextLabel", { Parent = frame, Name = "ToastHeading", TextTransparency = 1, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16),
-            Text = tostring(title), Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = color or theme:GetToken("Accent"), TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0 })
+        local toastHeader = dom:Create("Frame", { Parent = frame, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 0 })
+        local heading = dom:Create("TextLabel", { Parent = toastHeader, Name = "ToastHeading", TextTransparency = 1, BackgroundTransparency = 1, Size = UDim2.new(1, -24, 1, 0),
+            Text = tostring(title), Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = color or theme:GetToken("Accent"), TextXAlignment = Enum.TextXAlignment.Left })
         if not color then theme:BindToken(heading, "TextColor3", "Accent") end
+        local dismiss = dom:Create("TextButton", { Parent = toastHeader, Name = "Dismiss", AutoButtonColor = false, Selectable = true, BorderSizePixel = 0,
+            BackgroundTransparency = 1, Position = UDim2.new(1, -18, 0, -2), Size = UDim2.fromOffset(18, 18), Text = "×", TextTransparency = 1,
+            Font = Enum.Font.GothamMedium, TextSize = 15, TextColor3 = theme:GetToken("TextMuted") })
+        theme:BindToken(dismiss, "TextColor3", "TextMuted")
         local body = dom:Create("TextLabel", { Parent = frame, Name = "ToastBody", TextTransparency = 1, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             Text = tostring(message), TextWrapped = true, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 1 })
         theme:BindToken(body, "TextColor3", "TextDim")
@@ -336,17 +341,23 @@ return function(services: any): any
             motion:Tween(frame, "Toast surface", { BackgroundTransparency = transparency }, duration)
             motion:Tween(stroke, "Toast edge", { Transparency = transparency }, duration)
             motion:Tween(heading, "Toast text", { TextTransparency = transparency }, duration)
+            motion:Tween(dismiss, "Toast text", { TextTransparency = transparency }, duration)
             motion:Tween(body, "Toast text", { TextTransparency = transparency }, duration)
         end
         fade(0, motion.Times.Enter)
         motion:Tween(frame, "Toast", { Position = UDim2.fromOffset(0, 0) }, motion.Times.Enter)
         local record = { Frame = frame, Scope = owner }
-        table.insert(self._toasts, record)
-        if #self._toasts > CONFIG.MAX_TOASTS then removeToast(self._toasts[1]) end
-        owner:Delay(math.clamp(duration or CONFIG.TOAST_DURATION_DEFAULT, CONFIG.TOAST_DURATION_MIN, CONFIG.TOAST_DURATION_MAX), function()
+        local closing = false
+        local function closeToast()
+            if closing or owner:IsDisposed() then return end
+            closing = true
             fade(1, motion.Times.Exit)
             motion:Tween(frame, "Toast", { Position = UDim2.fromOffset(motion:Distance(12), 0) }, motion.Times.Exit, function() removeToast(record) end)
-        end)
+        end
+        owner:Connect(dismiss.Activated, closeToast)
+        table.insert(self._toasts, record)
+        if #self._toasts > CONFIG.MAX_TOASTS then removeToast(self._toasts[1]) end
+        owner:Delay(math.clamp(duration or CONFIG.TOAST_DURATION_DEFAULT, CONFIG.TOAST_DURATION_MIN, CONFIG.TOAST_DURATION_MAX), closeToast)
     end
 
     function UIEngine:DismissUnloadConfirmation()
@@ -459,17 +470,17 @@ return function(services: any): any
             layout.MobileTabs.Position = UDim2.fromOffset(0, headerHeight)
             layout.MobileTabs.Size = UDim2.new(1, 0, 0, mobileTabHeight)
         end
-        local pageLeft = if mobile then 14 else railWidth + 18
-        local pageWidthInset = if mobile then 28 else railWidth + 34
-        local pageTopInset, pageBottomInset = if mobile then 10 else 16, 6
+        local pageLeft = if mobile then 12 else railWidth + 20
+        local pageWidthInset = if mobile then 24 else railWidth + 40
+        local pageTopInset, pageBottomInset = if mobile then 8 else 14, 8
         for _, tab in ipairs(UIEngine._tabs) do
             motion:Cancel(tab.Page, "Tab")
             tab.RestPosition = UDim2.fromOffset(pageLeft, contentTop + pageTopInset)
             tab.Page.Position = tab.RestPosition
             tab.Page.Size = UDim2.new(1, -pageWidthInset, 1, -(contentTop + footerHeight + pageTopInset + pageBottomInset))
             tab.ColumnLayout.FillDirection = if mobile or width < CONFIG.STACKED_BREAKPOINT then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
-            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -6, 0, 0),
-                UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -6, 0, 0)
+            tab.LeftCol.Size, tab.RightCol.Size = UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -7, 0, 0),
+                UDim2.new(if mobile or width < CONFIG.STACKED_BREAKPOINT then 1 else 0.5, if mobile or width < CONFIG.STACKED_BREAKPOINT then 0 else -7, 0, 0)
             if tab.DashboardLayout then tab.DashboardLayout.FillDirection = if mobile or width < CONFIG.STACKED_BREAKPOINT then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal end
             if tab.Dashboard then
                 for _, card in ipairs(tab.Dashboard:GetChildren()) do
@@ -635,7 +646,7 @@ return function(services: any): any
         local rail = dom:Create("ScrollingFrame", { Parent = main, Name = "NavigationRail", BorderSizePixel = 0, Position = UDim2.fromOffset(0, CONFIG.HEADER_HEIGHT),
             Size = UDim2.new(0, CONFIG.RAIL_WIDTH, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT)), BackgroundTransparency = 1,
             ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
-        dom:CreatePadding(rail, 10, 10, 10, 10)
+        dom:CreatePadding(rail, 9, 8, 9, 8)
         dom:Create("UIListLayout", { Parent = rail, FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
         local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(CONFIG.RAIL_WIDTH, CONFIG.HEADER_HEIGHT + 10), Size = UDim2.new(0, 1, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT + 20)) })
         self._layout.Rail, self._layout.RailSurface, self._layout.RailTopFill, self._layout.RailRightFill = rail, railSurface, railTopFill, railRightFill
@@ -647,13 +658,13 @@ return function(services: any): any
         for index, entry in ipairs(tabEntries) do
             local button = dom:Create("TextButton", { Parent = rail, BackgroundColor3 = theme:GetToken("AccentDark"), BackgroundTransparency = 1, BorderSizePixel = 0,
                 Text = entry.Name, AutoButtonColor = false, Selectable = true, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
-                Size = UDim2.new(1, 0, 0, 34), LayoutOrder = index })
-            dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 5) }); dom:CreatePadding(button, 0, 14, 0, 14)
+                Size = UDim2.new(1, 0, 0, 36), LayoutOrder = index })
+            dom:Create("UICorner", { Parent = button, CornerRadius = UDim.new(0, 6) }); dom:CreatePadding(button, 0, 12, 0, 12)
             theme:BindToken(button, "BackgroundColor3", "AccentDark"); theme:BindToken(button, "TextColor3", "TextMuted")
             local mobileButton = dom:Create("TextButton", { Parent = mobileTabs, BackgroundColor3 = theme:GetToken("AccentDark"), BackgroundTransparency = 1, BorderSizePixel = 0,
                 Text = entry.Name, AutoButtonColor = false, Selectable = true, Font = Enum.Font.GothamMedium, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center,
-                Size = UDim2.fromOffset(math.max(72, #entry.Name * 7 + 24), 30), LayoutOrder = index })
-            dom:Create("UICorner", { Parent = mobileButton, CornerRadius = UDim.new(0, 6) }); dom:CreatePadding(mobileButton, 0, 10, 0, 10)
+                Size = UDim2.fromOffset(math.max(78, #entry.Name * 7 + 26), 32), LayoutOrder = index })
+            dom:Create("UICorner", { Parent = mobileButton, CornerRadius = UDim.new(0, 6) }); dom:CreatePadding(mobileButton, 0, 11, 0, 11)
             theme:BindToken(mobileButton, "BackgroundColor3", "AccentDark"); theme:BindToken(mobileButton, "TextColor3", "TextMuted")
             local page = dom:Create("ScrollingFrame", { Parent = main, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(CONFIG.RAIL_WIDTH + 18, CONFIG.HEADER_HEIGHT + 16),
                 Size = UDim2.new(1, -(CONFIG.RAIL_WIDTH + 34), 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT + 22)), Visible = false, ScrollBarThickness = 3,
@@ -665,12 +676,12 @@ return function(services: any): any
             local intro = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = -3 })
             dom:Create("UIListLayout", { Parent = intro, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
             local pageTitle = dom:Create("TextLabel", { Parent = intro, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 27), Text = entry.Name, Font = Enum.Font.GothamMedium,
-                TextSize = 22, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0 })
+                TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0 })
             local pageDescription = dom:Create("TextLabel", { Parent = intro, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Text = entry.Description or "", Font = Enum.Font.Gotham,
                 TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = 1 })
             theme:BindToken(pageTitle, "TextColor3", "Text"); theme:BindToken(pageDescription, "TextColor3", "TextMuted")
             local dashboard = dom:Create("Frame", { Parent = page, Name = "Dashboard", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = -2, Visible = false })
-            local dashboardLayout = dom:Create("UIListLayout", { Parent = dashboard, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder })
+            local dashboardLayout = dom:Create("UIListLayout", { Parent = dashboard, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder })
             local favorites = dom:Create("Frame", { Parent = page, Name = "Favorites", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = -1, Visible = false })
             dom:Create("UIListLayout", { Parent = favorites, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
             dom:CreatePadding(favorites, 0, 0, 6, 0)
@@ -679,9 +690,9 @@ return function(services: any): any
             local favoritesBody = dom:Create("Frame", { Parent = favorites, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             dom:Create("UIListLayout", { Parent = favoritesBody, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder })
             local columns = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, -1, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder })
-            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
-            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
+            local columnLayout = dom:Create("UIListLayout", { Parent = columns, FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder })
+            local left = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -7, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 0 })
+            local right = dom:Create("Frame", { Parent = columns, BackgroundTransparency = 1, Size = UDim2.new(0.5, -7, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 })
             local results = dom:Create("Frame", { Parent = page, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Visible = false, LayoutOrder = 1 })
             for _, column in ipairs({ left, right, results }) do dom:Create("UIListLayout", { Parent = column, Padding = UDim.new(0, if column == results then 4 else 8), SortOrder = Enum.SortOrder.LayoutOrder }) end
             local tab = { Name = entry.Name, Button = button, MobileButton = mobileButton, Page = page, LeftCol = left, RightCol = right, Dashboard = dashboard, DashboardLayout = dashboardLayout,

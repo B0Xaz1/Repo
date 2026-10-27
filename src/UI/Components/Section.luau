@@ -4,22 +4,24 @@ return function(services: any): any
     local orders = setmetatable({}, { __mode = "k" })
     local Section = {}
 
-    function Section:Create(parent: Instance, title: string, resetPath: string?): Frame
+    function Section:Create(parent: Instance, title: string, resetPath: string?, tone: string?): Frame
         orders[parent] = (orders[parent] or 0) + 1
         local frame = dom:Create("Frame", { Parent = parent, Name = "Section", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = orders[parent], BackgroundColor3 = theme:GetToken("Panel") })
         frame:SetAttribute("B0XazSection", title)
-        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 6) })
+        local titleToken = if tone == "Danger" then "Danger" else "Accent"
+        frame:SetAttribute("B0XazSectionTone", titleToken)
+        dom:Create("UICorner", { Parent = frame, CornerRadius = UDim.new(0, 7) })
         theme:BindToken(frame, "BackgroundColor3", "Panel")
-        theme:BindToken(dom:CreateStroke(frame, theme:GetToken("Border")), "Color", "Border")
-        local padding = dom:CreatePadding(frame, 10, 12, 10, 12)
-        local layout = dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+        theme:BindToken(dom:CreateStroke(frame, theme:GetToken(if tone == "Danger" then "Danger" else "Border")), "Color", if tone == "Danger" then "Danger" else "Border")
+        local padding = dom:CreatePadding(frame, 12, 14, 12, 14)
+        local layout = dom:Create("UIListLayout", { Parent = frame, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder })
         local header = dom:Create("TextButton", { Parent = frame, Name = "SectionHeader", BackgroundTransparency = 1, BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 22), LayoutOrder = 0, Text = "", AutoButtonColor = false, Selectable = true })
+            Size = UDim2.new(1, 0, 0, 24), LayoutOrder = 0, Text = "", AutoButtonColor = false, Selectable = true })
         local titleLabel = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Size = UDim2.new(1, -22, 1, 0),
             Text = title, Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
-            TextColor3 = theme:GetToken("Accent") })
-        theme:BindToken(titleLabel, "TextColor3", "Accent")
+            TextColor3 = theme:GetToken(titleToken) })
+        theme:BindToken(titleLabel, "TextColor3", titleToken)
         local indicator = dom:Create("TextLabel", { Parent = header, BackgroundTransparency = 1, Position = UDim2.new(1, -20, 0, 0),
             Size = UDim2.fromOffset(20, 22), Text = "v", Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center,
             TextColor3 = theme:GetToken("TextMuted") })
@@ -29,11 +31,11 @@ return function(services: any): any
         local sectionScope = disposer:CreateChild(`Section {title}`)
         local function applyDensity(value: any)
             local compact = value == "Compact"
-            padding.PaddingTop, padding.PaddingRight = UDim.new(0, if compact then 8 else 10), UDim.new(0, if compact then 10 else 12)
-            padding.PaddingBottom, padding.PaddingLeft = UDim.new(0, if compact then 8 else 10), UDim.new(0, if compact then 10 else 12)
-            layout.Padding = UDim.new(0, if compact then 2 else 4)
-            contentLayout.Padding = UDim.new(0, if compact then 2 else 3)
-            header.Size = UDim2.new(1, 0, 0, if compact then 20 else 22)
+            padding.PaddingTop, padding.PaddingRight = UDim.new(0, if compact then 9 else 12), UDim.new(0, if compact then 11 else 14)
+            padding.PaddingBottom, padding.PaddingLeft = UDim.new(0, if compact then 9 else 12), UDim.new(0, if compact then 11 else 14)
+            layout.Padding = UDim.new(0, if compact then 3 else 5)
+            contentLayout.Padding = UDim.new(0, if compact then 2 else 4)
+            header.Size = UDim2.new(1, 0, 0, if compact then 21 else 24)
         end
         applyDensity(state:Peek("Settings.InterfaceDensity"))
         sectionScope:Add(state:Observe("Settings.InterfaceDensity", applyDensity))

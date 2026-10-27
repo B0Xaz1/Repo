@@ -2,7 +2,7 @@ local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
     CARD_WIDE_HEIGHT = 164,
-    CARD_NARROW_HEIGHT = 222,
+    CARD_NARROW_HEIGHT = 234,
     CARD_NARROW_WIDTH = 600,
     AVATAR_THUMBNAIL = "rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150",
     HIGHLIGHT_FILL_TRANSPARENCY = 0.67,
@@ -51,8 +51,12 @@ return function(services: any, tab: any): any
     theme:BindToken(eyebrow, "TextColor3", "Accent"); theme:BindToken(displayName, "TextColor3", "Text")
     theme:BindToken(username, "TextColor3", "TextDim"); theme:BindToken(account, "TextColor3", "TextMuted")
 
+    local actionsLabel = dom:Create("TextLabel", { Parent = card, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -14, 0, 15), Size = UDim2.fromOffset(218, 13), Text = "QUICK ACTIONS", Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = theme:GetToken("TextMuted") })
+    theme:BindToken(actionsLabel, "TextColor3", "TextMuted")
     local actions = dom:Create("Frame", { Parent = card, Name = "TargetActions", BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, -14, 0, 30), Size = UDim2.fromOffset(218, 104) })
+        Position = UDim2.new(1, -14, 0, 33), Size = UDim2.fromOffset(218, 104) })
     local actionLayout = dom:Create("UIGridLayout", { Parent = actions, CellPadding = UDim2.fromOffset(6, 6), CellSize = UDim2.new(0.5, -3, 0, 49),
         SortOrder = Enum.SortOrder.LayoutOrder })
     local actionScope = scope:CreateChild("Target card actions")
@@ -71,7 +75,11 @@ return function(services: any, tab: any): any
     local highlightedPlayer: Player? = nil
     local highlightScope: any = nil
     local statusScope: any = nil
+    local copyButton: any = nil
     local followButton: any = nil
+    local whitelistAddButton: any = nil
+    local whitelistRemoveButton: any = nil
+    local flingButton: any = nil
 
     local function currentStatus(player: Player?): (string, string)
         if not player or not player.Parent then return "No target selected", "TextMuted" end
@@ -180,11 +188,30 @@ return function(services: any, tab: any): any
         return true, `Highlighting {player.Name}`
     end
 
+    local function setCardActionEnabled(button: TextButton, enabled: boolean)
+        button.Active, button.Selectable = enabled, enabled
+        button.BackgroundTransparency = if enabled then 0 else 0.55
+        button.TextTransparency = if enabled then 0 else 0.55
+        button:SetAttribute("B0XazDisabled", not enabled)
+    end
+
     local function refreshActionLabels()
-        spectateButton.Text = if selectedPlayer and tracker:GetSpectatingTarget() == selectedPlayer then "Stop spectating" else "Spectate"
-        selectTargetButton.Text = if selectedPlayer and aimbot:GetPreferredTarget() == selectedPlayer then "Clear target" else "Select as Target"
-        highlightButton.Text = if selectedPlayer and highlightedPlayer == selectedPlayer then "Remove highlight" else "Highlight"
-        if followButton then followButton:_Render("") end
+        local hasTarget = selectedPlayer ~= nil and selectedPlayer.Parent ~= nil
+        spectateButton.Text = if hasTarget and tracker:GetSpectatingTarget() == selectedPlayer then "Stop spectating" else "Spectate"
+        selectTargetButton.Text = if hasTarget and aimbot:GetPreferredTarget() == selectedPlayer then "Clear aim target" else "Set aim target"
+        highlightButton.Text = if hasTarget and highlightedPlayer == selectedPlayer then "Remove highlight" else "Highlight"
+        setCardActionEnabled(teleportButton, hasTarget)
+        setCardActionEnabled(spectateButton, hasTarget)
+        setCardActionEnabled(selectTargetButton, hasTarget)
+        setCardActionEnabled(highlightButton, hasTarget)
+        if copyButton then copyButton:SetEnabled(hasTarget) end
+        if followButton then
+            followButton:SetEnabled(hasTarget or movement:GetFollowingTarget() ~= nil)
+            followButton:_Render("")
+        end
+        if whitelistAddButton then whitelistAddButton:SetEnabled(hasTarget) end
+        if whitelistRemoveButton then whitelistRemoveButton:SetEnabled(hasTarget) end
+        if flingButton then flingButton:SetEnabled(hasTarget) end
     end
 
     local function setSelected(player: Player?)
@@ -283,8 +310,9 @@ return function(services: any, tab: any): any
             account.Position, account.Size = UDim2.fromOffset(88, 73), UDim2.new(1, -102, 0, 15)
             statusDot.Position, status.Position = UDim2.fromOffset(14, 108), UDim2.fromOffset(26, 103)
             status.Size = UDim2.new(1, -40, 0, 18)
-            actions.AnchorPoint, actions.Position, actions.Size = Vector2.new(0, 0), UDim2.fromOffset(14, 137), UDim2.new(1, -28, 0, 71)
-            actionLayout.CellPadding, actionLayout.CellSize = UDim2.fromOffset(6, 6), UDim2.new(0.5, -3, 0, 32)
+            actionsLabel.AnchorPoint, actionsLabel.Position, actionsLabel.Size = Vector2.new(0, 0), UDim2.fromOffset(14, 122), UDim2.new(1, -28, 0, 12)
+            actions.AnchorPoint, actions.Position, actions.Size = Vector2.new(0, 0), UDim2.fromOffset(14, 138), UDim2.new(1, -28, 0, 82)
+            actionLayout.CellPadding, actionLayout.CellSize = UDim2.fromOffset(6, 6), UDim2.new(0.5, -3, 0, 38)
         else
             avatar.Position, avatar.Size = UDim2.fromOffset(14, 34), UDim2.fromOffset(92, 92)
             eyebrow.Position, eyebrow.Size = UDim2.fromOffset(122, 15), UDim2.new(1, -370, 0, 13)
@@ -293,13 +321,14 @@ return function(services: any, tab: any): any
             account.Position, account.Size = UDim2.fromOffset(122, 78), UDim2.new(1, -370, 0, 16)
             statusDot.Position, status.Position = UDim2.fromOffset(122, 111), UDim2.fromOffset(134, 106)
             status.Size = UDim2.new(1, -382, 0, 18)
-            actions.AnchorPoint, actions.Position, actions.Size = Vector2.new(1, 0), UDim2.new(1, -14, 0, 30), UDim2.fromOffset(218, 104)
+            actionsLabel.AnchorPoint, actionsLabel.Position, actionsLabel.Size = Vector2.new(1, 0), UDim2.new(1, -14, 0, 15), UDim2.fromOffset(218, 13)
+            actions.AnchorPoint, actions.Position, actions.Size = Vector2.new(1, 0), UDim2.new(1, -14, 0, 33), UDim2.fromOffset(218, 104)
             actionLayout.CellPadding, actionLayout.CellSize = UDim2.fromOffset(6, 6), UDim2.new(0.5, -3, 0, 49)
         end
     end)
 
     local utilities = section:Create(tab.LeftCol, "Player utilities")
-    textbox:CreateButton(utilities, "Copy username", function() return tracker:CopyName(selectedPlayer) end)
+    copyButton = textbox:CreateButton(utilities, "Copy username", function() return tracker:CopyName(selectedPlayer) end)
     followButton = textbox:CreateButton(utilities, "Follow selected player", function()
         if selectedPlayer and movement:GetFollowingTarget() == selectedPlayer then
             movement:StopFollowing()
@@ -320,14 +349,15 @@ return function(services: any, tab: any): any
     local whitelist = section:Create(tab.RightCol, "Target whitelist", "Settings")
     local summary = section:Info(whitelist, tracker:GetWhitelistSummary())
     scope:Add(state:Observe("Settings.Whitelist", function() summary:Set(tracker:GetWhitelistSummary()) end))
-    textbox:CreateButton(whitelist, "Whitelist selected player", function() return tracker:AddWhitelist(selectedPlayer) end)
-    textbox:CreateButton(whitelist, "Remove selected from whitelist", function() return tracker:RemoveWhitelist(selectedPlayer) end)
+    whitelistAddButton = textbox:CreateButton(whitelist, "Whitelist selected player", function() return tracker:AddWhitelist(selectedPlayer) end)
+    whitelistRemoveButton = textbox:CreateButton(whitelist, "Remove selected from whitelist", function() return tracker:RemoveWhitelist(selectedPlayer) end)
     textbox:CreateButton(whitelist, "Clear whitelist", function() state:Set("Settings.Whitelist", {}); return true, "Whitelist cleared" end)
     local fling = section:Create(tab.RightCol, "Fling attack")
     section:Info(fling, "Client-side only; server authority may block it. Stop flight first.")
-    textbox:CreateButton(fling, "Fling selected player", function() return movement:FlingPlayer(selectedPlayer) end)
+    flingButton = textbox:CreateButton(fling, "Fling selected player", function() return movement:FlingPlayer(selectedPlayer) end)
     textbox:CreateButton(fling, "Stop fling & restore position", function() movement:StopFling(); return true, "Fling stopped" end)
 
     setSelected(tracker:GetPlayerByName(target:Get() or ""))
+    refreshActionLabels()
     return { Name = tab.Name }
 end

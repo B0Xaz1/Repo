@@ -9,30 +9,41 @@ return function(services: any, tab: any): any
     local state, lighting = services:Get("StateStore"), services:Get("LightingService")
     local optimizer = services:Get("OptimizerService")
 
-    -- Keep every player visual, including native chams, in one short node. The default is a
-    -- compact stacked readout so full-box ESP stays light with multiple visible players.
+    -- Player ESP is organized by the decisions players make most often. The common
+    -- controls stay visible; only the uncommon effects live behind a disclosure.
     local esp = section:Create(tab.LeftCol, "Player ESP")
-    section:Info(esp, "A compact menu-accent readout: full or corner boxes, optional name, distance, health, equipped tool, estimated activity status, optional health bar, and native chams.")
+    section:Info(esp, "Frame-synchronous player overlay with boxes, readouts, optional health, visibility controls, and native chams.")
     if not services:Get("DrawingPool").Available then
-        section:Info(esp, "Drawing is unavailable. Full boxes and native readouts can still work, but Corner boxes are unavailable; native chams can still work.")
+        section:Info(esp, "Drawing is unavailable. Native full boxes and readouts remain available; Corner boxes are unavailable.")
     end
     toggle(esp, "Enable player ESP", "ESP.Enabled", nil)
     toggle(esp, "Show self ESP", "ESP.ShowSelf", nil)
     slider(esp, "Render distance", "ESP.MaxDistance", 50, 10000, 50, " studs", nil)
-    toggle(esp, "Boxes", "ESP.Box", nil)
-    dropdown(esp, "Box style", "ESP.BoxStyle", { "Full", "Corner" }, nil)
-    toggle(esp, "Names", "ESP.Name", nil)
-    dropdown(esp, "Name style", "ESP.NameStyle", { "Username", "Display name" }, nil)
-    toggle(esp, "Distance", "ESP.Distance", nil)
-    toggle(esp, "Tools", "ESP.Tool", nil)
-    toggle(esp, "Health", "ESP.Health", nil)
-    toggle(esp, "Estimated AFK status (60s idle)", "ESP.ActivityStatus", nil)
-    toggle(esp, "Health bar", "ESP.HealthBar", nil)
-    toggle(esp, "Chams", "Chams.Enabled", nil)
-    color(esp, "ESP color", "ESP.Color", function() state:Set("ESP.ColorFollowsTheme", false) end)
-    toggle(esp, "Follow menu accent", "ESP.ColorFollowsTheme", nil)
-    toggle(esp, "Use team colors", "ESP.UseTeamColor", nil)
-    dropdown(esp, "Occlusion behavior", "ESP.DepthMode", { "AlwaysOnTop", "Occluded" }, nil)
+
+    local labels = section:Subsection(esp, "Box & labels", true)
+    toggle(labels, "Boxes", "ESP.Box", nil)
+    dropdown(labels, "Box style", "ESP.BoxStyle", { "Full", "Corner" }, nil)
+    toggle(labels, "Names", "ESP.Name", nil)
+    dropdown(labels, "Name style", "ESP.NameStyle", { "Username", "Display name" }, nil)
+    toggle(labels, "Distance", "ESP.Distance", nil)
+    toggle(labels, "Tools", "ESP.Tool", nil)
+    toggle(labels, "Health readout", "ESP.Health", nil)
+
+    local visibility = section:Subsection(esp, "Colors & visibility", true)
+    color(visibility, "ESP color", "ESP.Color", function() state:Set("ESP.ColorFollowsTheme", false) end)
+    toggle(visibility, "Follow menu accent", "ESP.ColorFollowsTheme", nil)
+    toggle(visibility, "Use team colors", "ESP.UseTeamColor", nil)
+    dropdown(visibility, "Occlusion behavior", "ESP.DepthMode", { "AlwaysOnTop", "Occluded" }, nil)
+
+    local advanced = section:Subsection(esp, "Advanced effects", false)
+    toggle(advanced, "Health bar", "ESP.HealthBar", nil)
+    toggle(advanced, "Estimated AFK status (60s idle)", "ESP.ActivityStatus", nil)
+    toggle(advanced, "Chams", "Chams.Enabled", nil)
+
+    local telemetry = section:Subsection(esp, "Telemetry & motion", true)
+    toggle(telemetry, "Watermark", "Settings.Watermark", nil)
+    toggle(telemetry, "FPS counter", "Settings.ShowFPS", nil)
+    toggle(telemetry, "Ping monitor", "Settings.ShowPing", nil)
 
     local performancePresets = section:Create(tab.RightCol, "Performance presets")
     section:Info(performancePresets, "Presets apply a coordinated set of reversible visual changes. You can still adjust every option below.")

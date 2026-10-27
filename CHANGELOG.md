@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Added **Use display names** to Player ESP. Leave it off for Roblox usernames (the default), or enable it to show display names.
 - Removed the Graphite and Paper theme presets. Existing autosaves and profiles using either retired preset now fall back to Midnight.
 - Removed the Players selected-target card’s top accent strip and the selected-tab navigation indicator line.
 - Removed the Full/Lite edition picker and launch-preference setting. The loader now always starts the complete Full feature set.

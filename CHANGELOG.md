@@ -4,6 +4,11 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Reworked the main menu shell with a roomier responsive workspace, refined header/rail/footer spacing, larger touch-friendly tab targets, and selected-tab styling without a separate indicator line.
+- Standardized section cards, spacing, borders, control rows, disabled actions, and feedback. Toasts can now be dismissed manually.
+- Refined Players with grouped quick actions, clear no-target disabled states, larger narrow-layout targets, and updated target-action labels.
+- Reorganized Player ESP into open **Box & labels** and **Colors & visibility** groups, with only **Advanced effects** initially collapsed; telemetry remains visible.
+- Reorganized Settings into focused Profiles, Launch & restore, Interface, Motion, Hotkeys, Theme, Recovery, and Session groups. Recovery/destructive actions are visually separated.
 - Kept the Visuals → Player ESP **Telemetry & motion** controls visible by default instead of initially collapsing them.
 - Added a Player ESP **Name style** dropdown: choose **Username** (default) or **Display name**. Existing display-name-toggle preferences migrate automatically.
 - Removed the Graphite and Paper theme presets. Existing autosaves and profiles using either retired preset now fall back to Midnight.

@@ -149,122 +149,105 @@ local function showEditionPicker(): string?
         return "Full"
     end
 
-    -- The edition picker is deliberately self-contained: it should feel like a
-    -- short launch step, not a second version of the main workspace.
+    -- The loader runs before the themed interface exists, so this mirrors the
+    -- default Midnight palette and geometry used by the main menu.
+    local colors = {
+        Bg = Color3.fromRGB(7, 7, 8),
+        Panel = Color3.fromRGB(14, 14, 16),
+        Elem = Color3.fromRGB(23, 23, 26),
+        ElemHover = Color3.fromRGB(34, 34, 38),
+        Accent = Color3.fromRGB(238, 238, 240),
+        Text = Color3.fromRGB(250, 250, 252),
+        TextDim = Color3.fromRGB(194, 194, 198),
+        TextMuted = Color3.fromRGB(132, 132, 138),
+        Border = Color3.fromRGB(67, 67, 73),
+        BorderDim = Color3.fromRGB(44, 44, 49),
+        ToggleOff = Color3.fromRGB(55, 55, 60),
+    }
+
     local shade = Instance.new("Frame")
     shade.Active, shade.BorderSizePixel, shade.ZIndex = true, 0, 1
-    shade.BackgroundColor3, shade.BackgroundTransparency = Color3.fromRGB(3, 5, 10), 0.28
+    shade.BackgroundColor3, shade.BackgroundTransparency = Color3.fromRGB(0, 0, 0), 0.38
     shade.Size, shade.Parent = UDim2.fromScale(1, 1), gui
 
     local panel = Instance.new("Frame")
-    panel.Name = "LaunchSetup"
+    panel.Name = "EditionPicker"
     panel.AnchorPoint, panel.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
-    panel.Size, panel.BackgroundColor3, panel.BorderSizePixel, panel.ZIndex = UDim2.new(0.9, 0, 0, 340), Color3.fromRGB(14, 17, 25), 0, 3
+    panel.Size, panel.BackgroundColor3, panel.BorderSizePixel, panel.ZIndex = UDim2.new(0.9, 0, 0, 334), colors.Bg, 0, 3
     panel.Parent = shade
     local constraint = Instance.new("UISizeConstraint")
-    constraint.MinSize, constraint.MaxSize, constraint.Parent = Vector2.new(304, 340), Vector2.new(540, 340), panel
+    constraint.MinSize, constraint.MaxSize, constraint.Parent = Vector2.new(300, 334), Vector2.new(520, 334), panel
     makeCorner(panel, 12)
     local panelStroke = Instance.new("UIStroke")
-    panelStroke.Color, panelStroke.Transparency, panelStroke.Thickness, panelStroke.Parent = Color3.fromRGB(104, 122, 175), 0.38, 1, panel
-    local panelGradient = Instance.new("UIGradient")
-    panelGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 24, 37)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 14, 21)),
-    })
-    panelGradient.Rotation, panelGradient.Parent = 90, panel
+    panelStroke.Color, panelStroke.Parent = colors.Border, panel
 
-    local accent = Instance.new("Frame")
-    accent.BorderSizePixel, accent.BackgroundColor3, accent.Position, accent.Size, accent.ZIndex = 0, Color3.fromRGB(115, 132, 255), UDim2.fromOffset(20, 20), UDim2.fromOffset(4, 49), 4
-    accent.Parent = panel
-    makeCorner(accent, 2)
-    local accentGradient = Instance.new("UIGradient")
-    accentGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(142, 157, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(97, 109, 228)),
-    })
-    accentGradient.Rotation, accentGradient.Parent = 90, accent
+    -- This header is intentionally the same surface as the main menu bar.
+    local header = Instance.new("Frame")
+    header.Name, header.BackgroundColor3, header.BorderSizePixel, header.Size, header.ZIndex, header.Parent = "Header", colors.Panel, 0, UDim2.new(1, 0, 0, 52), 4, panel
+    makeCorner(header, 12)
+    local headerFill = Instance.new("Frame")
+    headerFill.BackgroundColor3, headerFill.BorderSizePixel, headerFill.Position, headerFill.Size, headerFill.ZIndex, headerFill.Parent = colors.Panel, 0, UDim2.fromOffset(0, 12), UDim2.new(1, 0, 1, -12), 4, header
+    local brand = makeLabel(header, "B0Xaz Universal", UDim2.fromOffset(18, 16), UDim2.fromOffset(180, 20), Enum.Font.GothamMedium, 13, colors.Text)
+    brand.ZIndex, brand.TextYAlignment = 5, Enum.TextYAlignment.Center
+    local context = makeLabel(header, "Edition setup", UDim2.new(1, -122, 0, 17), UDim2.fromOffset(104, 18), Enum.Font.Gotham, 11, colors.TextMuted)
+    context.ZIndex, context.TextXAlignment, context.TextYAlignment = 5, Enum.TextXAlignment.Right, Enum.TextYAlignment.Center
 
-    local eyebrow = makeLabel(panel, "B0XAZ UNIVERSAL", UDim2.fromOffset(35, 17), UDim2.new(1, -150, 0, 14), Enum.Font.GothamBold, 10, Color3.fromRGB(160, 174, 255))
-    eyebrow.ZIndex, eyebrow.TextYAlignment = 4, Enum.TextYAlignment.Center
-    local title = makeLabel(panel, "Choose your workspace", UDim2.fromOffset(35, 33), UDim2.new(1, -55, 0, 25), Enum.Font.GothamBold, 18, Color3.fromRGB(246, 248, 255))
+    local title = makeLabel(panel, "Choose an edition", UDim2.fromOffset(20, 68), UDim2.new(1, -40, 0, 22), Enum.Font.GothamMedium, 18, colors.Text)
     title.ZIndex, title.TextYAlignment = 4, Enum.TextYAlignment.Center
-    local subtitle = makeLabel(panel, "Select the toolset for this launch. You can change it later.", UDim2.fromOffset(35, 58), UDim2.new(1, -55, 0, 16), Enum.Font.Gotham, 10, Color3.fromRGB(166, 174, 194))
-    subtitle.ZIndex, subtitle.TextYAlignment = 4, Enum.TextYAlignment.Center
-    local setupLabel = makeLabel(panel, "LAUNCH SETUP", UDim2.new(1, -118, 0, 23), UDim2.fromOffset(98, 15), Enum.Font.GothamBold, 8, Color3.fromRGB(114, 126, 162))
-    setupLabel.ZIndex, setupLabel.TextXAlignment, setupLabel.TextYAlignment = 4, Enum.TextXAlignment.Right, Enum.TextYAlignment.Center
-
+    local description = makeLabel(panel, "Select which B0Xaz tools should be available for this launch.", UDim2.fromOffset(20, 92), UDim2.new(1, -40, 0, 15), Enum.Font.Gotham, 10, colors.TextMuted)
+    description.ZIndex, description.TextYAlignment = 4, Enum.TextYAlignment.Center
     local divider = Instance.new("Frame")
-    divider.BackgroundColor3, divider.BackgroundTransparency, divider.BorderSizePixel, divider.Position, divider.Size, divider.ZIndex = Color3.fromRGB(100, 113, 150), 0.72, 0, UDim2.fromOffset(20, 86), UDim2.new(1, -40, 0, 1), 4
-    divider.Parent = panel
+    divider.BackgroundColor3, divider.BorderSizePixel, divider.Position, divider.Size, divider.ZIndex, divider.Parent = colors.BorderDim, 0, UDim2.fromOffset(20, 116), UDim2.new(1, -40, 0, 1), 4, panel
 
-    local function editionOption(titleText: string, badgeText: string, description: string, position: UDim2, tint: Color3): TextButton
+    local function editionOption(titleText: string, detailText: string, position: UDim2): TextButton
         local option = Instance.new("TextButton")
         option.Name = `{titleText}Edition`
-        option.AutoButtonColor, option.Selectable, option.BorderSizePixel, option.ZIndex = false, true, 0, 4
-        option.BackgroundColor3, option.Position, option.Size, option.Text = Color3.fromRGB(24, 29, 42), position, UDim2.new(1, -40, 0, 64), ""
-        option.Parent = panel
-        makeCorner(option, 9)
+        option.AutoButtonColor, option.Selectable, option.BorderSizePixel, option.ZIndex, option.Text = false, true, 0, 4, ""
+        option.BackgroundColor3, option.Position, option.Size, option.Parent = colors.Elem, position, UDim2.new(1, -40, 0, 54), panel
+        makeCorner(option, 5)
         local border = Instance.new("UIStroke")
-        border.Color, border.Transparency, border.Thickness, border.Parent = Color3.fromRGB(74, 84, 113), 0.52, 1, option
-
-        local mark = Instance.new("Frame")
-        mark.BackgroundColor3, mark.BorderSizePixel, mark.Position, mark.Size, mark.ZIndex, mark.Parent = tint, 0, UDim2.fromOffset(12, 12), UDim2.fromOffset(40, 40), 5, option
-        makeCorner(mark, 8)
-        local markText = makeLabel(mark, if titleText == "Lite" then "L" else "F", UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), Enum.Font.GothamBold, 15, Color3.fromRGB(247, 249, 255))
-        markText.ZIndex, markText.TextXAlignment, markText.TextYAlignment = 6, Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
-
-        local optionTitle = makeLabel(option, titleText, UDim2.fromOffset(64, 10), UDim2.new(1, -170, 0, 19), Enum.Font.GothamBold, 14, Color3.fromRGB(247, 249, 255))
+        border.Color, border.Parent = colors.BorderDim, option
+        local optionTitle = makeLabel(option, titleText, UDim2.fromOffset(12, 7), UDim2.new(1, -48, 0, 17), Enum.Font.GothamMedium, 12, colors.Accent)
         optionTitle.ZIndex, optionTitle.TextYAlignment = 5, Enum.TextYAlignment.Center
-        local detail = makeLabel(option, description, UDim2.fromOffset(64, 31), UDim2.new(1, -170, 0, 21), Enum.Font.Gotham, 9, Color3.fromRGB(168, 177, 199))
+        local detail = makeLabel(option, detailText, UDim2.fromOffset(12, 25), UDim2.new(1, -48, 0, 20), Enum.Font.Gotham, 10, colors.TextMuted)
         detail.ZIndex, detail.TextYAlignment = 5, Enum.TextYAlignment.Center
-
-        local badge = makeLabel(option, badgeText, UDim2.new(1, -106, 0, 12), UDim2.fromOffset(70, 15), Enum.Font.GothamBold, 8, tint)
-        badge.ZIndex, badge.TextXAlignment, badge.TextYAlignment = 5, Enum.TextXAlignment.Right, Enum.TextYAlignment.Center
-        local indicator = Instance.new("Frame")
-        indicator.BackgroundColor3, indicator.BorderSizePixel, indicator.Position, indicator.Size, indicator.ZIndex, indicator.Parent = Color3.fromRGB(55, 64, 89), 0, UDim2.new(1, -28, 0.5, -8), UDim2.fromOffset(16, 16), 5, option
-        makeCorner(indicator, 8)
-        local indicatorStroke = Instance.new("UIStroke")
-        indicatorStroke.Color, indicatorStroke.Transparency, indicatorStroke.Parent = tint, 0.35, indicator
-        local dot = Instance.new("Frame")
-        dot.BackgroundColor3, dot.BackgroundTransparency, dot.BorderSizePixel, dot.AnchorPoint, dot.Position, dot.Size, dot.ZIndex, dot.Parent = tint, 1, 0, Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(6, 6), 6, indicator
-        makeCorner(dot, 3)
-
+        local arrow = makeLabel(option, ">", UDim2.new(1, -27, 0.5, -10), UDim2.fromOffset(16, 20), Enum.Font.Gotham, 12, colors.TextMuted)
+        arrow.ZIndex, arrow.TextXAlignment, arrow.TextYAlignment = 5, Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
         option.MouseEnter:Connect(function()
-            option.BackgroundColor3, border.Color, border.Transparency = Color3.fromRGB(31, 37, 54), tint, 0.08
-            indicator.BackgroundColor3, dot.BackgroundTransparency = tint, 0
+            option.BackgroundColor3, border.Color, arrow.TextColor3 = colors.ElemHover, colors.Border, colors.Accent
         end)
         option.MouseLeave:Connect(function()
-            option.BackgroundColor3, border.Color, border.Transparency = Color3.fromRGB(24, 29, 42), Color3.fromRGB(74, 84, 113), 0.52
-            indicator.BackgroundColor3, dot.BackgroundTransparency = Color3.fromRGB(55, 64, 89), 1
+            option.BackgroundColor3, border.Color, arrow.TextColor3 = colors.Elem, colors.BorderDim, colors.TextMuted
         end)
         return option
     end
 
-    local lite = editionOption("Lite", "CORE", "Universal tools only. Adapters and Commands stay off.", UDim2.fromOffset(20, 101), Color3.fromRGB(111, 196, 173))
-    local full = editionOption("Full", "ALL FEATURES", "Everything enabled: workspaces, adapters, and Commands.", UDim2.fromOffset(20, 172), Color3.fromRGB(142, 157, 255))
+    local lite = editionOption("Lite", "Universal tools only. Game adapters and Commands stay off.", UDim2.fromOffset(20, 129))
+    local full = editionOption("Full", "Everything enabled: workspaces, game adapters, and Commands.", UDim2.fromOffset(20, 190))
 
     local remember = Instance.new("TextButton")
     local canRemember, remembered = type(readFile) == "function" and type(writeFile) == "function", false
     remember.Name = "RememberChoice"
+    -- Explicitly clear Text: Roblox TextButtons otherwise render their default “Button” label.
     remember.AutoButtonColor, remember.Selectable, remember.BackgroundTransparency, remember.BorderSizePixel, remember.ZIndex, remember.Text = false, true, 1, 0, 4, ""
-    remember.Position, remember.Size, remember.Parent = UDim2.fromOffset(20, 248), UDim2.new(1, -40, 0, 24), panel
+    remember.Position, remember.Size, remember.Parent = UDim2.fromOffset(20, 255), UDim2.new(1, -40, 0, 22), panel
     local box = Instance.new("Frame")
-    box.BackgroundColor3, box.BorderSizePixel, box.Position, box.Size, box.ZIndex, box.Parent = Color3.fromRGB(28, 34, 49), 0, UDim2.fromOffset(0, 2), UDim2.fromOffset(20, 20), 5, remember
-    makeCorner(box, 6)
+    box.BackgroundColor3, box.BorderSizePixel, box.Position, box.Size, box.ZIndex, box.Parent = colors.ToggleOff, 0, UDim2.fromOffset(0, 5), UDim2.fromOffset(12, 12), 5, remember
+    makeCorner(box, 2)
     local boxStroke = Instance.new("UIStroke")
-    boxStroke.Color, boxStroke.Transparency, boxStroke.Parent = Color3.fromRGB(85, 97, 131), 0.38, box
-    local check = makeLabel(remember, "✓", UDim2.fromOffset(0, 2), UDim2.fromOffset(20, 20), Enum.Font.GothamBold, 12, Color3.fromRGB(14, 17, 25))
+    boxStroke.Color, boxStroke.Parent = colors.Border, box
+    local check = makeLabel(remember, "✓", UDim2.fromOffset(0, 4), UDim2.fromOffset(12, 12), Enum.Font.GothamMedium, 10, colors.Bg)
     check.ZIndex, check.TextXAlignment, check.TextYAlignment = 6, Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
-    local rememberText = makeLabel(remember, "Remember my choice", UDim2.fromOffset(30, 0), UDim2.new(1, -30, 1, 0), Enum.Font.GothamMedium, 10, Color3.fromRGB(201, 207, 225))
+    local rememberText = makeLabel(remember, "Remember my choice", UDim2.fromOffset(20, 0), UDim2.new(1, -20, 1, 0), Enum.Font.Gotham, 11, colors.Text)
     rememberText.ZIndex, rememberText.TextYAlignment = 5, Enum.TextYAlignment.Center
     local function renderRemember()
         check.Visible = canRemember and remembered
         if canRemember then
-            rememberText.Text, rememberText.TextColor3 = "Remember my choice", Color3.fromRGB(201, 207, 225)
-            box.BackgroundColor3 = if remembered then Color3.fromRGB(142, 157, 255) else Color3.fromRGB(28, 34, 49)
+            rememberText.Text, rememberText.TextColor3 = "Remember my choice", colors.Text
+            box.BackgroundColor3 = if remembered then colors.Accent else colors.ToggleOff
         else
-            rememberText.Text, rememberText.TextColor3 = "Remembering is unavailable in this executor", Color3.fromRGB(126, 136, 161)
-            box.BackgroundColor3 = Color3.fromRGB(28, 34, 49)
+            rememberText.Text, rememberText.TextColor3 = "Remembering is unavailable in this executor", colors.TextMuted
+            box.BackgroundColor3 = colors.ToggleOff
         end
     end
     renderRemember()
@@ -276,9 +259,8 @@ local function showEditionPicker(): string?
     end
 
     local footerLine = Instance.new("Frame")
-    footerLine.BackgroundColor3, footerLine.BackgroundTransparency, footerLine.BorderSizePixel, footerLine.Position, footerLine.Size, footerLine.ZIndex = Color3.fromRGB(100, 113, 150), 0.8, 0, UDim2.fromOffset(20, 283), UDim2.new(1, -40, 0, 1), 4
-    footerLine.Parent = panel
-    local hint = makeLabel(panel, "Your choice only affects this launch · Change it anytime in Settings", UDim2.fromOffset(20, 296), UDim2.new(1, -40, 0, 17), Enum.Font.Gotham, 9, Color3.fromRGB(126, 136, 161))
+    footerLine.BackgroundColor3, footerLine.BorderSizePixel, footerLine.Position, footerLine.Size, footerLine.ZIndex, footerLine.Parent = colors.BorderDim, 0, UDim2.fromOffset(20, 288), UDim2.new(1, -40, 0, 1), 4, panel
+    local hint = makeLabel(panel, "You can change this later in Settings.", UDim2.fromOffset(20, 299), UDim2.new(1, -40, 0, 16), Enum.Font.Code, 10, colors.TextMuted)
     hint.ZIndex, hint.TextXAlignment, hint.TextYAlignment = 4, Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
 
     local selection: string? = nil

@@ -470,7 +470,7 @@ return function(services: any): any
     -- The label text normally changes far less often than its projected position. Cache its
     -- source fields so a crowd does not allocate a table and concatenate strings every frame.
     local function readoutText(record: any, player: Player, config: any, distance: number, humanoid: Humanoid, status: string?, character: Model): string?
-        local name = if config.Name then (if config.UseDisplayName then player.DisplayName else player.Name) else false
+        local name = if config.Name then (if config.NameStyle == "Display name" then player.DisplayName else player.Name) else false
         local range = if config.Distance then math.floor(distance) else false
         local health = if config.Health then math.max(0, math.floor(humanoid.Health)) else false
         local tool: string | boolean = false

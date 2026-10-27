@@ -28,7 +28,7 @@ local CONFIG = deepFreeze({
         },
         -- The player overlay uses one compact text readout with a native full box by default. The
         -- optional health bar starts off so the default overlay remains compact.
-        ESP = { Enabled = false, ShowSelf = false, Box = true, BoxStyle = "Full", Name = true, UseDisplayName = false, Distance = true, Tool = true, Health = true, HealthBar = false, ActivityStatus = true,
+        ESP = { Enabled = false, ShowSelf = false, Box = true, BoxStyle = "Full", Name = true, NameStyle = "Username", Distance = true, Tool = true, Health = true, HealthBar = false, ActivityStatus = true,
             MaxDistance = 2500, Color = Color3.fromRGB(238, 238, 240), ColorFollowsTheme = true, UseTeamColor = false, DepthMode = "AlwaysOnTop" },
         Chams = { Enabled = false },
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
@@ -303,6 +303,9 @@ return function(eventBus: any, disposer: any): any
             and incomingEsp.Color ~= Color3.fromRGB(129, 167, 255) then
             normalized.ESP.ColorFollowsTheme = false
         end
+        -- Convert the short-lived display-name toggle to the explicit name-style selection.
+        if incomingEsp.UseDisplayName == true then normalized.ESP.NameStyle = "Display name" end
+        if normalized.ESP.NameStyle ~= "Username" and normalized.ESP.NameStyle ~= "Display name" then normalized.ESP.NameStyle = "Username" end
         local savedDepth = if type(incomingEsp.DepthMode) == "string" then incomingEsp.DepthMode else incomingChams.DepthMode
         if savedDepth == "Occluded" or savedDepth == "AlwaysOnTop" then normalized.ESP.DepthMode = savedDepth end
         if not table.find({ "Custom", "Neutral", "Golden Hour", "Overcast", "Moonlight", "Neon" }, normalized.Lighting.ScenePreset) then normalized.Lighting.ScenePreset = "Custom" end

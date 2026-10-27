@@ -22,6 +22,7 @@ return function(services: any, tab: any): any
     toggle(esp, "Boxes", "ESP.Box", nil)
     dropdown(esp, "Box style", "ESP.BoxStyle", { "Full", "Corner" }, nil)
     toggle(esp, "Names", "ESP.Name", nil)
+    toggle(esp, "Use display names", "ESP.UseDisplayName", nil)
     toggle(esp, "Distance", "ESP.Distance", nil)
     toggle(esp, "Tools", "ESP.Tool", nil)
     toggle(esp, "Health", "ESP.Health", nil)

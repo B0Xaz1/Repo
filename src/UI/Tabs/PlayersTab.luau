@@ -27,10 +27,6 @@ return function(services: any, tab: any): any
     theme:BindToken(card, "BackgroundColor3", "Panel")
     theme:BindToken(dom:CreateStroke(card, theme:GetToken("Border"), 1), "Color", "Border")
 
-    local accentLine = dom:Create("Frame", { Parent = card, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = theme:GetToken("Accent") })
-    dom:Create("UICorner", { Parent = accentLine, CornerRadius = UDim.new(0, 8) })
-    theme:BindToken(accentLine, "BackgroundColor3", "Accent")
-
     local avatar = dom:Create("ImageLabel", { Parent = card, Name = "Avatar", BackgroundColor3 = theme:GetToken("Elem"), BorderSizePixel = 0,
         Position = UDim2.fromOffset(14, 34), Size = UDim2.fromOffset(92, 92), Image = "", ScaleType = Enum.ScaleType.Crop })
     dom:Create("UICorner", { Parent = avatar, CornerRadius = UDim.new(0, 7) })

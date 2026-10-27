@@ -229,19 +229,6 @@ return function(services: any): any
         theme:BindToken(button, "TextColor3", if selected then "Text" else "TextMuted")
     end
 
-    function UIEngine:UpdateTabIndicator(animate: boolean?)
-        local tab, indicator, rail = self._active, self._indicator, self._layout.Rail
-        if not tab or not indicator or not rail then return end
-        if not rail.Visible then indicator.Visible = false; return end
-        local scale = math.max(if self._scale then self._scale.Scale else 1, 0.01)
-        local height = tab.Button.AbsoluteSize.Y / scale
-        if height <= 0 then return end
-        local y = (tab.Button.AbsolutePosition.Y - rail.AbsolutePosition.Y) / scale
-        local duration = if animate and indicator.Visible and self._main.Visible then motion.Times.Tab else 0
-        indicator.Visible = true
-        motion:Tween(indicator, "Indicator", { Position = UDim2.fromOffset(0, y + 5), Size = UDim2.fromOffset(3, math.max(0, height - 10)) }, duration)
-    end
-
     function UIEngine:SelectTab(name: string): boolean
         local tab = self._tabByName[name]
         if not tab then return false end
@@ -257,9 +244,6 @@ return function(services: any): any
             paintTabButton(previous.MobileButton, false)
         end
         self._active = tab
-        scope:Bind("Indicator position", tab.Button:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-            if not scope:IsDisposed() then UIEngine:UpdateTabIndicator(false) end
-        end))
         tab.Page.Visible = true
         paintTabButton(tab.Button, true)
         paintTabButton(tab.MobileButton, true)
@@ -268,7 +252,6 @@ return function(services: any): any
             local scale = math.max(if self._scale then self._scale.Scale else 1, 0.01)
             mobileTabs.CanvasPosition = Vector2.new(math.max(0, (tab.MobileButton.AbsolutePosition.X - mobileTabs.AbsolutePosition.X) / scale - 10), 0)
         end
-        self:UpdateTabIndicator(true)
         if self._query ~= "" then self:Search(self._query) end
         motion:Cancel(tab.Page, "Tab")
         if previous and state:Peek("Settings.MenuVisible") then
@@ -461,14 +444,13 @@ return function(services: any): any
         if layout.Rail then
             local showRail = not mobile
             layout.Rail.Visible, layout.RailSurface.Visible, layout.RailTopFill.Visible, layout.RailRightFill.Visible = showRail, showRail, showRail, showRail
-            layout.IndicatorHost.Visible, layout.Divider.Visible = showRail, showRail
+            layout.Divider.Visible = showRail
             layout.Rail.Position = UDim2.fromOffset(0, headerHeight)
             layout.Rail.Size = UDim2.new(0, railWidth, 1, -(headerHeight + footerHeight))
             layout.RailSurface.Position, layout.RailSurface.Size = layout.Rail.Position, layout.Rail.Size
             layout.RailTopFill.Position, layout.RailTopFill.Size = layout.Rail.Position, UDim2.new(0, railWidth, 0, 12)
             layout.RailRightFill.Position = UDim2.fromOffset(12, headerHeight)
             layout.RailRightFill.Size = UDim2.new(0, math.max(0, railWidth - 12), 1, -(headerHeight + footerHeight))
-            layout.IndicatorHost.Position, layout.IndicatorHost.Size = layout.Rail.Position, layout.Rail.Size
             layout.Divider.Position = UDim2.fromOffset(railWidth, headerHeight + 10)
             layout.Divider.Size = UDim2.new(0, 1, 1, -(headerHeight + footerHeight + 20))
         end
@@ -504,7 +486,6 @@ return function(services: any): any
             layout.Footer.Size = UDim2.new(1, -footerRight, 0, 14)
         end
         if UIEngine._versionLabel then UIEngine._versionLabel.Position = UDim2.new(1, -16, 1, -footerHeight + 5) end
-        UIEngine:UpdateTabIndicator(false)
         UIEngine._toastRoot.Size = UDim2.new(0, math.min(CONFIG.TOAST_WIDTH, screen.X - 32), 1, -40)
     end
 
@@ -655,18 +636,10 @@ return function(services: any): any
             Size = UDim2.new(0, CONFIG.RAIL_WIDTH, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT)), BackgroundTransparency = 1,
             ScrollBarThickness = 0, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y })
         dom:CreatePadding(rail, 10, 10, 10, 10)
-        local tabLayout = dom:Create("UIListLayout", { Parent = rail, FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
-        local indicatorHost = dom:Create("Frame", { Parent = main, Name = "NavigationIndicatorHost", BackgroundTransparency = 1, ClipsDescendants = true, Active = false,
-            Position = rail.Position, Size = rail.Size, ZIndex = 2 })
-        self._indicator = dom:Create("Frame", { Parent = indicatorHost, Name = "NavigationIndicator", BorderSizePixel = 0, Visible = false,
-            Size = UDim2.fromOffset(3, 24), ZIndex = 2 })
-        theme:BindToken(self._indicator, "BackgroundColor3", "Accent")
-        dom:Create("UICorner", { Parent = self._indicator, CornerRadius = UDim.new(1, 0) })
-        scope:ConnectImmediate(tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() UIEngine:UpdateTabIndicator(false) end)
-        scope:ConnectImmediate(rail:GetPropertyChangedSignal("CanvasPosition"), function() UIEngine:UpdateTabIndicator(false) end)
+        dom:Create("UIListLayout", { Parent = rail, FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
         local divider = dom:Create("Frame", { Parent = main, BorderSizePixel = 0, Position = UDim2.fromOffset(CONFIG.RAIL_WIDTH, CONFIG.HEADER_HEIGHT + 10), Size = UDim2.new(0, 1, 1, -(CONFIG.HEADER_HEIGHT + CONFIG.FOOTER_HEIGHT + 20)) })
         self._layout.Rail, self._layout.RailSurface, self._layout.RailTopFill, self._layout.RailRightFill = rail, railSurface, railTopFill, railRightFill
-        self._layout.MobileTabs, self._layout.IndicatorHost, self._layout.Divider = mobileTabs, indicatorHost, divider
+        self._layout.MobileTabs, self._layout.Divider = mobileTabs, divider
         theme:BindToken(divider, "BackgroundColor3", "BorderDim")
 
         local tabEntries = {}
@@ -716,9 +689,6 @@ return function(services: any): any
             table.insert(self._tabs, tab); self._tabByName[tab.Name] = tab
             scope:Connect(button.Activated, function() UIEngine:SelectTab(tab.Name) end)
             scope:Connect(mobileButton.Activated, function() UIEngine:SelectTab(tab.Name) end)
-            scope:ConnectImmediate(button:GetPropertyChangedSignal("AbsoluteSize"), function()
-                if UIEngine._active == tab then UIEngine:UpdateTabIndicator(false) end
-            end)
             local factory = load(entry.Path)
             local ok, result = pcall(factory, services, tab)
             tab.HasDashboard = dashboard.Visible
@@ -799,7 +769,7 @@ return function(services: any): any
     scope:Add(function()
         restoreSearch()
         if UIEngine._root then dom:DestroyInstance(UIEngine._root) end
-        UIEngine._root, UIEngine._main, UIEngine._toastRoot, UIEngine._indicator = nil, nil, nil, nil
+        UIEngine._root, UIEngine._main, UIEngine._toastRoot = nil, nil, nil
         table.clear(UIEngine._layout)
         table.clear(UIEngine._favoriteIds); table.clear(UIEngine._controls); table.clear(UIEngine._dropdowns); table.clear(UIEngine._toasts); table.clear(UIEngine._pending)
     end)

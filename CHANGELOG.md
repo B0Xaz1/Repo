@@ -4,7 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
-- Reworked the edition picker to match the main Midnight menu: the same header, monochrome surfaces, typography, borders, hover treatment, and checkbox style. The Remember choice control now has an explicit blank label, fixing the stray default `Button` text.
+- Removed the Full/Lite edition picker and launch-preference setting. The loader now always starts the complete Full feature set.
 - Added a Utility → **Hip height** override with an enable toggle and a 0–20-stud slider. It reapplies to a new local character after respawn, restores the original property when disabled or unloaded, and yields while Wall Walk temporarily owns HipHeight.
 - Removed the `/status` utility command.
 - Fixed a Full-box ESP runtime override that referenced a removed native-box function and could stop the overlay render job entirely. The intended native Full-box renderer is now the only Full-box renderer.

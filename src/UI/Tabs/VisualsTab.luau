@@ -60,7 +60,7 @@ return function(services: any, tab: any): any
     toggle(light, "Soft vignette", "Lighting.Vignette", function() lighting:UseCustomScene() end)
     toggle(light, "Remaster materials", "Lighting.RemasterMaterials", nil)
 
-    local telemetry = section:Subsection(esp, "Telemetry & motion", false)
+    local telemetry = section:Subsection(esp, "Telemetry & motion", true)
     toggle(telemetry, "Watermark", "Settings.Watermark", nil)
     toggle(telemetry, "FPS counter", "Settings.ShowFPS", nil)
     toggle(telemetry, "Ping monitor", "Settings.ShowPing", nil)

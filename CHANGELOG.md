@@ -4,6 +4,7 @@ Release notes summarize user-visible additions, fixes, and compatibility changes
 
 ## Unreleased
 
+- Added Utility → **Hitbox expansion** appearance controls: select a root-part color and set transparency from 0 to 1. Both update expanded root parts immediately, are saved with profiles, and existing profiles use the red 0.65-transparency default.
 - Reworked the main menu shell with a roomier responsive workspace, refined header/rail/footer spacing, larger touch-friendly tab targets, and selected-tab styling without a separate indicator line.
 - Standardized section cards, spacing, borders, control rows, disabled actions, and feedback. Toasts can now be dismissed manually.
 - Refined Players with grouped quick actions, clear no-target disabled states, larger narrow-layout targets, and updated target-action labels.

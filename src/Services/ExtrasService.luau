@@ -4,7 +4,10 @@ local CONFIG = table.freeze({
     HITBOX_INTERVAL = 0.2,
     HITBOX_MIN_SIZE = 2,
     HITBOX_MAX_SIZE = 20,
-    HITBOX_TRANSPARENCY = 0.65,
+    HITBOX_MIN_TRANSPARENCY = 0,
+    HITBOX_MAX_TRANSPARENCY = 1,
+    HITBOX_DEFAULT_COLOR = Color3.fromRGB(255, 80, 80),
+    HITBOX_DEFAULT_TRANSPARENCY = 0.65,
     PASSIVE_SCAN_INTERVAL = 0.3,
     FLING_NOTICE_COOLDOWN = 5,
     FLING_FALL_SPEED_CAP = 350,
@@ -91,7 +94,9 @@ return function(services: any): any
     local function updateHitboxes()
         local config = state:Peek("Extras.Hitbox")
         if not config.Enabled then restoreHitboxes(); return end
-        local size = math.clamp(config.Size, CONFIG.HITBOX_MIN_SIZE, CONFIG.HITBOX_MAX_SIZE)
+        local size = math.clamp(tonumber(config.Size) or 5, CONFIG.HITBOX_MIN_SIZE, CONFIG.HITBOX_MAX_SIZE)
+        local color = if typeof(config.Color) == "Color3" then config.Color else CONFIG.HITBOX_DEFAULT_COLOR
+        local transparency = math.clamp(tonumber(config.Transparency) or CONFIG.HITBOX_DEFAULT_TRANSPARENCY, CONFIG.HITBOX_MIN_TRANSPARENCY, CONFIG.HITBOX_MAX_TRANSPARENCY)
         for _, player in ipairs(Players:GetPlayers()) do
             if player == Players.LocalPlayer then continue end
             local assets = tracker:GetPlayerAssets(player)
@@ -101,11 +106,12 @@ return function(services: any): any
                 local root = assets.RootPart
                 if not backup then
                     local owner = scope:CreateChild(`Hitbox {player.UserId}`)
-                    backup = { Root = root, Size = root.Size, Transparency = root.Transparency, CanCollide = root.CanCollide, Scope = owner }
+                    backup = { Root = root, Size = root.Size, Color = root.Color, Transparency = root.Transparency, CanCollide = root.CanCollide, Scope = owner }
                     ExtrasService._hitboxBackups[player] = backup
                 end
                 backup.Scope:SetProperty(root, "Size", Vector3.new(size, size, size))
-                backup.Scope:SetProperty(root, "Transparency", CONFIG.HITBOX_TRANSPARENCY)
+                backup.Scope:SetProperty(root, "Color", color)
+                backup.Scope:SetProperty(root, "Transparency", transparency)
                 backup.Scope:SetProperty(root, "CanCollide", false)
             end
         end
@@ -195,7 +201,16 @@ return function(services: any): any
         end
         local antiJob = scheduler:RegisterPreSim("Extras.AntiFling", -100, antiFling)
         antiJob.Enabled = state:Peek("Extras.AntiFling.Enabled") == true
-        scope:Add(state:Observe("Extras.Hitbox.Enabled", function(value: boolean) if not value then restoreHitboxes() end; syncHitboxSpin() end))
+        scope:Add(state:Observe("Extras.Hitbox.Enabled", function(value: boolean)
+            if value then updateHitboxes() else restoreHitboxes() end
+            syncHitboxSpin()
+        end))
+        local function refreshHitboxAppearance()
+            if state:Peek("Extras.Hitbox.Enabled") == true then updateHitboxes() end
+        end
+        scope:Add(state:Observe("Extras.Hitbox.Size", refreshHitboxAppearance))
+        scope:Add(state:Observe("Extras.Hitbox.Color", refreshHitboxAppearance))
+        scope:Add(state:Observe("Extras.Hitbox.Transparency", refreshHitboxAppearance))
         scope:Add(state:Observe("Extras.AntiFling.Enabled", function(value: boolean)
             antiJob.Enabled = value == true
             if not value then restoreDefence() end

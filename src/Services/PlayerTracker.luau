@@ -117,6 +117,8 @@ return function(services: any): any
         return true, `Spectating {player.Name}`
     end
 
+    function PlayerTracker:GetSpectatingTarget(): Player? return self._spectating end
+
     function PlayerTracker:StopSpectate()
         self._spectating = nil
         spectateScope:RestoreProperties()

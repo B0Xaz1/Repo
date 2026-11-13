@@ -19,20 +19,27 @@ return function(services: any): any
         owner:Connect(box.FocusLost, function() if not handle:Set(box.Text) then box.Text = handle:Get() end end)
         return handle
     end
-    function Textbox:CreateButton(parent: Instance, text: string, onClick: () -> ...any): any
+    function Textbox:CreateButton(parent: Instance, text: string, onClick: () -> ...any, tone: string?): any
         local row, label, owner = section:Control(parent, text, 30, 44)
         label.Visible = false
         local button = dom:Create("TextButton", { Parent = row, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 2), Size = UDim2.new(1, 0, 0, 26),
             Font = Enum.Font.GothamMedium, TextSize = 12, Text = text })
-        section:StyleButton(button, owner)
-        local handle = { Kind = "Action", Row = row, Label = label, Button = button, Scope = owner, _busy = false, Normalize = function(value: any) return tostring(value) end }
+        section:StyleButton(button, owner, tone)
+        local handle = { Kind = "Action", Row = row, Label = label, Button = button, Scope = owner, _busy = false, _enabled = true, Normalize = function(value: any) return tostring(value) end }
+        function handle:SetEnabled(enabled: boolean)
+            self._enabled = enabled == true
+            button.Active, button.Selectable = self._enabled, self._enabled
+            button.BackgroundTransparency = if self._enabled then 0 else 0.55
+            button.TextTransparency = if self._enabled then 0 else 0.55
+            if not self._enabled then services:Get("Motion"):SetEmphasis(button, false) end
+        end
         function handle:_Render(value: string)
             local nextText = if self._busy then "Working..." else value
             if button.Text ~= nextText then button.Text = nextText end
         end
         section:Bind(handle, text, nil, true)
         owner:Connect(button.Activated, function()
-            if handle._busy then return end
+            if handle._busy or not handle._enabled then return end
             handle._busy = true
             handle:_Render(handle:Get())
             services:Get("Motion"):SetEmphasis(button, true)

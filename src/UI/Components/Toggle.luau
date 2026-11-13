@@ -7,7 +7,7 @@ return function(services: any): any
         local row, text, owner = section:Control(parent, label, 20)
         text.Position, text.Size = UDim2.fromOffset(20, 0), UDim2.new(1, -20, 1, 0)
         local box = dom:Create("TextButton", { Parent = row, Text = "", AutoButtonColor = false, BorderSizePixel = 0,
-            Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(12, 12) })
+            Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(12, 12), Selectable = true })
         dom:Create("UICorner", { Parent = box, CornerRadius = UDim.new(0, 2) })
         local stroke = dom:CreateStroke(box, theme:GetToken("Border"), 1)
         theme:BindToken(stroke, "Color", "Border")

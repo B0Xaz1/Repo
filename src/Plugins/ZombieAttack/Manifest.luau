@@ -45,6 +45,9 @@ return function(_services: any?): any
             -- Stands the player off the zombie's own facing, matching the suite's engage offsets
             UpOffset = 7,
             BackOffset = 7,
+            -- Movement is sampled independently from the combat cadence. Ten placements
+            -- per second follows a moving target without sending a teleport every frame.
+            RepositionInterval = 0.1,
         },
 
         Weapons = {

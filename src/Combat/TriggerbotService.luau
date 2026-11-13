@@ -27,8 +27,7 @@ return function(services: any): any
             if TriggerbotService._checkElapsed < CONFIG.CHECK_INTERVAL then return end
             dt, TriggerbotService._checkElapsed = TriggerbotService._checkElapsed, 0
             local config = state:Peek("Aimbot.Triggerbot")
-            local focused = UIS:GetFocusedTextBox() ~= nil or state:GetTransient("IsBindingKey")
-            if not config.Enabled or focused then
+            if not config.Enabled then
                 clearCandidate(); return
             end
             local camera = Workspace.CurrentCamera
@@ -46,10 +45,23 @@ return function(services: any): any
             -- Two gates: the target has to stay under the crosshair for the delay, and shots stay rate limited
             local delay = math.clamp(config.Delay, 0, CONFIG.DELAY_MAX)
             if TriggerbotService._elapsed < delay or TriggerbotService._sinceShot < math.max(CONFIG.MIN_SHOT_INTERVAL, delay) then return end
+            -- Check before resetting the shot timer: an unfocused Roblox window should simply
+            -- wait rather than disable the feature or consume its next shot.
+            if not environment:CanSimulatePointerInput() then
+                clearCandidate()
+                return
+            end
             TriggerbotService._sinceShot = 0
-            if not environment:MouseClick() then
+            local clicked, reason = environment:MouseClick()
+            if not clicked then
+                -- A pointer/focus change between the preflight and the send is a safety block,
+                -- not an executor failure. Keep the feature armed but wait for a clean target.
+                if not environment:CanSimulatePointerInput() or reason == "A simulated click is already in progress" then
+                    clearCandidate()
+                    return
+                end
                 state:Set("Aimbot.Triggerbot.Enabled", false)
-                bus:Publish("Notify", "Triggerbot unavailable", "Neither native click nor virtual input succeeded on this executor")
+                bus:Publish("Notify", "Triggerbot unavailable", "Roblox virtual input could not send a safe simulated click")
             end
         end)
         job.Enabled = state:Peek("Aimbot.Triggerbot.Enabled") == true

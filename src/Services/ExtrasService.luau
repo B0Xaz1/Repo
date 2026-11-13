@@ -4,24 +4,30 @@ local CONFIG = table.freeze({
     HITBOX_INTERVAL = 0.2,
     HITBOX_MIN_SIZE = 2,
     HITBOX_MAX_SIZE = 20,
-    HITBOX_TRANSPARENCY = 0.65,
+    HITBOX_MIN_TRANSPARENCY = 0,
+    HITBOX_MAX_TRANSPARENCY = 1,
+    HITBOX_DEFAULT_COLOR = Color3.fromRGB(255, 80, 80),
+    HITBOX_DEFAULT_TRANSPARENCY = 0.65,
     PASSIVE_SCAN_INTERVAL = 0.3,
     FLING_NOTICE_COOLDOWN = 5,
     FLING_FALL_SPEED_CAP = 350,
     FLING_UPWARD_CAP = 250,
     FLING_ANGULAR_CAP = 120,
     SPIN_SPEED_LIMIT = 3000,
+    HIP_HEIGHT_MIN = 0,
+    HIP_HEIGHT_MAX = 20,
 })
 
 return function(services: any): any
     local state, tracker, scheduler = services:Get("StateStore"), services:Get("PlayerTracker"), services:Get("TaskScheduler")
-    local bus = services:Get("EventBus")
+    local bus, environment = services:Get("EventBus"), services:Get("Environment")
     local scope = services:Get("Disposer"):CreateChild("ExtrasService")
     local guardChanges = scope:CreateChild("Anti-fling recovery")
     local virtualUser: any = nil
     pcall(function() virtualUser = game:GetService("VirtualUser") end)
     local ExtrasService = { _hitboxBackups = {}, _passive = {}, _spinScope = nil, _spinRoot = nil,
-        _baseline = nil, _baselineRoot = nil, _guardRoot = nil, _lastNotice = -math.huge, _scanElapsed = 0, _initialized = false }
+        _hipHeightScope = nil, _hipHeightHumanoid = nil, _baseline = nil, _baselineRoot = nil, _guardRoot = nil,
+        _lastNotice = -math.huge, _scanElapsed = 0, _initialized = false }
 
     local function restoreHitbox(player: Player)
         local backup = ExtrasService._hitboxBackups[player]
@@ -56,10 +62,41 @@ return function(services: any): any
         end
     end
 
+    local function clearHipHeight()
+        local owner = ExtrasService._hipHeightScope
+        ExtrasService._hipHeightScope, ExtrasService._hipHeightHumanoid = nil, nil
+        if owner then owner:Dispose() end
+    end
+
+    local function syncHipHeight()
+        local config = state:Peek("Extras.HipHeight")
+        -- Wall Walk owns the Humanoid hip offset while active, so avoid fighting its property
+        -- lease and automatically restore this override when Wall Walk stops.
+        if not config.Enabled or state:Peek("Movement.WallWalkEnabled") == true then clearHipHeight(); return end
+        local assets = tracker:GetLocalAssets()
+        if not assets or assets.Humanoid.Health <= 0 then clearHipHeight(); return end
+        local humanoid = assets.Humanoid
+        if ExtrasService._hipHeightHumanoid ~= humanoid then
+            clearHipHeight()
+            local owner = scope:CreateChild("Hip height")
+            ExtrasService._hipHeightScope, ExtrasService._hipHeightHumanoid = owner, humanoid
+            owner:ConnectImmediate(humanoid:GetPropertyChangedSignal("HipHeight"), function()
+                if ExtrasService._hipHeightScope ~= owner or state:Peek("Movement.WallWalkEnabled") == true then return end
+                local current = state:Peek("Extras.HipHeight")
+                local desired = math.clamp(tonumber(current.Value) or 2, CONFIG.HIP_HEIGHT_MIN, CONFIG.HIP_HEIGHT_MAX)
+                if current.Enabled == true and humanoid.HipHeight ~= desired then owner:SetProperty(humanoid, "HipHeight", desired, true) end
+            end)
+        end
+        local desired = math.clamp(tonumber(config.Value) or 2, CONFIG.HIP_HEIGHT_MIN, CONFIG.HIP_HEIGHT_MAX)
+        if humanoid.HipHeight ~= desired then ExtrasService._hipHeightScope:SetProperty(humanoid, "HipHeight", desired, true) end
+    end
+
     local function updateHitboxes()
         local config = state:Peek("Extras.Hitbox")
         if not config.Enabled then restoreHitboxes(); return end
-        local size = math.clamp(config.Size, CONFIG.HITBOX_MIN_SIZE, CONFIG.HITBOX_MAX_SIZE)
+        local size = math.clamp(tonumber(config.Size) or 5, CONFIG.HITBOX_MIN_SIZE, CONFIG.HITBOX_MAX_SIZE)
+        local color = if typeof(config.Color) == "Color3" then config.Color else CONFIG.HITBOX_DEFAULT_COLOR
+        local transparency = math.clamp(tonumber(config.Transparency) or CONFIG.HITBOX_DEFAULT_TRANSPARENCY, CONFIG.HITBOX_MIN_TRANSPARENCY, CONFIG.HITBOX_MAX_TRANSPARENCY)
         for _, player in ipairs(Players:GetPlayers()) do
             if player == Players.LocalPlayer then continue end
             local assets = tracker:GetPlayerAssets(player)
@@ -69,11 +106,12 @@ return function(services: any): any
                 local root = assets.RootPart
                 if not backup then
                     local owner = scope:CreateChild(`Hitbox {player.UserId}`)
-                    backup = { Root = root, Size = root.Size, Transparency = root.Transparency, CanCollide = root.CanCollide, Scope = owner }
+                    backup = { Root = root, Size = root.Size, Color = root.Color, Transparency = root.Transparency, CanCollide = root.CanCollide, Scope = owner }
                     ExtrasService._hitboxBackups[player] = backup
                 end
                 backup.Scope:SetProperty(root, "Size", Vector3.new(size, size, size))
-                backup.Scope:SetProperty(root, "Transparency", CONFIG.HITBOX_TRANSPARENCY)
+                backup.Scope:SetProperty(root, "Color", color)
+                backup.Scope:SetProperty(root, "Transparency", transparency)
                 backup.Scope:SetProperty(root, "CanCollide", false)
             end
         end
@@ -163,16 +201,31 @@ return function(services: any): any
         end
         local antiJob = scheduler:RegisterPreSim("Extras.AntiFling", -100, antiFling)
         antiJob.Enabled = state:Peek("Extras.AntiFling.Enabled") == true
-        scope:Add(state:Observe("Extras.Hitbox.Enabled", function(value: boolean) if not value then restoreHitboxes() end; syncHitboxSpin() end))
+        scope:Add(state:Observe("Extras.Hitbox.Enabled", function(value: boolean)
+            if value then updateHitboxes() else restoreHitboxes() end
+            syncHitboxSpin()
+        end))
+        local function refreshHitboxAppearance()
+            if state:Peek("Extras.Hitbox.Enabled") == true then updateHitboxes() end
+        end
+        scope:Add(state:Observe("Extras.Hitbox.Size", refreshHitboxAppearance))
+        scope:Add(state:Observe("Extras.Hitbox.Color", refreshHitboxAppearance))
+        scope:Add(state:Observe("Extras.Hitbox.Transparency", refreshHitboxAppearance))
         scope:Add(state:Observe("Extras.AntiFling.Enabled", function(value: boolean)
             antiJob.Enabled = value == true
             if not value then restoreDefence() end
         end))
         scope:Add(state:Observe("Extras.SpinBot.Enabled", function(value: boolean) if not value then stopSpin() end; syncHitboxSpin() end))
+        scope:Add(state:Observe("Extras.HipHeight.Enabled", syncHipHeight))
+        scope:Add(state:Observe("Extras.HipHeight.Value", syncHipHeight))
+        scope:Add(state:Observe("Movement.WallWalkEnabled", syncHipHeight))
+        scope:Add(tracker:OnLocalCharacterRespawn(syncHipHeight))
         syncHitboxSpin()
+        syncHipHeight()
         scope:Add(bus:Subscribe("PlayerLeft", function(player: Player) restoreHitbox(player); restorePassive(player) end))
         scope:Connect(Players.LocalPlayer.Idled, function()
-            if not state:Get("Settings.AntiAfk") or not virtualUser then return end
+            -- VirtualUser stays in Roblox and follows the shared focus-only input policy.
+            if not state:Get("Settings.AntiAfk") or not virtualUser or not environment:HasWindowFocus() then return end
             local sent = pcall(function()
                 virtualUser:CaptureController()
                 virtualUser:ClickButton2(Vector2.zero)
@@ -183,6 +236,6 @@ return function(services: any): any
 
     function ExtrasService:Destroy() scope:Dispose() end
 
-    scope:Add(function() restoreHitboxes(); restoreDefence(); stopSpin() end)
+    scope:Add(function() restoreHitboxes(); restoreDefence(); stopSpin(); clearHipHeight() end)
     return ExtrasService
 end

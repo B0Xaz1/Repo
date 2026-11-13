@@ -38,9 +38,12 @@ return function(services: any, Aura: any?): any
         end
         local wanted = {}
         for _, name in ipairs(names) do wanted[name:lower()] = true end
-        local queue, seen = { tool }, 0
-        while #queue > 0 do
-            local node = table.remove(queue, 1)
+        -- A head index keeps this bounded breadth-first walk O(n); removing index 1
+        -- would shift every pending node for each descendant.
+        local queue, head, seen = { tool }, 1, 0
+        while head <= #queue do
+            local node = queue[head]
+            head += 1
             for _, child in ipairs(node:GetChildren()) do
                 seen += 1
                 if seen > CONFIG.CONTROLLER_SCAN_LIMIT then return false end

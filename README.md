@@ -10,15 +10,15 @@ AI tools were used during development, including for code and documentation. The
 
 ## Getting started
 
-1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/main/loader.luau).
+1. Open the [loader](https://raw.githubusercontent.com/B0Xaz1/Repo/e1d80d8b877e49dc678573032a6d6b4da6720224/loader.luau).
 2. Copy it into a compatible Roblox Luau execution environment and run it after joining an authorized experience. Internet access is required.
-3. Open the menu with **Right Shift** and enable the features you want.
+3. The suite always launches with the complete feature set. Open the menu with **Right Shift** and enable the features you want.
 
-Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
+The loader and queued rejoin bootstrap use an immutable full Git commit, not the mutable `main` branch or an overrideable base URL. To intentionally run a reviewed different revision, set `B0XazRef` to its full 40-character commit ID before launching. Compatibility depends on the experience and execution environment. Use the official loader. See the [changelog](CHANGELOG.md) for recent changes.
 
 ## Menu and profiles
 
-The menu has tabs for Combat, Visuals, Movement, Players, Game, Commands, Utility, and Settings. Use search to find a control; star a control to keep it at the top of its tab. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
+The menu has an Overview workspace plus tabs for Combat, Visuals, Movement, Players, Commands, Utility, Settings, and Game. Visuals has a deliberately simple Player ESP: full or corner boxes, independently toggled names and range, numeric health with an optional health bar, equipped tools, an estimated activity/AFK status, optional chams, a render-distance limit, color/team-color choices, optional occlusion, and an off-by-default self-ESP toggle. Its default color follows the active menu accent. Cinematic lighting adds Neutral, Golden Hour, Overcast, Moonlight, and Neon scene presets alongside the manual controls. Players includes a full-width selected-target card with account details plus Teleport, toggleable Spectate, transient Aimbot target selection, and local Highlight actions; Player utilities also has a toggleable Follow action that repeatedly uses the selected player's teleport placement. Use search to find a control; on desktop press **Ctrl/Cmd + K** to focus it, and press **Escape** to clear it. Touch devices use a horizontally scrollable workspace picker. Star a control to keep it at the top of its tab. Utility → Hitbox expansion includes a root-part color picker and a 0–1 transparency slider; changes apply immediately while expansion is enabled and restore normally when it is disabled. Most settings are saved in named profiles. The built-in Default, Legit, and Rage presets are available as starting points.
 
 The Default profile restores default settings and cannot be overwritten. Local saving and configuration import/export depend on file support in your execution environment. Bookmarks last for the current session.
 
@@ -38,7 +38,7 @@ Other experiences use Universal Mode. Game updates can affect compatibility, and
 
 - If the menu is hidden, press **Right Shift** or use the on-screen menu button if enabled.
 - If settings do not persist, check that your environment supports local file access and review your profile preferences.
-- If the layout feels too large, adjust menu scale or enable compact mode in Settings.
+- If the layout feels too large, adjust menu scale, interface density, or compact mode in Settings. The Recovery & defaults panel can restore only the interface layout without touching profiles, hotkeys, or favorites.
 - Before unloading, remember that completed actions such as teleports cannot be undone. Use **End** or the unload action in Settings.
 
 ## License

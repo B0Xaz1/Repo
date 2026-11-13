@@ -27,6 +27,7 @@ return function(services: any, tab: any): any
     toggle(filters, "Team Check", "Aimbot.TeamCheck", nil)
     toggle(filters, "Visibility Check", "Aimbot.VisCheck", nil)
     toggle(filters, "Unlock On Death", "Aimbot.UnlockOnDeath", nil)
+    toggle(filters, "Sticky target until release", "Aimbot.StickyAim", nil)
     toggle(filters, "Break On Mouse Pull", "Aimbot.BreakOnPull", nil)
     slider(filters, "Max Lock Radius", "Aimbot.MaxLockRadius", 10, 1000, 5, " px", nil)
     slider(filters, "Max Distance", "Aimbot.MaxDistance", 50, 10000, 50, " studs", nil)

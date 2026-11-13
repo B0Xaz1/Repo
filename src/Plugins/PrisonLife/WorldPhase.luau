@@ -62,6 +62,10 @@ return function(services: any, Prison: any?): any
     end
 
     function WorldPhase:ScanDoors(): (number, number)
+        -- Drop every previous lease before replacing the tracked set. Otherwise a rescan while
+        -- phase is active can forget a part that is already transparent/non-collidable and leave
+        -- it modified after DoorPhase is switched off.
+        changes:RestoreProperties()
         self._parts = {}
         self._containerCount = 0
         self._containers = {}

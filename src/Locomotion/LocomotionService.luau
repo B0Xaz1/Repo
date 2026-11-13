@@ -7,6 +7,7 @@ local CONFIG = table.freeze({
     SPEED_MIN = 1,
     SPEED_MAX = 300,
     JUMP_POWER_MAX = 300,
+    INF_JUMP_FALLBACK_VELOCITY = 50,
     CFRAME_SPEED_MAX = 200,
     DELTA_TIME_CAP = 0.1,
     GRAVITY_MIN = 0.1,
@@ -33,11 +34,14 @@ return function(services: any): any
     local environment, filter, bus = services:Get("Environment"), services:Get("TargetFilter"), services:Get("EventBus")
     local scope = services:Get("Disposer"):CreateChild("LocomotionService")
     local characterChanges, cameraChanges = scope:CreateChild("Humanoid overrides"), scope:CreateChild("Camera FOV")
+    local humanoidWatch = scope:CreateChild("Humanoid override watch")
     local noClipChanges = scope:CreateChild("No clip")
     local worldChanges, positionChanges = scope:CreateChild("World gravity"), scope:CreateChild("Position changes")
+    local teleportChanges = scope:CreateChild("One-shot teleports")
     local touchTeleportScope = scope:CreateChild("Touch teleport")
     local LocomotionService = { _humanoid = nil, _root = nil, _camera = nil, _bookmarks = {}, _jumpStates = {},
-        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _touchTeleportTarget = nil, _lastTouchTeleport = 0, _initialized = false }
+        _flingScope = nil, _flingTarget = nil, _flingElapsed = 0, _followTarget = nil, _followJob = nil, _touchTeleportTarget = nil, _lastTouchTeleport = 0,
+        _noClipCharacter = nil, _noClipWatch = nil, _watchedHumanoid = nil, _initialized = false }
 
     local function suppress(duration: number)
         state:SetTransient("AntiFlingSuppressUntil", math.max(state:GetTransient("AntiFlingSuppressUntil") or 0, os.clock() + duration))
@@ -58,12 +62,21 @@ return function(services: any): any
         owner:SetProperty(root, "CFrame", target, true)
     end
 
+    -- A one-shot teleport must leave the character where it was placed. Release drops our lease
+    -- without restoring the prior CFrame, unlike a sustained movement feature such as fling.
+    local function teleportPermanently(root: BasePart, target: CFrame)
+        teleportRoot(teleportChanges, root, target)
+        teleportChanges:ReleaseProperty(root, "AssemblyLinearVelocity")
+        teleportChanges:ReleaseProperty(root, "AssemblyAngularVelocity")
+        teleportChanges:ReleaseProperty(root, "CFrame")
+    end
+
     function LocomotionService:Teleport(target: any): (boolean, string)
         local assets = tracker:GetLocalAssets()
         if not assets then return false, "Your character is not ready" end
         if typeof(target) == "Vector3" then target = CFrame.new(target) * assets.RootPart.CFrame.Rotation end
         if typeof(target) ~= "CFrame" then return false, "Teleport requires a CFrame or Vector3" end
-        teleportRoot(positionChanges, assets.RootPart, target)
+        teleportPermanently(assets.RootPart, target)
         return true, "Teleported"
     end
 
@@ -83,7 +96,7 @@ return function(services: any): any
             local assets = tracker:GetLocalAssets()
             if not target or not assets or os.clock() - LocomotionService._lastTouchTeleport < CONFIG.TOUCH_TELEPORT_DEBOUNCE then return end
             LocomotionService._lastTouchTeleport = os.clock()
-            teleportRoot(positionChanges, assets.RootPart, target)
+            teleportPermanently(assets.RootPart, target)
         end
         for _, descendant in ipairs(character:GetDescendants()) do
             if descendant:IsA("BasePart") then touchTeleportScope:ConnectImmediate(descendant.Touched, onTouched) end
@@ -91,6 +104,34 @@ return function(services: any): any
         touchTeleportScope:ConnectImmediate(character.DescendantAdded, function(descendant: Instance)
             if descendant:IsA("BasePart") then touchTeleportScope:ConnectImmediate(descendant.Touched, onTouched) end
         end)
+    end
+
+    local function stopNoClip()
+        local watch = LocomotionService._noClipWatch
+        LocomotionService._noClipWatch, LocomotionService._noClipCharacter = nil, nil
+        if watch then watch:Dispose() end
+        noClipChanges:RestoreProperties()
+    end
+
+    local function startNoClip(character: Model)
+        if LocomotionService._noClipCharacter == character and LocomotionService._noClipWatch then return end
+        stopNoClip()
+        local watch = scope:CreateChild("No clip character")
+        LocomotionService._noClipCharacter, LocomotionService._noClipWatch = character, watch
+        local function apply(part: Instance)
+            if not part:IsA("BasePart") or not part.Parent then return end
+            noClipChanges:SetProperty(part, "CanCollide", false)
+            -- Reassert only when the game changes this particular part instead of walking the
+            -- whole character and writing every BasePart on every Heartbeat.
+            watch:ConnectImmediate(part:GetPropertyChangedSignal("CanCollide"), function()
+                if state:Peek("Movement.NoClip") == true and part.Parent and part.CanCollide then
+                    noClipChanges:SetProperty(part, "CanCollide", false, true)
+                end
+            end)
+        end
+        for _, descendant in ipairs(character:GetDescendants()) do apply(descendant) end
+        watch:ConnectImmediate(character.DescendantAdded, apply)
+        watch:ConnectImmediate(character.Destroying, stopNoClip)
     end
 
     function LocomotionService:TeleportToPlayer(player: Player): (boolean, string)
@@ -144,6 +185,7 @@ return function(services: any): any
         if state:Get("Movement.FlyEnabled") then return false, "Stop flight before a fling attack" end
         local assets = tracker:GetLocalAssets()
         if not assets then return false, "Your character is not ready" end
+        self:StopFollowing()
         stopFling()
         self._flingScope = scope:CreateChild("Fling cycle")
         self._flingTarget, self._flingElapsed = player, 0
@@ -157,13 +199,110 @@ return function(services: any): any
 
     function LocomotionService:StopFling() stopFling() end
 
+    function LocomotionService:GetFollowingTarget(): Player? return self._followTarget end
+
+    function LocomotionService:StopFollowing()
+        self._followTarget = nil
+        state:SetTransient("FollowTarget", nil)
+        if self._followJob then self._followJob.Enabled = false end
+    end
+
+    function LocomotionService:StartFollowing(player: Player): (boolean, string)
+        if not player or player == Players.LocalPlayer or not player.Parent then return false, "Select another player who is still in the server" end
+        local config = state:Peek("Movement")
+        if config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled then return false, "Stop flight, freecam, or wall walk before following" end
+        if self._flingTarget then return false, "Stop the fling before following" end
+        local target = tracker:GetPlayerAssets(player)
+        if not target or target.Humanoid.Health <= 0 then return false, "Target character is not ready" end
+        if self._followTarget == player then return true, `Already following {player.Name}` end
+        self:StopFollowing()
+        self._followTarget = player
+        state:SetTransient("FollowTarget", player)
+        if self._followJob then self._followJob.Enabled = true end
+        return true, `Following {player.Name}`
+    end
+
+    local function updateFollowing()
+        local player = LocomotionService._followTarget
+        if not player then
+            if LocomotionService._followJob then LocomotionService._followJob.Enabled = false end
+            return
+        end
+        if not player.Parent then LocomotionService:StopFollowing(); return end
+        local config = state:Peek("Movement")
+        if LocomotionService._flingTarget or config.FlyEnabled or config.FreecamEnabled or config.WallWalkEnabled then
+            LocomotionService:StopFollowing()
+            return
+        end
+        local localAssets, targetAssets = tracker:GetLocalAssets(), tracker:GetPlayerAssets(player)
+        if not localAssets or localAssets.Humanoid.Health <= 0 then return end
+        -- Keep the requested target through a short death/respawn gap, then resume once
+        -- PlayerTracker has fresh assets. This intentionally mirrors repeatedly pressing the
+        -- existing Teleport-to-player action, including its placement offset and anti-fling guard.
+        if not targetAssets or targetAssets.Humanoid.Health <= 0 then return end
+        teleportPermanently(localAssets.RootPart, targetAssets.RootPart.CFrame + CONFIG.TELEPORT_OFFSET)
+    end
+
+    local function sprintHeld(config: any): boolean
+        return config.SprintEnabled == true and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey")
+            and (UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift))
+    end
+
+    -- Some experiences set WalkSpeed, JumpPower, or UseJumpPower from their own controller after
+    -- a normal client heartbeat. Keep the requested override active through a focused property
+    -- watcher rather than relying on one write winning that race.
+    local function applyHumanoidOverrides(humanoid: Humanoid)
+        local config = state:Peek("Movement")
+        -- Freecam owns the character freeze. Releasing our leases first preserves the
+        -- Disposer's priority ordering instead of moving a movement override above it.
+        if config.FreecamEnabled == true then
+            characterChanges:RestoreProperty(humanoid, "WalkSpeed")
+            characterChanges:RestoreProperty(humanoid, "JumpPower")
+            characterChanges:RestoreProperty(humanoid, "UseJumpPower")
+            return
+        end
+        local speed = if sprintHeld(config) then config.SprintSpeed else config.Speed
+        if speed > 0 then
+            characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, CONFIG.SPEED_MIN, CONFIG.SPEED_MAX), true)
+        else
+            characterChanges:RestoreProperty(humanoid, "WalkSpeed")
+        end
+        if config.JumpPower > 0 then
+            -- Many games leave UseJumpPower false and consume JumpHeight instead. Enabling this
+            -- switch is required for the configured Jump power to have any effect in those rigs.
+            characterChanges:SetProperty(humanoid, "UseJumpPower", true, true)
+            characterChanges:SetProperty(humanoid, "JumpPower", math.clamp(config.JumpPower, 0, CONFIG.JUMP_POWER_MAX), true)
+        else
+            characterChanges:RestoreProperty(humanoid, "JumpPower")
+            characterChanges:RestoreProperty(humanoid, "UseJumpPower")
+        end
+    end
+
+    local function bindHumanoidOverrides(humanoid: Humanoid)
+        humanoidWatch:Dispose()
+        humanoidWatch = scope:CreateChild("Humanoid override watch")
+        LocomotionService._watchedHumanoid = humanoid
+        local function reapply()
+            if scope:IsDisposed() or LocomotionService._watchedHumanoid ~= humanoid or not humanoid.Parent then return end
+            applyHumanoidOverrides(humanoid)
+        end
+        for _, property in ipairs({ "WalkSpeed", "JumpPower", "UseJumpPower" }) do
+            humanoidWatch:ConnectImmediate(humanoid:GetPropertyChangedSignal(property), reapply)
+        end
+    end
+
+    local function clearHumanoidOverrides()
+        humanoidWatch:Dispose()
+        LocomotionService._watchedHumanoid = nil
+    end
+
     local function update(dt: number)
         local config = state:Peek("Movement")
         local fov = state:Peek("Camera.FOV")
         if not LocomotionService._flingTarget and not config.CFrameSpeed and not config.NoClip and config.Speed <= 0 and config.JumpPower <= 0
             and not config.SprintEnabled and config.WorldGravity <= 0 and (not fov or fov <= 0) then
             if LocomotionService._applied then
-                characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties()
+                characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties()
                 worldChanges:RestoreProperties(); cameraChanges:RestoreProperties()
                 LocomotionService._applied = false
             end
@@ -172,23 +311,25 @@ return function(services: any): any
         LocomotionService._applied = true
         local assets = tracker:GetLocalAssets()
         if assets and LocomotionService._humanoid ~= assets.Humanoid then
-            characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling()
+            -- Disconnect before releasing leases so an outgoing Humanoid cannot reapply a
+            -- transition-time override from one of its own property-change signals.
+            clearHumanoidOverrides()
+            characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling()
             LocomotionService._humanoid, LocomotionService._root = assets.Humanoid, assets.RootPart
-        elseif not assets then characterChanges:RestoreProperties(); noClipChanges:RestoreProperties(); positionChanges:ReleaseProperties(); stopFling(); LocomotionService._humanoid = nil end
+            bindHumanoidOverrides(assets.Humanoid)
+        elseif not assets and LocomotionService._humanoid then
+            clearHumanoidOverrides()
+            characterChanges:RestoreProperties(); stopNoClip(); positionChanges:ReleaseProperties(); stopFling()
+            LocomotionService._humanoid = nil
+        end
         if assets then
             local humanoid, root = assets.Humanoid, assets.RootPart
             if config.NoClip then
-                for _, descendant in ipairs(humanoid.Parent:GetDescendants()) do
-                    if descendant:IsA("BasePart") then noClipChanges:SetProperty(descendant, "CanCollide", false, true) end
-                end
+                startNoClip(assets.Character)
             else
-                noClipChanges:RestoreProperties()
+                stopNoClip()
             end
-            local sprint = config.SprintEnabled and not UIS:GetFocusedTextBox() and not state:GetTransient("IsBindingKey") and UIS:IsKeyDown(Enum.KeyCode.LeftShift)
-            local speed = if sprint then config.SprintSpeed else config.Speed
-            if speed > 0 then characterChanges:SetProperty(humanoid, "WalkSpeed", math.clamp(speed, CONFIG.SPEED_MIN, CONFIG.SPEED_MAX)) else characterChanges:RestoreProperty(humanoid, "WalkSpeed") end
-            if config.JumpPower > 0 then characterChanges:SetProperty(humanoid, "JumpPower", math.clamp(config.JumpPower, 0, CONFIG.JUMP_POWER_MAX))
-            else characterChanges:RestoreProperty(humanoid, "JumpPower") end
+            applyHumanoidOverrides(humanoid)
             if config.CFrameSpeed and not config.FlyEnabled and not LocomotionService._flingTarget then
                 suppress(0.3)
                 positionChanges:SetProperty(root, "CFrame", root.CFrame + humanoid.MoveDirection * math.clamp(config.CFrameSpeedValue, 0, CONFIG.CFRAME_SPEED_MAX) * math.min(dt, CONFIG.DELTA_TIME_CAP), true)
@@ -244,18 +385,45 @@ return function(services: any): any
         end
     end
 
+    local function getInfiniteJumpVelocity(humanoid: Humanoid): number
+        if humanoid.UseJumpPower then
+            return math.max(CONFIG.INF_JUMP_FALLBACK_VELOCITY, math.clamp(humanoid.JumpPower, 0, CONFIG.JUMP_POWER_MAX))
+        end
+        local jumpHeight = math.max(0, humanoid.JumpHeight)
+        return math.max(CONFIG.INF_JUMP_FALLBACK_VELOCITY, math.sqrt(2 * Workspace.Gravity * jumpHeight))
+    end
+
+    local function requestInfiniteJump(assets: any)
+        local humanoid, root = assets.Humanoid, assets.RootPart
+        if LocomotionService._jumpStates[humanoid] == nil then LocomotionService._jumpStates[humanoid] = humanoid:GetState() end
+        -- Request Roblox's ordinary transition first. The velocity safeguard only covers rigs
+        -- that reject or immediately override that state, and intentionally leaves X/Z motion intact.
+        pcall(function()
+            humanoid.Jump = true
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end)
+        if root and root.Parent then
+            suppress(0.35)
+            local jumpVelocity = getInfiniteJumpVelocity(humanoid)
+            pcall(function()
+                local velocity = root.AssemblyLinearVelocity
+                root.AssemblyLinearVelocity = Vector3.new(velocity.X, math.max(velocity.Y, jumpVelocity), velocity.Z)
+            end)
+        end
+    end
+
     function LocomotionService:Initialize()
         if self._initialized then return end
         self._initialized = true
         scope:Spawn(touchFlingLoop)
         scope:Add(scheduler:RegisterHeartbeat("Movement.Overrides", 10, update))
+        self._followJob = scheduler:RegisterHeartbeat("Movement.Follow", 12, updateFollowing)
+        self._followJob.Enabled = self._followTarget ~= nil
+        scope:Add(self._followJob)
         scope:Connect(UIS.JumpRequest, function()
             if not state:Get("Movement.InfJump") or UIS:GetFocusedTextBox() then return end
             local assets = tracker:GetLocalAssets()
-            if assets and assets.Humanoid.Health > 0 then
-                if LocomotionService._jumpStates[assets.Humanoid] == nil then LocomotionService._jumpStates[assets.Humanoid] = assets.Humanoid:GetState() end
-                assets.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-            end
+            if assets and assets.Humanoid.Health > 0 then requestInfiniteJump(assets) end
         end)
         scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
             if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") or not state:Get("Settings.TpToMouse") then return end
@@ -278,12 +446,17 @@ return function(services: any): any
             bindTouchTeleport(assets.Character)
         end
         scope:Add(state:Observe("Movement.Fling", function(value: boolean) if not value then stopFling() end end))
+        scope:Add(bus:Subscribe("PlayerLeft", function(player: Player)
+            if self._followTarget == player then self:StopFollowing() end
+        end))
     end
 
     function LocomotionService:Destroy() scope:Dispose() end
 
     scope:Add(function()
         stopFling()
+        LocomotionService:StopFollowing()
+        stopNoClip()
         local assets = tracker:GetLocalAssets()
         if assets then
             pcall(function()

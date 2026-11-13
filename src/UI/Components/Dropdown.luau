@@ -12,7 +12,7 @@ return function(services: any): any
     local section = services:Get("Require")("src/UI/Components/Section.luau", services)
     local motion = services:Get("Motion")
     local Dropdown = {}
-    function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?): any
+    function Dropdown:Create(parent: Instance, label: string, defaultOrPath: any, options: { any }, callback: any?, literal: boolean?): any
         local row, text, owner = section:Control(parent, label, CONFIG.CLOSED_HEIGHT)
         row.ClipsDescendants = true
         text.Size, text.Position = UDim2.new(1, 0, 0, 14), UDim2.fromOffset(0, 0)
@@ -99,7 +99,7 @@ return function(services: any): any
             if self._built then buildOptions() else self._dirty = true end
             reconcileSelection(preserveSelection)
         end
-        section:Bind(handle, defaultOrPath, callback)
+        section:Bind(handle, defaultOrPath, callback, literal)
         handle:Refresh(options, true)
         if handle.Path then owner:Add(state:Observe(handle.Path, function(value: any)
             if not table.find(handle._options, value) and handle._options[1] ~= nil then handle:Set(handle._options[1]) end

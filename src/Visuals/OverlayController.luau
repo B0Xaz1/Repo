@@ -91,7 +91,7 @@ return function(services: any): any
                 Position = Vector2.new(CONFIG.WATERMARK_POSITION.X, y), Center = false, Size = 14, Font = 2, Outline = true, Color = accent }); y += CONFIG.WATERMARK_ROW_HEIGHT
         end
         if showFps then
-            paint("FPS", { Text = `{math.round(OverlayController._fps)} FPS`, Position = Vector2.new(CONFIG.WATERMARK_POSITION.X, y), Center = false, Size = 13, Outline = true, Color = Color3.new(1, 1, 1) }); y += CONFIG.TELEMETRY_ROW_HEIGHT
+            paint("FPS", { Text = `{math.round(OverlayController._fps)} FPS`, Position = Vector2.new(CONFIG.WATERMARK_POSITION.X, y), Center = false, Size = 14, Font = 2, Outline = true, Color = accent }); y += CONFIG.TELEMETRY_ROW_HEIGHT
         end
         if showPing then
             OverlayController._pingElapsed += dt
@@ -99,7 +99,7 @@ return function(services: any): any
                 OverlayController._pingElapsed = 0
                 measurePing()
             end
-            paint("Ping", { Text = `{math.round(OverlayController._ping)} ms`, Position = Vector2.new(CONFIG.WATERMARK_POSITION.X, y), Center = false, Size = 13, Outline = true, Color = Color3.new(1, 1, 1) })
+            paint("Ping", { Text = `{math.round(OverlayController._ping)} ms`, Position = Vector2.new(CONFIG.WATERMARK_POSITION.X, y), Center = false, Size = 14, Font = 2, Outline = true, Color = accent })
         end
         concealUnused()
     end

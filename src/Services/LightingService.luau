@@ -10,6 +10,7 @@ local CONFIG = table.freeze({
     STATIC_DAY_TIME = 14,
     STATIC_NIGHT_TIME = 0.5,
     MODES = { "Off", "Static Day", "Static Night", "Dynamic" },
+    SCENE_PRESET_NAMES = { "Custom", "Neutral", "Golden Hour", "Overcast", "Moonlight", "Neon" },
     PROPERTIES = { "Ambient", "OutdoorAmbient", "Brightness", "ClockTime", "ExposureCompensation",
         "EnvironmentDiffuseScale", "EnvironmentSpecularScale", "GlobalShadows", "ShadowSoftness", "FogStart", "FogEnd", "FogColor" },
     DAY = { Ambient = Color3.fromRGB(139, 145, 159), OutdoorAmbient = Color3.fromRGB(163, 170, 184), Brightness = 1.8,
@@ -23,6 +24,8 @@ local CONFIG = table.freeze({
         GlobalShadows = true, ShadowSoftness = 0.7, FogStart = 1200, FogEnd = 9000, FogColor = Color3.fromRGB(203, 171, 165) },
     FULLBRIGHT_AMBIENT = Color3.fromRGB(210, 210, 210),
     FULLBRIGHT_FOG_END = 100000,
+    DEFAULT_EFFECTS = { BloomIntensity = 0.12, BloomSize = 18, BloomThreshold = 2.2,
+        Contrast = 0.035, Saturation = -0.035, TintColor = Color3.new(1, 1, 1) },
     BRIGHT_PART_THRESHOLD = 0.78,
     BRIGHT_REFLECTANCE_CAP = 0.015,
     DARK_REFLECTANCE_CAP = 0.1,
@@ -32,7 +35,47 @@ local CONFIG = table.freeze({
         { Position = UDim2.fromScale(0, 0), Size = UDim2.fromScale(0.1, 1), Rotation = 0 },
         { Position = UDim2.fromScale(0.9, 0), Size = UDim2.fromScale(0.1, 1), Rotation = 180 },
     },
-    REFRESH_PATHS = { "Lighting.Mode", "Lighting.PresetBrightness", "Lighting.Vignette", "Visuals.Fullbright", "Performance.NoShadows", "Performance.NoPostProcessing" },
+    REFRESH_PATHS = { "Lighting.Mode", "Lighting.ScenePreset", "Lighting.PresetBrightness", "Lighting.Vignette", "Visuals.Fullbright", "Performance.NoShadows", "Performance.NoPostProcessing" },
+})
+
+-- Scene presets are complete grades rather than small time-of-day tweaks, so choosing one gives
+-- a predictable look regardless of the experience's original Lighting values.
+local SCENE_PRESETS = table.freeze({
+    Neutral = {
+        Profile = { Ambient = Color3.fromRGB(139, 145, 159), OutdoorAmbient = Color3.fromRGB(163, 170, 184), Brightness = 1.8,
+            ClockTime = 14, ExposureCompensation = -0.15, EnvironmentDiffuseScale = 0.55, EnvironmentSpecularScale = 0.15,
+            GlobalShadows = true, ShadowSoftness = 0.6, FogStart = 1500, FogEnd = 10000, FogColor = Color3.fromRGB(194, 207, 224) },
+        Vignette = false,
+        Effects = { BloomIntensity = 0.12, BloomSize = 18, BloomThreshold = 2.2, Contrast = 0.035, Saturation = -0.035, TintColor = Color3.new(1, 1, 1) },
+    },
+    ["Golden Hour"] = {
+        Profile = { Ambient = Color3.fromRGB(163, 126, 96), OutdoorAmbient = Color3.fromRGB(211, 161, 112), Brightness = 1.7,
+            ClockTime = 17.35, ExposureCompensation = 0.02, EnvironmentDiffuseScale = 0.62, EnvironmentSpecularScale = 0.18,
+            GlobalShadows = true, ShadowSoftness = 0.68, FogStart = 850, FogEnd = 7200, FogColor = Color3.fromRGB(229, 171, 121) },
+        Vignette = false,
+        Effects = { BloomIntensity = 0.18, BloomSize = 24, BloomThreshold = 1.9, Contrast = 0.075, Saturation = 0.09, TintColor = Color3.fromRGB(255, 236, 210) },
+    },
+    Overcast = {
+        Profile = { Ambient = Color3.fromRGB(112, 124, 139), OutdoorAmbient = Color3.fromRGB(130, 143, 157), Brightness = 1.15,
+            ClockTime = 12, ExposureCompensation = -0.1, EnvironmentDiffuseScale = 0.42, EnvironmentSpecularScale = 0.04,
+            GlobalShadows = true, ShadowSoftness = 0.9, FogStart = 400, FogEnd = 3600, FogColor = Color3.fromRGB(165, 181, 194) },
+        Vignette = false,
+        Effects = { BloomIntensity = 0.045, BloomSize = 12, BloomThreshold = 2.5, Contrast = 0.025, Saturation = -0.24, TintColor = Color3.fromRGB(224, 236, 246) },
+    },
+    Moonlight = {
+        Profile = { Ambient = Color3.fromRGB(67, 79, 121), OutdoorAmbient = Color3.fromRGB(79, 95, 142), Brightness = 1.1,
+            ClockTime = 0.5, ExposureCompensation = 0.1, EnvironmentDiffuseScale = 0.38, EnvironmentSpecularScale = 0.08,
+            GlobalShadows = true, ShadowSoftness = 0.86, FogStart = 700, FogEnd = 6500, FogColor = Color3.fromRGB(71, 87, 135) },
+        Vignette = true,
+        Effects = { BloomIntensity = 0.14, BloomSize = 20, BloomThreshold = 2.1, Contrast = 0.11, Saturation = -0.15, TintColor = Color3.fromRGB(207, 222, 255) },
+    },
+    Neon = {
+        Profile = { Ambient = Color3.fromRGB(82, 47, 113), OutdoorAmbient = Color3.fromRGB(105, 64, 142), Brightness = 1.3,
+            ClockTime = 21, ExposureCompensation = 0.08, EnvironmentDiffuseScale = 0.48, EnvironmentSpecularScale = 0.24,
+            GlobalShadows = true, ShadowSoftness = 0.72, FogStart = 600, FogEnd = 5200, FogColor = Color3.fromRGB(79, 43, 119) },
+        Vignette = true,
+        Effects = { BloomIntensity = 0.3, BloomSize = 32, BloomThreshold = 1.55, Contrast = 0.16, Saturation = 0.2, TintColor = Color3.fromRGB(237, 211, 255) },
+    },
 })
 
 return function(services: any): any
@@ -93,12 +136,24 @@ return function(services: any): any
         local effectsScope = scope:CreateChild("Owned post effects")
         LightingService._effectsScope = effectsScope
         local bloom = Instance.new("BloomEffect")
-        bloom.Name, bloom.Intensity, bloom.Size, bloom.Threshold = "B0XazBloom", 0.12, 18, 2.2
+        bloom.Name = "B0XazBloom"
         effectsScope:Add(bloom); bloom.Parent = Lighting
         local grade = Instance.new("ColorCorrectionEffect")
-        grade.Name, grade.Contrast, grade.Saturation = "B0XazGrade", 0.035, -0.035
+        grade.Name = "B0XazGrade"
         effectsScope:Add(grade); grade.Parent = Lighting
         LightingService._effects = { bloom, grade }
+    end
+
+    local function applyEffects(style: any)
+        ensureEffects()
+        local bloom, grade = LightingService._effects[1], LightingService._effects[2]
+        local effects = style or CONFIG.DEFAULT_EFFECTS
+        if bloom.Intensity ~= effects.BloomIntensity then bloom.Intensity = effects.BloomIntensity end
+        if bloom.Size ~= effects.BloomSize then bloom.Size = effects.BloomSize end
+        if bloom.Threshold ~= effects.BloomThreshold then bloom.Threshold = effects.BloomThreshold end
+        if grade.Contrast ~= effects.Contrast then grade.Contrast = effects.Contrast end
+        if grade.Saturation ~= effects.Saturation then grade.Saturation = effects.Saturation end
+        if grade.TintColor ~= effects.TintColor then grade.TintColor = effects.TintColor end
     end
 
     local function clearVignette()
@@ -148,7 +203,8 @@ return function(services: any): any
     local function reconcile()
         if scope:IsDisposed() then return end
         local config = state:Get("Lighting")
-        if config.Vignette then ensureVignette() else clearVignette() end
+        local scene = SCENE_PRESETS[config.ScenePreset]
+        if (scene and scene.Vignette) or (not scene and config.Vignette) then ensureVignette() else clearVignette() end
         local fullbright = state:Get("Visuals.Fullbright")
         if fullbright then
             restoreMode()
@@ -163,12 +219,14 @@ return function(services: any): any
         if config.Mode == "Off" then
             restoreMode(); LightingService._original = nil; return
         end
-        local profile = if config.Mode == "Dynamic" then dynamicProfile(LightingService._clock) else table.clone(if config.Mode == "Static Night" then CONFIG.NIGHT else CONFIG.DAY)
-        if config.Mode ~= "Dynamic" then profile.ClockTime = config.TimeOfDay end
+        local profile = if scene then table.clone(scene.Profile)
+            elseif config.Mode == "Dynamic" then dynamicProfile(LightingService._clock)
+            else table.clone(if config.Mode == "Static Night" then CONFIG.NIGHT else CONFIG.DAY)
+        if not scene and config.Mode ~= "Dynamic" then profile.ClockTime = config.TimeOfDay end
         profile.Brightness *= math.clamp(config.PresetBrightness, CONFIG.BRIGHTNESS_MIN, CONFIG.BRIGHTNESS_MAX)
         if state:Get("Performance.NoShadows") then profile.GlobalShadows = false end
         applyProfile(profile, modeChanges, LightingService._modeApplied)
-        ensureEffects()
+        applyEffects(if scene then scene.Effects else CONFIG.DEFAULT_EFFECTS)
         for _, effect in ipairs(LightingService._effects) do effect.Enabled = not state:Get("Performance.NoPostProcessing") end
         if not config.RemasterMaterials then materials:RestoreProperties(); table.clear(LightingService._materialCache) end
     end
@@ -185,10 +243,36 @@ return function(services: any): any
         end
     end
 
+    function LightingService:GetScenePresetNames(): { string } return table.clone(CONFIG.SCENE_PRESET_NAMES) end
+
+    function LightingService:UseCustomScene()
+        if state:Peek("Lighting.ScenePreset") ~= "Custom" then state:Set("Lighting.ScenePreset", "Custom") end
+    end
+
+    function LightingService:ApplyScenePreset(name: string): (boolean, string?)
+        if name == "Custom" then
+            self:UseCustomScene()
+            return true, "Manual lighting controls restored"
+        end
+        local scene = SCENE_PRESETS[name]
+        if not scene then return false, "Unknown scene preset" end
+        state:Set("Lighting.ScenePreset", name)
+        state:Set("Lighting.Mode", "Static Day")
+        state:Set("Lighting.TimeOfDay", scene.Profile.ClockTime)
+        state:Set("Lighting.PresetBrightness", 1)
+        state:Set("Lighting.Vignette", scene.Vignette == true)
+        self._clock = scene.Profile.ClockTime
+        return true, `{name} lighting applied`
+    end
+
     function LightingService:SetMode(mode: string): (boolean, string?)
         if not table.find(CONFIG.MODES, mode) then return false, "Unknown lighting mode" end
         local ok, message = state:Set("Lighting.Mode", mode)
-        if ok and mode == "Static Day" then self:SetTime(CONFIG.STATIC_DAY_TIME) elseif ok and mode == "Static Night" then self:SetTime(CONFIG.STATIC_NIGHT_TIME) end
+        if ok then
+            self:UseCustomScene()
+            if mode == "Static Day" then self:SetTime(CONFIG.STATIC_DAY_TIME)
+            elseif mode == "Static Night" then self:SetTime(CONFIG.STATIC_NIGHT_TIME) end
+        end
         return ok, message
     end
 

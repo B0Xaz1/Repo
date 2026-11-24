@@ -3,7 +3,7 @@ local UIS = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local CONFIG = table.freeze({
-    UPDATE_INTERVAL = 1 / 120,
+    UPDATE_INTERVAL = 0,
     FOV_MAX = 1500,
     SMOOTHING_REFERENCE_RATE = 60,
     SHAKE_MAX = 3,

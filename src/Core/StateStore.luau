@@ -34,7 +34,7 @@ local CONFIG = deepFreeze({
         Camera = { FOV = 0 }, Visuals = { Fullbright = false },
         Lighting = { Mode = "Off", ScenePreset = "Custom", TimeOfDay = 14, CycleDuration = 240, Paused = false,
             PresetBrightness = 1, Vignette = false, RemasterMaterials = false },
-        Extras = { Hitbox = { Enabled = false, Size = 5, Color = Color3.fromRGB(255, 80, 80), Transparency = 0.65 }, SpinBot = { Enabled = false, Speed = 180 },
+        Extras = { Hitbox = { Enabled = false, Keybind = Enum.KeyCode.Unknown, Size = 5, Color = Color3.fromRGB(255, 80, 80), Transparency = 0.65 }, SpinBot = { Enabled = false, Speed = 180 },
             HipHeight = { Enabled = false, Value = 2 },
             AntiFling = { Enabled = false, Threshold = 350, SnapBack = true } },
         Performance = { NoTextures = false, LowMaterials = false, OptimizeTerrain = false,
@@ -64,7 +64,7 @@ local CONFIG = deepFreeze({
             Favorites = {}, MotionMode = "Full", MotionSpeed = 1,
             ShowFPS = false, ShowPing = false, Watermark = true, AutoRejoin = false,
             Binds = { Fly = Enum.KeyCode.F, Freecam = Enum.KeyCode.Unknown, Fullbright = Enum.KeyCode.Unknown, ESP = Enum.KeyCode.Unknown,
-                Chams = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,
+                Chams = Enum.KeyCode.Unknown, Hitboxes = Enum.KeyCode.Unknown, Aimbot = Enum.KeyCode.Unknown,
                 Menu = Enum.KeyCode.RightShift },
             RestoreOnLaunch = true, StartupProfile = "", AntiAfk = false, TpToMouse = false, Whitelist = {},
         },
@@ -72,6 +72,7 @@ local CONFIG = deepFreeze({
     },
     ALIASES = {
         ["Movement.FlyKeybind"] = "Settings.Binds.Fly", ["Settings.Binds.Fly"] = "Movement.FlyKeybind",
+        ["Extras.Hitbox.Keybind"] = "Settings.Binds.Hitboxes", ["Settings.Binds.Hitboxes"] = "Extras.Hitbox.Keybind",
         ["Settings.MenuKeybind"] = "Settings.Binds.Menu", ["Settings.Binds.Menu"] = "Settings.MenuKeybind",
     },
     GAME_BOOLEAN_FLAGS = {
@@ -287,10 +288,17 @@ return function(eventBus: any, disposer: any): any
         local incomingSettings = if type(snapshot.Settings) == "table" then snapshot.Settings else {}
         local incomingBinds = if type(incomingSettings.Binds) == "table" then incomingSettings.Binds else {}
         local incomingMovement = if type(snapshot.Movement) == "table" then snapshot.Movement else {}
+        local incomingExtras = if type(snapshot.Extras) == "table" then snapshot.Extras else {}
+        local incomingHitbox = if type(incomingExtras.Hitbox) == "table" then incomingExtras.Hitbox else {}
         if incomingMovement.FlyKeybind ~= nil and incomingBinds.Fly == nil then
             normalized.Settings.Binds.Fly = normalized.Movement.FlyKeybind
         else
             normalized.Movement.FlyKeybind = normalized.Settings.Binds.Fly
+        end
+        if incomingHitbox.Keybind ~= nil and incomingBinds.Hitboxes == nil then
+            normalized.Settings.Binds.Hitboxes = normalized.Extras.Hitbox.Keybind
+        else
+            normalized.Extras.Hitbox.Keybind = normalized.Settings.Binds.Hitboxes
         end
         if incomingSettings.MenuKeybind ~= nil and incomingBinds.Menu == nil then
             normalized.Settings.Binds.Menu = normalized.Settings.MenuKeybind

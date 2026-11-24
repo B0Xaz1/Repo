@@ -7,7 +7,8 @@ local CONFIG = table.freeze({
     AUTOSAVE_FILE = "Configs/_autoload.json",
     BACKUP_FILE = "Configs/_backup.json",
     AUTOSAVE_INTERVAL = 1.5,
-    BUILTIN_LABELS = { default = "Default", legit = "Legit", rage = "Rage" },
+    BUILTIN_ORDER = { "default", "closet", "legit", "rage" },
+    BUILTIN_LABELS = { default = "Default", closet = "Closet", legit = "Legit", rage = "Rage" },
 })
 
 return function(services: any): any
@@ -75,24 +76,79 @@ return function(services: any): any
 
     local function buildBuiltin(key: string): any
         local snapshot = state:GetDefaultSettings()
-        if key == "legit" then
-            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness, snapshot.Aimbot.UseCamera = false, 16, true
-            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck = true, true, true
-            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 70, true, 120
-            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.2
-            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, false
-            snapshot.ESP.BoxStyle, snapshot.ESP.MaxDistance, snapshot.Chams.Enabled = "Full", 800, false
-            snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling, snapshot.Movement.InfJump = false, false, false, false
-            snapshot.Extras.Hitbox.Enabled, snapshot.Extras.SpinBot.Enabled = false, false
+        if key == "closet" then
+            -- Stream-proof / replay-safe soft assist: tight invisible FOV, torso targeting, high
+            -- smoothing with subtle micro-shake, break-on-pull, and occluded low-noise ESP.
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.UseCamera = true, true
+            snapshot.Aimbot.LockMode, snapshot.Aimbot.Hitpart = "Hold", "UpperTorso"
+            snapshot.Aimbot.Smoothness, snapshot.Aimbot.ShakeIntensity = 18, 0.12
+            snapshot.Aimbot.StickyAim, snapshot.Aimbot.UnlockOnDeath = false, true
+            snapshot.Aimbot.BreakOnPull, snapshot.Aimbot.MaxLockRadius = true, 65
+            snapshot.Aimbot.Prediction = { Horizontal = 0.04, Vertical = 0.02 }
+            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck = true, true
+            snapshot.Aimbot.FriendCheck, snapshot.Aimbot.WhitelistCheck, snapshot.Aimbot.ForceFieldCheck = true, true, true
+            snapshot.Aimbot.MaxDistance = 450
+            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show = 42, false
+            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.18
+            snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = true, true
+            snapshot.Aimbot.Triggerbot.FriendCheck, snapshot.Aimbot.Triggerbot.WhitelistCheck, snapshot.Aimbot.Triggerbot.ForceFieldCheck = true, true, true
+            snapshot.Aimbot.Triggerbot.MaxDistance = 350
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.BoxStyle = true, true, "Corner"
+            snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool = true, true, false
+            snapshot.ESP.Health, snapshot.ESP.HealthBar, snapshot.ESP.ActivityStatus = false, false, false
+            snapshot.ESP.UseTeamColor, snapshot.ESP.DepthMode, snapshot.ESP.MaxDistance = true, "Occluded", 450
+            snapshot.Chams.Enabled = false
+            snapshot.Extras.AntiFling.Enabled, snapshot.Extras.AntiFling.SnapBack = true, true
+        elseif key == "legit" then
+            -- Natural competitive setup: responsive hold-to-aim tracking with a subtle FOV ring,
+            -- full safety/visibility checks, human-reaction triggerbot settings, and clean info ESP.
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.UseCamera = true, true
+            snapshot.Aimbot.LockMode, snapshot.Aimbot.Hitpart = "Hold", "Head"
+            snapshot.Aimbot.Smoothness, snapshot.Aimbot.ShakeIntensity = 10, 0.08
+            snapshot.Aimbot.StickyAim, snapshot.Aimbot.UnlockOnDeath = true, true
+            snapshot.Aimbot.BreakOnPull, snapshot.Aimbot.MaxLockRadius = true, 120
+            snapshot.Aimbot.Prediction = { Horizontal = 0.06, Vertical = 0.03 }
+            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck = true, true
+            snapshot.Aimbot.FriendCheck, snapshot.Aimbot.WhitelistCheck, snapshot.Aimbot.ForceFieldCheck = true, true, true
+            snapshot.Aimbot.MaxDistance = 900
+            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.FOV.Thickness = 80, true, 1
+            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = false, 0.12
+            snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = true, true
+            snapshot.Aimbot.Triggerbot.FriendCheck, snapshot.Aimbot.Triggerbot.WhitelistCheck, snapshot.Aimbot.Triggerbot.ForceFieldCheck = true, true, true
+            snapshot.Aimbot.Triggerbot.MaxDistance = 750
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.BoxStyle = true, true, "Corner"
+            snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool = true, true, true
+            snapshot.ESP.Health, snapshot.ESP.HealthBar, snapshot.ESP.ActivityStatus = true, false, false
+            snapshot.ESP.UseTeamColor, snapshot.ESP.DepthMode, snapshot.ESP.MaxDistance = true, "AlwaysOnTop", 1200
+            snapshot.Chams.Enabled = false
+            snapshot.Extras.AntiFling.Enabled, snapshot.Extras.AntiFling.SnapBack = true, true
         elseif key == "rage" then
-            snapshot.Aimbot.Enabled, snapshot.Aimbot.Smoothness, snapshot.Aimbot.UseCamera = true, 1.5, true
-            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck, snapshot.Aimbot.FriendCheck, snapshot.Aimbot.WhitelistCheck = false, false, false, false
-            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.MaxLockRadius = 360, true, 800
-            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = true, 0.02
-            snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = false, false
-            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool, snapshot.ESP.Health, snapshot.ESP.HealthBar = true, true, true, true, true, true, false
-            snapshot.ESP.BoxStyle, snapshot.ESP.MaxDistance, snapshot.Chams.Enabled = "Full", 10000, true
-            snapshot.Movement.FlyEnabled, snapshot.Movement.CFrameSpeed, snapshot.Movement.TouchFling = false, false, false
+            -- Maximum combat aggression without Friendly-Fire / spawn-shield waste: instant head
+            -- lock, wide FOV, sticky tracking, zero-delay triggerbot on visible live enemies,
+            -- expanded hitboxes, full wall-penetrating ESP + chams, fullbright, and anti-fling.
+            snapshot.Aimbot.Enabled, snapshot.Aimbot.UseCamera = true, true
+            snapshot.Aimbot.LockMode, snapshot.Aimbot.Hitpart = "Hold", "Head"
+            snapshot.Aimbot.Smoothness, snapshot.Aimbot.ShakeIntensity = 1, 0
+            snapshot.Aimbot.StickyAim, snapshot.Aimbot.UnlockOnDeath = true, false
+            snapshot.Aimbot.BreakOnPull, snapshot.Aimbot.MaxLockRadius = false, 1000
+            snapshot.Aimbot.Prediction = { Horizontal = 0.12, Vertical = 0.08 }
+            snapshot.Aimbot.TeamCheck, snapshot.Aimbot.VisCheck = true, false
+            snapshot.Aimbot.FriendCheck, snapshot.Aimbot.WhitelistCheck, snapshot.Aimbot.ForceFieldCheck = false, true, true
+            snapshot.Aimbot.MaxDistance = 10000
+            snapshot.Aimbot.FOV.Size, snapshot.Aimbot.FOV.Show, snapshot.Aimbot.FOV.Thickness = 500, true, 1
+            snapshot.Aimbot.Triggerbot.Enabled, snapshot.Aimbot.Triggerbot.Delay = true, 0
+            snapshot.Aimbot.Triggerbot.TeamCheck, snapshot.Aimbot.Triggerbot.VisCheck = true, true
+            snapshot.Aimbot.Triggerbot.FriendCheck, snapshot.Aimbot.Triggerbot.WhitelistCheck, snapshot.Aimbot.Triggerbot.ForceFieldCheck = false, true, true
+            snapshot.Aimbot.Triggerbot.MaxDistance = 5000
+            snapshot.ESP.Enabled, snapshot.ESP.Box, snapshot.ESP.BoxStyle = true, true, "Full"
+            snapshot.ESP.Name, snapshot.ESP.Distance, snapshot.ESP.Tool = true, true, true
+            snapshot.ESP.Health, snapshot.ESP.HealthBar, snapshot.ESP.ActivityStatus = true, true, true
+            snapshot.ESP.UseTeamColor, snapshot.ESP.DepthMode, snapshot.ESP.MaxDistance = true, "AlwaysOnTop", 10000
+            snapshot.Chams.Enabled = true
+            snapshot.Visuals.Fullbright = true
+            snapshot.Movement.InfJump = true
+            snapshot.Extras.Hitbox.Enabled, snapshot.Extras.Hitbox.Size, snapshot.Extras.Hitbox.Transparency = true, 10, 0.75
+            snapshot.Extras.AntiFling.Enabled, snapshot.Extras.AntiFling.SnapBack = true, true
         end
         return snapshot
     end
@@ -133,10 +189,15 @@ return function(services: any): any
         local key = builtinKey(name)
         if key then
             local snapshot = buildBuiltin(key)
-            -- A builtin preset only changes gameplay settings; the user's UI settings and theme are kept
+            -- A builtin preset only changes gameplay settings; the user's UI settings, hotkeys,
+            -- whitelist, and theme are kept so loading a combat preset never wipes personal binds.
             if key ~= "default" then
                 local current = state:GetSettingsSnapshot()
                 snapshot.Settings, snapshot.Theme = current.Settings, current.Theme
+                snapshot.Aimbot.Keybind = current.Aimbot.Keybind
+                snapshot.Aimbot.Triggerbot.Keybind = current.Aimbot.Triggerbot.Keybind
+                snapshot.Movement.FlyKeybind = current.Movement.FlyKeybind
+                snapshot.Extras.Hitbox.Keybind = current.Extras.Hitbox.Keybind
             end
             hydrate(snapshot, `Loading {CONFIG.BUILTIN_LABELS[key]}`); setActiveProfile(CONFIG.BUILTIN_LABELS[key])
             self:PersistLoadedProfile()
@@ -199,7 +260,11 @@ return function(services: any): any
     end
 
     function ConfigService:ListProfiles(): { string }
-        local names, seen = { "Default", "Legit", "Rage" }, { default = true, legit = true, rage = true }
+        local names, seen = {}, {}
+        for _, key in ipairs(CONFIG.BUILTIN_ORDER) do
+            table.insert(names, CONFIG.BUILTIN_LABELS[key])
+            seen[key] = true
+        end
         local extras = {}
         for _, file in ipairs(environment:ListFiles("Configs")) do
             local name = file:match("([^/]+)%.json$")

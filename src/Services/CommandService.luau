@@ -58,9 +58,12 @@ return function(services: any): any
     end
 
     function CommandService:GetCommandList(): { any }
-        local list = {}
+        local list, seen = {}, {}
         for _, entry in pairs(self._commands) do
-            if entry and entry.Name then table.insert(list, { Name = entry.Name, Category = entry.Category, Description = entry.Description, Usage = entry.Usage }) end
+            if entry and entry.Name and not seen[entry] then
+                seen[entry] = true
+                table.insert(list, { Name = entry.Name, Category = entry.Category, Description = entry.Description, Usage = entry.Usage })
+            end
         end
         table.sort(list, function(a: any, b: any)
             if a.Category ~= b.Category then return a.Category < b.Category end
@@ -199,6 +202,14 @@ return function(services: any): any
             local ok, message = state:Set("ESP.Enabled", desired)
             return ok, if ok then if desired then "ESP enabled" else "ESP disabled" else message or "ESP toggle failed"
         end)
+
+        self:Register("hitboxes", "Utility", "Toggle hitbox expansion.", "/hitboxes [on|off]", function(_raw: string, args: { string }, _source: string)
+            local enabled = state:Get("Extras.Hitbox.Enabled") == true
+            local desired = parseOnOff(args, enabled)
+            local ok, message = state:Set("Extras.Hitbox.Enabled", desired)
+            return ok, if ok then if desired then "Hitbox expansion enabled" else "Hitbox expansion disabled" else message or "Hitbox toggle failed"
+        end)
+        self:Alias("hitboxes", "hitbox")
 
         self:Register("menu", "Utility", "Toggle the B0Xaz menu.", "/menu [on|off]", function(_raw: string, args: { string }, _source: string)
             local visible = state:Get("Settings.MenuVisible") ~= false

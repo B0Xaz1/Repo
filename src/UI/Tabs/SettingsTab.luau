@@ -21,6 +21,7 @@ return function(services: any, tab: any): any
     textbox:CreateButton(profiles, "Overwrite selected profile", function() return config:Save(selected:Get() or "Default") end)
     textbox:CreateButton(profiles, "Delete selected profile", function() return config:Delete(selected:Get() or "Default") end)
     textbox:CreateButton(profiles, "Load Default preset", function() return config:Load("Default") end)
+    textbox:CreateButton(profiles, "Load Closet preset", function() return config:Load("Closet") end)
     textbox:CreateButton(profiles, "Load Legit preset", function() return config:Load("Legit") end)
     textbox:CreateButton(profiles, "Load Rage preset", function() return config:Load("Rage") end)
     textbox:CreateButton(profiles, "Create validated backup", function() return config:Backup() end)

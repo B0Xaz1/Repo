@@ -66,8 +66,10 @@ return function(services: any): any
         end)
         job.Enabled = state:Peek("Aimbot.Triggerbot.Enabled") == true
         scope:ConnectImmediate(UIS.InputBegan, function(event: InputObject, processed: boolean)
-            if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
-            if environment:MatchesInput(event, state:Peek("Aimbot.Triggerbot.Keybind")) then
+            if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
+            local configured = state:Peek("Aimbot.Triggerbot.Keybind")
+            if processed and not environment:AllowsProcessedInput(configured) then return end
+            if environment:MatchesInput(event, configured) then
                 state:Set("Aimbot.Triggerbot.Enabled", state:Peek("Aimbot.Triggerbot.Enabled") ~= true)
             end
         end)

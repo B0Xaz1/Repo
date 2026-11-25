@@ -295,11 +295,14 @@ return function(eventBus: any, disposer: any): any
         else
             normalized.Movement.FlyKeybind = normalized.Settings.Binds.Fly
         end
-        if incomingHitbox.Keybind ~= nil and incomingBinds.Hitboxes == nil then
-            normalized.Settings.Binds.Hitboxes = normalized.Extras.Hitbox.Keybind
-        else
-            normalized.Extras.Hitbox.Keybind = normalized.Settings.Binds.Hitboxes
-        end
+        -- Prefer whichever side holds a concrete binding so profiles saved before the alias existed
+        -- (or with one side left Unknown) cannot silently drop the user's Hitboxes hotkey.
+        local hitboxesBind = normalized.Settings.Binds.Hitboxes
+        local hitboxAlias = normalized.Extras.Hitbox.Keybind
+        local bindIsConcrete = incomingBinds.Hitboxes ~= nil and hitboxesBind ~= Enum.KeyCode.Unknown
+        local aliasIsConcrete = incomingHitbox.Keybind ~= nil and hitboxAlias ~= Enum.KeyCode.Unknown
+        if not bindIsConcrete and aliasIsConcrete then normalized.Settings.Binds.Hitboxes = hitboxAlias end
+        normalized.Extras.Hitbox.Keybind = normalized.Settings.Binds.Hitboxes
         if incomingSettings.MenuKeybind ~= nil and incomingBinds.Menu == nil then
             normalized.Settings.Binds.Menu = normalized.Settings.MenuKeybind
         else

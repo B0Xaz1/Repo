@@ -2,7 +2,7 @@ local Players = game:GetService("Players")
 local CONFIG = table.freeze({
     -- A full Git object id makes the download immutable. The loader intentionally
     -- does not follow a mutable branch such as main.
-    DEFAULT_REF = "f56ef0d70a68cf09bc749a28036f1ac03aa23639",
+    DEFAULT_REF = "d00b3514d4bcc0e92a47c819c1b7d3ee7e79980b",
     BASE_URL = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
     READINESS_TIMEOUT = 60,
     READINESS_POLL = 0.1,

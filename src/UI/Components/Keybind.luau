@@ -2,6 +2,18 @@ local UIS = game:GetService("UserInputService")
 
 local CONFIG = table.freeze({
     CAPTURE_SETTLE_DELAY = 0.05,
+    IGNORED_INPUT_TYPES = {
+        -- The left button drives the interface itself, so it can never become a feature binding.
+        [Enum.UserInputType.MouseButton1] = true,
+        [Enum.UserInputType.MouseMovement] = true,
+        [Enum.UserInputType.MouseWheel] = true,
+        [Enum.UserInputType.Touch] = true,
+        [Enum.UserInputType.Focus] = true,
+        [Enum.UserInputType.TextInput] = true,
+        [Enum.UserInputType.Gyro] = true,
+        [Enum.UserInputType.Accelerometer] = true,
+        [Enum.UserInputType.None] = true,
+    },
 })
 
 return function(services: any): any
@@ -30,11 +42,11 @@ return function(services: any): any
         scope:Delay(CONFIG.CAPTURE_SETTLE_DELAY, function() if not Keybind._active then state:SetTransient("IsBindingKey", false) end end)
     end
 
-    scope:Connect(UIS.InputBegan, function(event: InputObject)
+    scope:ConnectImmediate(UIS.InputBegan, function(event: InputObject)
         if not Keybind._active then return end
         local value = if event.KeyCode ~= Enum.KeyCode.Unknown then event.KeyCode else event.UserInputType
         if value == Enum.KeyCode.Escape then finishCapture(Enum.KeyCode.Unknown); return end
-        if value == Enum.UserInputType.MouseMovement or value == Enum.UserInputType.Touch then return end
+        if CONFIG.IGNORED_INPUT_TYPES[value] then return end
         finishCapture(environment:ParseKeybind(value))
     end)
 

@@ -258,7 +258,16 @@ return function(disposer: any): any
 
     function Environment:MatchesInput(event: InputObject, value: any): boolean
         local item = self:ParseKeybind(value)
-        return item ~= nil and item ~= Enum.KeyCode.Unknown and (event.KeyCode == item or event.UserInputType == item)
+        return item ~= nil and item ~= Enum.KeyCode.Unknown and item ~= Enum.UserInputType.None
+            and (event.KeyCode == item or event.UserInputType == item)
+    end
+
+    -- Roblox's camera module consumes right-click and middle-click inside UserInputService, so a
+    -- mouse-button bind reaches InputBegan already flagged as processed. Keyboard binds stay strict
+    -- so chat, the Roblox menu, and other core UI still swallow them.
+    function Environment:AllowsProcessedInput(value: any): boolean
+        local item = self:ParseKeybind(value)
+        return item == Enum.UserInputType.MouseButton2 or item == Enum.UserInputType.MouseButton3
     end
 
     function Environment:GetGuiInset(): Vector2

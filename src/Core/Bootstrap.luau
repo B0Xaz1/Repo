@@ -26,11 +26,15 @@ return function(context: any)
     local lastInputCheck = 0
     local inputCheckInterval = 0.05
     master:Connect(UIS.InputBegan, function(input: InputObject, processed: boolean)
-        local now = os.clock()
-        if processed or now - lastInputCheck < inputCheckInterval then return end
-        lastInputCheck = now
         if state:GetTransient("IsBindingKey") or UIS:GetFocusedTextBox() then return end
-        if environment:MatchesInput(input, state:Get("Settings.UnloadKeybind")) then globals.B0XazUnload() end
+        local configured = state:Get("Settings.UnloadKeybind")
+        -- Mouse-button bindings arrive processed because Roblox camera controls consume them;
+        -- keyboard bindings stay strict so chat and the Roblox menu can swallow them.
+        if (processed and not environment:AllowsProcessedInput(configured)) or not environment:MatchesInput(input, configured) then return end
+        local now = os.clock()
+        if now - lastInputCheck < inputCheckInterval then return end
+        lastInputCheck = now
+        globals.B0XazUnload()
     end)
 
     -- Full always initializes the complete universal, command, and adapter surface.

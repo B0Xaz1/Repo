@@ -11,7 +11,7 @@ local CONFIG = table.freeze({
     SERVER_LIST_URL = "https://games.roblox.com/v1/games/",
     SERVER_LIST_LIMIT = 100,
     LOADER_REPOSITORY = "https://raw.githubusercontent.com/B0Xaz1/Repo/",
-    DEFAULT_REF = "94f3b32b3181a8251aafbeca9092e912efbef2f3",
+    DEFAULT_REF = "d00b3514d4bcc0e92a47c819c1b7d3ee7e79980b",
     BIND_TARGETS = {
         { Key = "Fly", Label = "Flight", Path = "Movement.FlyEnabled" }, { Key = "Freecam", Label = "Freecam", Path = "Movement.FreecamEnabled" },
         { Key = "Fullbright", Label = "Fullbright", Path = "Visuals.Fullbright" },
@@ -144,11 +144,21 @@ return function(services: any): any
     function HotkeyService:Initialize()
         if self._initialized then return end
         self._initialized = true
-        scope:Connect(UIS.InputBegan, function(event: InputObject, processed: boolean)
-            if processed or UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
+        scope:ConnectImmediate(UIS.InputBegan, function(event: InputObject, processed: boolean)
+            if UIS:GetFocusedTextBox() or state:GetTransient("IsBindingKey") then return end
+            -- The Roblox menu swallows gameplay input entirely, so it must never toggle features.
+            local menuOpen = false
+            pcall(function() menuOpen = GuiService.MenuIsOpen end)
+            if menuOpen then return end
             for _, entry in ipairs(CONFIG.BIND_TARGETS) do
-                if environment:MatchesInput(event, state:Get(`Settings.Binds.{entry.Key}`)) then
-                    state:Set(entry.Path, not state:Get(entry.Path))
+                local configured = environment:ParseKeybind(state:Peek(`Settings.Binds.{entry.Key}`))
+                -- Mouse-button binds arrive marked processed because the Roblox camera consumes
+                -- them, so that gate is skipped only for the binding that is a mouse button.
+                local usable = not processed or environment:AllowsProcessedInput(configured)
+                if usable and environment:MatchesInput(event, configured) then
+                    local ok, message = state:Set(entry.Path, state:Peek(entry.Path) ~= true)
+                    -- Surfacing a rejected write explains a hotkey that appears to do nothing.
+                    if not ok then bus:Publish("Notify", `{entry.Label} hotkey`, tostring(message)) end
                 end
             end
         end)
